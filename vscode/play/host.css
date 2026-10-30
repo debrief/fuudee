@@ -303,3 +303,7 @@ dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background
 #tour button.tour-next:hover { background: color-mix(in srgb, var(--debrief-guide-accent) 88%, var(--vscode-editor-foreground)); }
 #tour button.tour-next:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 #tour button.tour-skip, #tour button.tour-again { padding: 0; margin: 0; text-align: left; white-space: normal; color: var(--debrief-guide-accent); text-decoration: underline; text-underline-offset: 2px; }
+/* Bearings popped out (product owner, 28 Oct 2026): the panel says where it went, as VS Code's placeholder does. */
+.bearings-away { padding: 8px 2px; }
+.bearings-away p { margin: 0 0 10px; }
+.bearings-away .actions { display: flex; gap: 8px; flex-wrap: wrap; }

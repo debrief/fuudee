@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AmbiguityResolution } from "@debrief/schemas";
 import { BearingsView, type BearingsAct, type BearingsSurface, type BearingsWhere } from "../../src/panels/bearingsview.js";
 import { placeholderHtml } from "../../src/panels/bearingsplaceholder.js";
+import { poppedOutSaid } from "../../webview/bearingspopout.js";
 import { Session } from "../../src/session.js";
 
 // Bearings popped out (product owner, 28 Oct 2026): one controller drives either surface, the
@@ -185,5 +186,11 @@ describe("the panel's placeholder while popped out", () => {
     expect(html).toContain("Focus that window");
     expect(html).not.toMatch(/<script/);
     expect(placeholderHtml(false)).toContain("Bearings is open in an editor tab of its own.");
+  });
+
+  it("says it in the playground's words too: one set for both hosts", () => {
+    const said = poppedOutSaid(true);
+    const html = placeholderHtml(true);
+    for (const text of [said.status, said.bringBack.label, said.bringBack.title, said.focus.label, said.focus.title]) expect(html).toContain(text);
   });
 });

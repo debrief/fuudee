@@ -27,7 +27,7 @@
  * layout every time, with every panel open, and remembers neither, so a post's demo always shows
  * what the post describes.
  */
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaView, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
@@ -43,6 +43,7 @@ import type { SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { TmaControl } from "../webview/tmacontrol.js";
+import { poppedOutSaid } from "../webview/bearingspopout.js";
 import { coverageOf, cutColours, cutRowsOf, FocusOnce, legExtent, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
 import { latencySummary, sameTote, toteMenu, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
@@ -577,7 +578,7 @@ const fromMap = receiveMap(
     resolve: (cut, keep) => void resolveSensor({ keep, cut_ids: [cut] }),
     cutChosen: (cut) => void cutMenu(cut),
     // A TMA solution dragged: the bearing view works its residuals out again as it moves (CAP-21, NFR-04).
-    tmaPreview: (id, preview) => tmaControl.preview(id, preview?.coordinates as [number, number][] | undefined),
+    tmaPreview: (id, preview) => bearingsView.preview(id, preview),
     // Two clicks for a first guess made, or cancelled.
     tmaGuessed: (request) => {
       const asked = tmaGuessing;
@@ -2039,7 +2040,13 @@ $("bearings").addEventListener("pointerdown", (e) => void (bearingsPointer = { x
 // Bearings' messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13).
 const fromBearings = receiveBearings(
   {
-    ready: () => undefined,
+    // The popped-out window's page loaded: shown what Bearings shows, its title bar added.
+    ready: () => {
+      if (!bearingsWindow || bearingsWindow.closed) return;
+      bearingsWindowReady = true;
+      bearingsWindowTitle();
+      void refreshBearings();
+    },
     create: (request) => void createTma(request),
     guess: (request) => {
       tmaGuessing = request;
@@ -2059,7 +2066,10 @@ const fromBearings = receiveBearings(
       const i = s ? s.times.indexOf(Date.parse(at)) : -1;
       const key = i >= 0 ? fixKey(id, i) : id;
       const choose = { label: i >= 0 ? "Select this position" : "Select this cut", act: () => selectFromBearings(id, at) };
-      outlineRowMenu(key, bearingsPointer.x, bearingsPointer.y, $("bearings").querySelector<HTMLElement>(".tma-canvas") ?? undefined, choose, [key]);
+      // Popped out, the menu opens here, over the panel's placeholder: the Outline's menu is this page's.
+      if (bearingsWindow) window.focus();
+      const away = bearingsWindow ? $("bearings-away").getBoundingClientRect() : undefined;
+      outlineRowMenu(key, away ? away.left + 16 : bearingsPointer.x, away ? away.top + 16 : bearingsPointer.y, (bearingsWindow ? $("bearings-away") : $("bearings").querySelector<HTMLElement>(".tma-canvas")) ?? undefined, choose, [key]);
     },
     cutOff: (degrees) => {
       errorCutOff = degrees;
@@ -2071,7 +2081,7 @@ const fromBearings = receiveBearings(
   checkMessage,
   refused,
 );
-const tmaControl = new TmaControl(
+const makeTmaControl = () => new TmaControl(
   $("bearings"),
   bearingsEvents(local(fromBearings)),
   undefined,
@@ -2093,11 +2103,150 @@ const tmaControl = new TmaControl(
     },
   },
 );
+let tmaControl = makeTmaControl();
 (window as unknown as { debriefTma: TmaControl; debriefTmaCompute: number[] }).debriefTma = tmaControl;
 bearingsTime = () => {
-  if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+  bearingsView.setTime();
 };
 (window as unknown as { debriefTmaCompute: number[] }).debriefTmaCompute = tmaCompute;
+
+// --- Bearings popped out (product owner, 28 Oct 2026): a window of its own, as in VS Code --------
+// The same page as VS Code's popped-out Bearings (webview/bearings.ts, frame-bearings.html), its
+// messages through the same receiver. One live at a time: popped out, the panel's Bearings is put
+// away and the panel says where it went (webview/bearingspopout.ts); brought back, it is made
+// afresh, as VS Code's page loads afresh, with the panes the window showed.
+let bearingsWindow: Window | undefined;
+let bearingsWindowReady = false;
+/** What the window was last shown, for the column's width and the Tools. */
+let bearingsWindowShown: TmaView | undefined;
+const toBearingsWindow = (message: Record<string, unknown>) => {
+  if (bearingsWindow && bearingsWindowReady && !bearingsWindow.closed) bearingsWindow.postMessage(message, location.origin);
+};
+/** Bearings where it is live: the window while popped out, else the panel. */
+const bearingsView = {
+  show(view: TmaView | undefined): void {
+    if (!bearingsWindow) return tmaControl.show(view);
+    bearingsWindowShown = view;
+    toBearingsWindow({ kind: "show_tma", ...(view && { tma: view }) });
+  },
+  /** While Python starts: the panel says so; the window shows nothing until it is ready. */
+  waiting(text: string): void {
+    if (!bearingsWindow) return tmaControl.waiting(text);
+    this.show(undefined);
+  },
+  setTime(): void {
+    if (!time) return;
+    if (!bearingsWindow) return tmaControl.setTime(Date.parse(time.current), time.range);
+    toBearingsWindow({ kind: "set_time", time });
+  },
+  preview(id: string, preview: { coordinates?: unknown } | undefined): void {
+    if (!bearingsWindow) return tmaControl.preview(id, preview?.coordinates as [number, number][] | undefined);
+    toBearingsWindow({ kind: "tma_preview", feature_id: id, ...(preview && { preview }) });
+  },
+  made(problem: string | undefined): void {
+    if (!bearingsWindow) return tmaControl.made(problem);
+    toBearingsWindow({ kind: "tma_made", ...(problem && { message: problem }) });
+  },
+  get shown(): TmaView | undefined {
+    return bearingsWindow ? bearingsWindowShown : tmaControl.shown;
+  },
+};
+FRAMES.bearings = (raw) => (bearingsWindow ? fromBearings(raw) : Promise.resolve());
+
+/** Pop out: Bearings opened in a window of its own; popped out already, that window to the front. */
+function popOutBearings(): void {
+  if (bearingsWindow && !bearingsWindow.closed) return void bearingsWindow.focus();
+  const opened = window.open(`frame-bearings.html?frame=bearings&theme=${theme}`, "debrief-bearings", "popup,width=960,height=640");
+  if (!opened) return toast("The browser blocked the new window. Allow pop-ups for this page, then try again.", "warning");
+  bearingsWindow = opened;
+  bearingsWindowReady = false;
+  bearingsWindowShown = undefined;
+  showPanel("panel-bearings");
+  renderBearingsPlace();
+  bearingsWidth();
+  // Closed by the reader (its close box): Bearings back in the panel, as closing VS Code's tab brings it back.
+  const watch = setInterval(() => {
+    if (!opened.closed) return;
+    clearInterval(watch);
+    if (bearingsWindow === opened) bringBackBearings();
+  }, 400);
+}
+/** Bring back: the window closed, Bearings in the panel again, made afresh. */
+function bringBackBearings(): void {
+  const away = bearingsWindow;
+  if (!away) return;
+  bearingsWindow = undefined;
+  bearingsWindowReady = false;
+  bearingsWindowShown = undefined;
+  if (!away.closed) away.close();
+  $("bearings").replaceChildren();
+  tmaControl = makeTmaControl();
+  (window as unknown as { debriefTma: TmaControl }).debriefTma = tmaControl;
+  renderBearingsPlace();
+  showPanel("panel-bearings");
+  void refreshBearings();
+}
+// The playground closed or reloaded: its popped-out Bearings with it, as VS Code's goes with its window.
+window.addEventListener("pagehide", () => bearingsWindow?.close());
+
+/** Bearings' title bar (the action catalogue's: Pop out, or Bring back), and the panel's placeholder while popped out. */
+function renderBearingsPlace(): void {
+  const { context, reasons } = playContext();
+  $("bearings-actions").replaceChildren(
+    ...titleMenu("debrief.bearings", context, reasons)
+      .filter((e) => e.group === "navigation")
+      .map((entry) => {
+        const button = Object.assign(document.createElement("button"), { type: "button", id: `bearings-${entry.id.replace(/^debrief\./, "")}`, className: "history-action", textContent: actionOf(entry.id).shortTitle ?? entry.title, title: entry.title });
+        button.onclick = () => void runAction(entry.id);
+        return button;
+      }),
+  );
+  $("bearings").hidden = !!bearingsWindow;
+  const away = $("bearings-away");
+  away.hidden = !bearingsWindow;
+  if (!bearingsWindow) return away.replaceChildren();
+  const said = poppedOutSaid(true);
+  const status = Object.assign(document.createElement("p"), { textContent: said.status });
+  status.setAttribute("role", "status");
+  const back = Object.assign(document.createElement("button"), { type: "button", className: "primary", textContent: said.bringBack.label, title: said.bringBack.title });
+  back.onclick = () => bringBackBearings();
+  const focus = Object.assign(document.createElement("button"), { type: "button", textContent: said.focus.label, title: said.focus.title });
+  focus.onclick = () => bearingsWindow?.focus();
+  const actions = Object.assign(document.createElement("p"), { className: "actions" });
+  actions.append(back, focus);
+  away.replaceChildren(status, actions);
+}
+
+/** The window's title bar, as VS Code's editor title bar has it there (Bring back): the action catalogue's editor entries. */
+function bearingsWindowTitle(): void {
+  const doc = bearingsWindow?.document;
+  if (!doc) return;
+  const { context, reasons } = playContext();
+  const entries = editorMenu({ ...context, activeWebviewPanelId: "debrief.bearingsWindow" }, reasons).filter((e) => e.group === "navigation");
+  let bar = doc.getElementById("bearings-window-title");
+  if (!bar) {
+    bar = doc.createElement("div");
+    bar.id = "bearings-window-title";
+    bar.className = "window-title";
+    bar.setAttribute("role", "toolbar");
+    bar.setAttribute("aria-label", "Bearings");
+    const style = doc.createElement("style");
+    style.textContent = ".window-title { display: flex; justify-content: flex-end; gap: 4px; padding: 2px 6px; border-bottom: 1px solid var(--vscode-panel-border); }";
+    doc.head.append(style);
+    doc.body.prepend(bar);
+  }
+  bar.replaceChildren(
+    ...entries.map((entry) => {
+      const button = doc.createElement("button");
+      button.type = "button";
+      button.id = `bearings-window-${entry.id.replace(/^debrief\./, "")}`;
+      button.textContent = actionOf(entry.id).shortTitle ?? entry.title;
+      button.title = entry.title;
+      button.onclick = () => void runAction(entry.id);
+      return button;
+    }),
+  );
+}
 /** What is selected, and current time: for the tests (a dot clicked in the Bearings view selects its cut or fix). */
 (window as unknown as { debriefSelection: () => unknown }).debriefSelection = () => ({ selection, picks: outlinePicks, current: time?.current });
 
@@ -2110,7 +2259,7 @@ async function refreshBearings(): Promise<void> {
   // Something no longer in the plot (undone, deleted): nothing shown.
   if (tmaShown && ("solution" in tmaShown ? !index.solutions.has(tmaShown.solution) : !index.sensors.has(tmaShown.sensor))) tmaShown = undefined;
   // Chosen while Python starts (product owner, 29 Oct 2026): said so, busy; asked again once it is ready.
-  if (!pythonReady && tmaShown) return tmaControl.waiting(`${bearingsTitle(index, tmaShown)}: starting Python in your browser. Its bearings show here once it is ready.`);
+  if (!pythonReady && tmaShown) return bearingsView.waiting(`${bearingsTitle(index, tmaShown)}: starting Python in your browser. Its bearings show here once it is ready.`);
   const sensors = tmaSensorRows(plot);
   const solutions = tmaSolutionRows(plot);
   const solution = shownSolution();
@@ -2135,7 +2284,7 @@ async function refreshBearings(): Promise<void> {
     around = { coverage, ownship: ownshipOf(plot, solution, times.length ? { start: times[0], end: times[times.length - 1] } : undefined) };
   } else if (sensor) around = { ownship: ownshipOf(plot, sensor.id) };
   const focus = tmaFocus.take();
-  tmaControl.show({
+  bearingsView.show({
     plot_id: opened.item.id,
     ...(opened.revision && { read_only: true }),
     title: bearingsTitle(index, tmaShown),
@@ -2148,7 +2297,7 @@ async function refreshBearings(): Promise<void> {
     ...(errorCutOff !== undefined && Number.isFinite(errorCutOff) && { error_cut_off: errorCutOff }),
     ...(focus && { focus }),
   });
-  if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+  bearingsView.setTime();
   bearingsWidth();
 }
 /**
@@ -2157,8 +2306,9 @@ async function refreshBearings(): Promise<void> {
  */
 function bearingsWidth(): void {
   requestAnimationFrame(() => {
-    const shown = tmaControl.shown;
-    if (dock?.widenFor("panel-bearings", !!shown?.solution_id && !!shown.residuals)) placeSoon();
+    const shown = bearingsView.shown;
+    // Popped out, the panel holds only its placeholder: the column back to its width.
+    if (dock?.widenFor("panel-bearings", !bearingsWindow && !!shown?.solution_id && !!shown.residuals)) placeSoon();
   });
 }
 /**
@@ -2231,7 +2381,7 @@ async function changeTma(change: Record<string, unknown>): Promise<{ error?: str
 }
 async function createTma(request: TmaRequest): Promise<void> {
   const outcome = await changeTma({ kind: "create", request });
-  tmaControl.made(outcome.error);
+  bearingsView.made(outcome.error);
   if (!outcome.error) showPanel("panel-bearings");
 }
 // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ---------------
@@ -2329,6 +2479,7 @@ function playContext(keys: readonly string[] = outlinePicks): { context: Context
     "debrief.toteCanAdd": tote.canAdd,
     "debrief.toteCanRemove": tote.canRemove,
     "debrief.toteCanSetPrimary": !tote.primaryReason,
+    "debrief.bearingsPoppedOut": !!bearingsWindow,
   };
   return { context, reasons };
 }
@@ -2376,6 +2527,9 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   "debrief.currentCut": (keys) => currentCutMenu(keys[0]),
   "debrief.setArrayOffset": (keys) => arrayOffsetForm(keys[0]),
   "debrief.showBearings": () => showPanel("panel-bearings"),
+  "debrief.popOutBearings": () => popOutBearings(),
+  "debrief.bringBackBearings": () => bringBackBearings(),
+  "debrief.focusBearingsWindow": () => bearingsWindow?.focus(),
   "debrief.tmaSplitLeg": async (keys) => {
     if (!time) return toast("Set current time first: the solution is split into legs there.", "warning");
     const outcome = await changeTma({ kind: "split", feature: keys[0], at: time.current });
@@ -3162,6 +3316,7 @@ function needsPlot(): void {
 needsPython(false);
 $("export-image").onclick = () => void exportImage(exportHost);
 renderCatalogues(); // reading the catalogues, until Python is ready
+if (optional("bearings-actions")) renderBearingsPlace(); // Pop out, on Bearings' title bar
 renderHistory(); // Undo and Redo disabled, saying why, until Python is ready and there is a step to take back
 
 // --- The layout (product owner, 23 Oct 2026) ---------------------------------------

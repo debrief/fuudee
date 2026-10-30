@@ -23,7 +23,7 @@ import { playNarrative, playNarrativeAtScale, vscodeTimelineView } from "./narra
 import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playSensors } from "./sensors.mjs";
-import { playSelectBearings, playTma } from "./tma.mjs";
+import { playBearingsPopOut, playSelectBearings, playTma } from "./tma.mjs";
 import { playOutlineBar } from "./outlinebar.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
@@ -424,6 +424,8 @@ try {
     // Select bearings and the Course/Speed pane on serial 1, before any solution (product owner, 28 Oct 2026):
     // a box keeping the towed array's right-hand run, one step, the zoom kept; ownship's course and speed, then the target's.
     await playSelectBearings(page, shot);
+    // Bearings popped out into a window of its own and brought back, linked as the panel's is (product owner, 28 Oct 2026).
+    await playBearingsPopOut(page, shot);
     // Collation: new data marked and taken, a period's source chosen, a proposal refused, an item
     // revised and the plot flagged for review until reviewed; narrow and in a wide font (CAP-08 to CAP-12).
     await playCollation(page, shot);

@@ -3,12 +3,13 @@
  * 28 Oct 2026): a line saying where it is, and Bring back and Focus that window as links to the
  * two commands, with no script. Apart from bearingshost.ts, so the unit tests can read it.
  */
+import { poppedOutSaid } from "../../webview/bearingspopout.js";
+
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 /** The panel's placeholder while Bearings is popped out: what to do, as links to the two commands. */
 export function placeholderHtml(inWindow: boolean): string {
-  const where = inWindow ? "its own window" : "an editor tab of its own";
-  const focus = inWindow ? "Focus that window" : "Show that tab";
+  const said = poppedOutSaid(inWindow);
   const csp = ["default-src 'none'", "style-src 'unsafe-inline'"].join("; ");
   return `<!doctype html>
 <html lang="en-GB">
@@ -29,10 +30,10 @@ a.button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-o
 </style>
 </head>
 <body>
-<p role="status">${escapeHtml(`Bearings is open in ${where}.`)}</p>
+<p role="status">${escapeHtml(said.status)}</p>
 <p class="actions">
-<a class="button" role="button" href="command:debrief.bringBackBearings" title="Close the popped-out Bearings and show it here again">Bring back</a>
-<a class="button secondary" role="button" href="command:debrief.focusBearingsWindow" title="Bring the popped-out Bearings to the front">${escapeHtml(focus)}</a>
+<a class="button" role="button" href="command:debrief.bringBackBearings" title="${escapeHtml(said.bringBack.title)}">${escapeHtml(said.bringBack.label)}</a>
+<a class="button secondary" role="button" href="command:debrief.focusBearingsWindow" title="${escapeHtml(said.focus.title)}">${escapeHtml(said.focus.label)}</a>
 </p>
 </body>
 </html>`;

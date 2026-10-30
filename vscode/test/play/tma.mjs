@@ -1309,3 +1309,59 @@ export async function playSelectBearings(page, shot) {
   if (rearranged) await everyPanelLeft(page);
   console.log(`Select bearings on serial 1: "${named}", then "${unresolved}", then "${mixed}", one step each, the zoom kept; Course/Speed: BLUE ONE ${cLo.toFixed(1)}° to ${cHi.toFixed(1)}°, speeds to ${s.course.series[0].speeds[1].toFixed(1)}; then BLUE ONE and ${s.course.series[1].name}.`);
 }
+
+/**
+ * Bearings popped out (product owner, 28 Oct 2026), as VS Code's can be: Pop out on its title bar
+ * opens it in a window of its own, the same page as VS Code's, linked as the panel's is; the panel
+ * says where it went, with Bring back and Focus that window. A dot clicked there selects its cut
+ * here and moves current time. Bring back, from either, or closing the window, puts it back in the
+ * panel with the panes it had. Run after playSelectBearings: a solution shown, the Course/Speed pane on.
+ */
+export async function playBearingsPopOut(page, shot) {
+  await showPanel(page, "bearings");
+  const solution = await page.evaluate(() => window.debriefTma.shown?.solution_id);
+  assert.ok(solution, "a solution shown in Bearings");
+  const popOut = page.locator("#bearings-popOutBearings");
+  assert.equal(await popOut.innerText(), "Pop out");
+  assert.equal(await popOut.getAttribute("title"), "Pop out Bearings into a new window");
+  const [popup] = await Promise.all([page.waitForEvent("popup"), popOut.click()]);
+  await popup.waitForFunction((id) => window.debriefTma?.shown?.solution_id === id && !!window.debriefTma.residuals, solution, { timeout: 30000 });
+  assert.equal(await popup.title(), "Bearings · Debrief");
+  // The panes it had in the panel: Course/Speed still on.
+  assert.ok(await popup.evaluate(() => !!window.debriefTma.plotState.course), "the panes follow it into the window");
+  // The panel: put away, saying where it went; its title bar Bring back.
+  const away = page.locator("#bearings-away");
+  await away.waitFor();
+  assert.equal(await away.getByRole("status").innerText(), "Bearings is open in its own window.");
+  assert.equal(await page.locator("#bearings").isVisible(), false);
+  assert.equal(await page.locator("#bearings-bringBackBearings").innerText(), "Bring back");
+  assert.equal(await page.locator("#bearings-popOutBearings").count(), 0);
+  // The window's own title bar has Bring back, as VS Code's editor title bar has it there.
+  assert.equal(await popup.locator("#bearings-window-bringBackBearings").innerText(), "Bring back");
+
+  // Linked: a dot clicked in the window selects its cut here and moves current time to it.
+  const row = await popup.evaluate(() => window.debriefTma.residuals.rows[Math.floor(window.debriefTma.residuals.rows.length / 2)]);
+  const dot = await popup.evaluate(([id]) => window.debriefTma.pointOf(id, "error"), [row.id]);
+  const canvas = await popup.locator(".tma-canvas").boundingBox();
+  await popup.mouse.click(canvas.x + dot.x, canvas.y + dot.y);
+  await page.waitForFunction((t) => window.debriefSelection().current === t, row.time, { timeout: 10000 });
+  assert.ok((await page.evaluate(() => window.debriefSelection().selection)).includes(row.id), "its cut selected");
+  await shot("bearings-popped-out-panel");
+  await shot("bearings-popped-out-window", popup);
+
+  // Bring back from the window's title bar: the window closed, Bearings in the panel, the panes as they were.
+  await Promise.all([popup.waitForEvent("close"), popup.locator("#bearings-window-bringBackBearings").click()]);
+  await page.locator("#bearings").waitFor();
+  assert.equal(await away.isVisible(), false);
+  await page.waitForFunction((id) => window.debriefTma.shown?.solution_id === id, solution, { timeout: 30000 });
+  assert.ok(await page.evaluate(() => !!window.debriefTma.plotState.course), "the panes follow it back");
+  assert.equal(await page.locator("#bearings-popOutBearings").innerText(), "Pop out");
+
+  // Popped out again and its window closed by the reader: back in the panel by itself.
+  const [again] = await Promise.all([page.waitForEvent("popup"), page.locator("#bearings-popOutBearings").click()]);
+  await again.waitForFunction(() => !!window.debriefTma?.shown);
+  await again.close();
+  await page.locator("#bearings").waitFor({ timeout: 5000 });
+  await page.waitForFunction((id) => window.debriefTma.shown?.solution_id === id, solution, { timeout: 30000 });
+  console.log(`Bearings popped out and brought back twice; a dot clicked in its window selected ${row.id} at ${row.time}.`);
+}
