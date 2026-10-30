@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
-import { ALL_DONE, commandLink, contextKey, latestSolution, tmaDragEvent, nextLabel, nextTour, NO_SOLUTION, OPEN, plainForVSCode, SOLUTION, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withSolution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
+import { ALL_DONE, commandLink, contextKey, doneLabel, latestSolution, tmaDragEvent, nextLabel, nextTour, NO_SOLUTION, OPEN, plainForVSCode, SOLUTION, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withSolution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
 import { AFTER_OPEN, BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
 import { callEvent, counts, outlineTarget, parseActions, progressOf, serviceCall } from "../../play/tours.js";
 import { STEP_METHODS } from "../../webview/walkthroughevents.js";
@@ -312,6 +312,26 @@ describe("ticking a step off", () => {
       ["welcome.markStepIncomplete", "debrief.debrief#collate#collate.import"],
     ]);
     expect(progress.seen()).toEqual([]);
+  });
+
+  it("says a walkthrough is finished by its last step done, once, and again after it starts afresh (§6, open issue 4)", () => {
+    const finished: string[] = [];
+    const progress = new WalkthroughProgress(async () => undefined, "debrief.debrief", () => undefined, (tour) => void finished.push(tour));
+    const tidy = TOURS.find((t) => t.id === "tidy")!;
+    const [last, ...rest] = [...tidy.steps].reverse();
+    for (const step of rest) progress.said(step.event);
+    expect(finished).toEqual([]);
+    progress.said(last.event);
+    progress.said(last.event);
+    expect(finished).toEqual(["tidy"]);
+    progress.forgetTour("tidy");
+    for (const step of tidy.steps) progress.said(step.event);
+    expect(finished).toEqual(["tidy", "tidy"]);
+  });
+
+  it("says a walkthrough is done in the same words in both hosts, and after the last that all are", () => {
+    expect(doneLabel(tours.tours[0], tours.tours[1])).toBe(`${tours.tours[0].title}: done.`);
+    expect(doneLabel(tours.tours.at(-1)!, undefined)).toBe(`${ALL_DONE}.`);
   });
 
   it("says how far through a walkthrough the reader is", () => {

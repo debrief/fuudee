@@ -103,6 +103,8 @@ export function nextTour(tours, id) {
 /** The words that offer the next walkthrough, the same in both hosts. */
 export const nextLabel = (tour) => `Next walkthrough: ${tour.title}`;
 export const ALL_DONE = "All walkthroughs done";
+/** What both hosts say the moment a walkthrough's steps are all ticked: it is done, or, after the last, that all are. */
+export const doneLabel = (tour, after) => (after ? `${tour.title}: done.` : `${ALL_DONE}.`);
 
 /** The extension's id, as VS Code names its walkthroughs: publisher.name. */
 export const EXTENSION = "debrief.debrief";

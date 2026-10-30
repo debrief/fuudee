@@ -18,7 +18,7 @@
 import tours from "../walkthroughs/tours.json";
 import type { OutlineFocus } from "../webview/outlinemodel.js";
 import { walkthroughEvent } from "../webview/walkthroughevents.js";
-import { ALL_DONE, nextLabel, nextTour, stepParts, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
+import { ALL_DONE, doneLabel, nextLabel, nextTour, stepParts, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
 
 export const TOURS: TourSource[] = tours.tours;
 export type { TourSource, TourStep };
@@ -309,7 +309,7 @@ export class TourPanel {
       return;
     }
     const said = Object.assign(document.createElement("p"), { className: "tour-complete" });
-    said.append(Object.assign(document.createElement("strong"), { textContent: after ? `${this.tour.title}: done.` : `${ALL_DONE}.` }));
+    said.append(Object.assign(document.createElement("strong"), { textContent: doneLabel(this.tour, after) }));
     said.append(after ? ` Every step is ticked. Go on to the next, or choose any walkthrough above.` : ` Every step of the last walkthrough is ticked.`);
     this.ahead.replaceChildren(
       said,

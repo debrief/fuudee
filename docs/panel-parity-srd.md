@@ -86,7 +86,7 @@ Only the differences listed here are acceptable. Any other difference is a defec
 | Catalogue management: Add catalogue, Add plot file, Refresh, choosing a catalogue on import | The playground has one in-browser catalogue. The Catalogues *tree* still matches (PAR-01), and a plot opens from it in both front ends |
 | Playground's top-bar plot list | A shortcut to open a plot, kept beside the Catalogues tree (decision, product owner, 29 Oct 2026) |
 | Playground's top-bar Export menu | A shortcut to Export image…, kept beside the map's title bar, which has it as VS Code's does; blog posts' demos embed it (decision, product owner, 30 Oct 2026) |
-| Playground's next-walkthrough button | Kept (decision, product owner, 29 Oct 2026). *Open*: whether VS Code gains an equivalent; a gap until then |
+| Playground's next-walkthrough button, below the steps | Kept (decision, product owner, 29 Oct 2026). VS Code offers the same in its own way (§6, open issue 4): a link on each walkthrough's last step, and a notification with a button when the last step is done. Both say "<walkthrough>: done." and "Next walkthrough: <title>" in the same words |
 | "Starting Python…" state in the playground | Pyodide start-up. It shall reuse VS Code's loading row and disabled reasons, not invent new ones |
 | Where view state persists (webview state vs `localStorage`) | Platform; not visible |
 | Rendering: QuickPick vs inline form; native tree vs HTML tree; icon artwork | Cosmetic, within PAR-03 and PAR-10 |
@@ -96,7 +96,7 @@ Only the differences listed here are acceptable. Any other difference is a defec
 1. ~~Button groups below the Outline~~. **Decided 29 Oct 2026:** context menus only (PAR-07). The walkthrough text, `site/docs/try.md` and the interaction-model guides, which pointed to buttons "below the outline", are reworded to match. Dated blog posts are left as they were published.
 2. ~~Plot switching~~. **Decided 29 Oct 2026:** the playground's Catalogue panel opens plots from the tree; the top-bar list stays as a shortcut (§5).
 3. ~~Tote context items~~. **Decided 29 Oct 2026:** the Tote items act on every selected track (as VS Code does). Only items that apply to the selection are shown: *Add to Tote* when any selected track is not in the Tote, *Remove from Tote* when any is. *Set as Tote primary* is shown for tracks and disabled, with its reason, when more than one track is selected or the track already is the primary (PAR-08).
-4. ~~Next-walkthrough button~~. **Decided 29 Oct 2026:** keep it in the playground. Still open: how VS Code offers the same (e.g. a final step's button running the next walkthrough).
+4. ~~Next-walkthrough button~~. **Decided 29 Oct 2026:** keep it in the playground. **Done 30 Oct 2026:** VS Code's last step of each walkthrough links to the next (since 23 Oct), and when that walkthrough's steps are all ticked a notification offers the next, in the playground's words (`doneLabel`, `nextLabel`). After the last walkthrough it says all are done.
 
 ## Appendix A. Differences found (29 Oct 2026)
 

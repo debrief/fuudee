@@ -108,6 +108,8 @@ export class WalkthroughProgress {
     private readonly run: (command: string, ...args: unknown[]) => Thenable<unknown>,
     private readonly extension: string,
     private readonly log: (line: string) => void = () => undefined,
+    /** A walkthrough's steps all ticked, by the step just done: its next is offered (§6, open issue 4). */
+    private readonly finished: (tour: string) => void = () => undefined,
   ) {}
 
   /** The analyst did what a step asks: tick it (and every step waiting for the same event). */
@@ -115,6 +117,8 @@ export class WalkthroughProgress {
     if (!event || !EVENTS.has(event) || this.done.has(event)) return;
     this.done.add(event);
     this.tell(event, true);
+    const tour = TOURS.find((t) => t.steps.some((s) => s.event === event));
+    if (tour && tour.steps.every((s) => this.done.has(s.event))) this.finished(tour.id);
   }
 
   /** A walkthrough started again: its steps unticked, so each ticks again on its fresh copy. */

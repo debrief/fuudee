@@ -12,7 +12,6 @@ Check these in VS Code, not in the playground:
 - [ ] **Where view state persists.** VS Code keeps it in webview state; the playground uses `localStorage`. Check that a view's state survives a reload in VS Code.
 - [ ] **Native rendering.** QuickPicks, the native tree and the codicons are VS Code's. The playground draws inline forms, an HTML tree and its own icon artwork. Check spacing, focus and icons in VS Code.
 - [ ] **Sidebar and panel areas.** VS Code places views in its sidebar and panel; the playground uses tab groups.
-- [ ] **A next-walkthrough step.** The playground has a next-walkthrough button; VS Code has no equivalent yet (SRD §6, open issue 4).
 
 ## What only the playground has
 
@@ -21,7 +20,7 @@ These are allowed. Don't copy them into VS Code:
 - [ ] The **Try** menu, **Reset layout** and the sample-plot list.
 - [ ] The top-bar **Plot** list, a shortcut beside the Catalogues tree.
 - [ ] The top-bar **Export** menu, a shortcut beside the map's title bar.
-- [ ] The next-walkthrough button.
+- [ ] The next-walkthrough button below the steps. VS Code offers the same with a link on the last step and a notification, in the same words.
 - [ ] The **Starting Python…** state. It must use VS Code's loading row and disabled reasons, not new ones.
 
 ## What must match
