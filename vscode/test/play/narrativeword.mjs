@@ -4,7 +4,7 @@
 // question at a time as VS Code asks them (PAR-10), one step, undone like any other; then the Timeline's extras, the reader's own: highlighted
 // phrases, choosing an entry without moving current time, text size and wrapping, which
 // columns show, on a phone too. The log is synthetic, made up for the sample (DEV-05).
-import { resizeTo, showPanel } from "./dock.mjs";
+import { frames, resizeTo, showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -211,7 +211,7 @@ async function playTimelineExtras(page, shot) {
   assert.equal(await timeline(".tl-row[data-id] .tl-type").first().isVisible(), false);
   assert.equal(await timeline(".tl-head-type").isVisible(), false);
   const noSideways = async (what) => {
-    await page.waitForTimeout(300);
+    await frames(page);
     const [pageWidth, list] = await page.evaluate(() => [document.documentElement, document.querySelector("#timeline .tl-scroll")].map((el) => [el.scrollWidth, el.clientWidth]));
     assert.ok(pageWidth[0] <= pageWidth[1] && list[0] <= list[1], `${what}: no sideways scroll (page ${pageWidth}, list ${list})`);
   };
