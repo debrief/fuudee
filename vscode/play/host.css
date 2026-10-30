@@ -129,6 +129,10 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .omitted-panel ul { padding-left: 18px; }
 .omitted-panel li { margin: 2px 0; }
 main { grid-row: 2; display: flex; min-width: 0; min-height: 0; position: relative; }
+/* The map's title bar, as VS Code's editor title bar over the map (the action catalogue's editor entries, A4). */
+main { padding-top: 26px; box-sizing: border-box; }
+.map-title { position: absolute; top: 0; left: 0; right: 0; height: 26px; display: flex; justify-content: flex-end; align-items: center; gap: 2px; padding: 0 6px; box-sizing: border-box; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background)); }
+.map-title button { min-width: 24px; min-height: 22px; padding: 0 6px; }
 .frame { border: 0; display: block; }
 .frame-map { flex: 1; min-width: 0; height: 100%; }
 .side-frame { width: clamp(260px, 34vw, 380px); border-left: 1px solid var(--vscode-panel-border); display: flex; flex-direction: column; min-height: 0; }

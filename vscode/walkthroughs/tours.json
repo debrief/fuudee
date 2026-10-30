@@ -108,7 +108,7 @@
           "text": "**Take** brings the log's data into the plot as one step: BLUE ONE gains fixes where it had none, and WATCHER, a contact the plot had not seen, is added. Undo takes it back.",
           "keys": "`Tab` to **Take** and press `Enter`.",
           "vscode": { "where": "**Take** is in Coverage; or **Take data into the open plot…** on the log's menu in Catalogues.", "button": "Take the new data", "command": "debrief.takeNewData" },
-          "play": { "where": "**Take** is beside the log in **Catalogue** and in **Coverage**.", "button": "Show the catalogue", "action": "focus:panel-catalogue" },
+          "play": { "where": "**Take data into the open plot…** is on the log's menu in **Catalogues**, and **Take** is beside it in **Coverage**.", "button": "Take the new data", "action": "run:debrief.takeNewData" },
           "media": "collate-take.svg",
           "alt": "BLUE ONE's track extended by the log's fixes, and WATCHER added."
         },
@@ -232,7 +232,7 @@
           "text": "Export the map as a PNG, as a 1600 × 900 slide. It is the map as you see it, labels where the map put them. The image carries an ID naming this plot and the exact step it shows: in its metadata, and in a small footer, such as `DBF-PTET-KG8R-B9EM-69`, for when Word or PowerPoint drops the metadata. Exporting is never a step.",
           "keys": "Each choice is a list or a box to tick: `↓`, `Space`, `Enter`.",
           "vscode": { "where": "**Export image…** is the camera on the map's title bar.", "button": "Export image", "command": "debrief.exportImage" },
-          "play": { "where": "**Export** is in the top bar; your browser saves the file.", "button": "Show Export image", "action": "focus:panel-export" },
+          "play": { "where": "**Export image…** is under **Export** in the top bar, and on the Outline's ⋯ menu; your browser saves the file.", "button": "Export image", "action": "run:debrief.exportImage" },
           "media": "annotate-export.svg",
           "alt": "The exported image: the map with the image's ID in its least busy corner."
         },

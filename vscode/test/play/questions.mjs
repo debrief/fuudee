@@ -30,19 +30,24 @@ export async function acceptAll(page, quiet = 4000) {
     const open = page.locator("dialog#ask[open], dialog.track-form[open]").first();
     if (!(await open.waitFor({ timeout: quiet }).then(() => true, () => false))) return;
     const handle = await open.elementHandle();
+    const title = await open.locator("h2").first().textContent();
     await open.locator("button.primary").first().click();
-    await page.waitForFunction((d) => !d.open, handle, { timeout: 10000 });
+    // Closed, or (the dialog the questions share) asking the next question.
+    await page.waitForFunction(([d, t]) => !d.open || d.querySelector("h2")?.textContent !== t, [handle, title], { timeout: 10000 });
   }
 }
 
 /**
- * Export the map as VS Code asks it, in three steps: the size, what it shows (the ID in a corner,
+ * Export the map as VS Code asks it, in three steps (started: already asked, by a button elsewhere): the size, what it shows (the ID in a corner,
  * light colours), and the file's name and kind; then the download and what was said of it. during,
  * if given, runs while the map draws it.
  */
-export async function exportMap(page, { size = "Slide, 1600 × 900", footer = true, light = false, format = "png" } = {}, during) {
-  await showPanel(page, "export"); // a menu in the top bar
-  await page.locator("#export-image").click();
+export async function exportMap(page, { size = "Slide, 1600 × 900", footer = true, light = false, format = "png", started = false } = {}, during) {
+  // From the top bar's Export menu, unless something (a walkthrough's button, the map's title bar) started it.
+  if (!started) {
+    await showPanel(page, "export");
+    await page.locator("#export-image").click();
+  }
   await choose(page, size);
   const shows = form(page, "Export image (2 of 3): what it shows");
   await shows.waitFor();
@@ -54,11 +59,11 @@ export async function exportMap(page, { size = "Slide, 1600 × 900", footer = tr
   await where.locator("#track-form-type").selectOption(format);
   // What earlier exports said, put away, so what is read is this one's.
   await page.evaluate(() => document.querySelectorAll(".toast").forEach((t) => t.remove()));
-  const started = Date.now();
+  const startedAt = Date.now();
   const [download] = await Promise.all([page.waitForEvent("download", { timeout: 90000 }), (async () => (await where.getByRole("button", { name: "Export" }).click(), await during?.()))()]);
   const toast = page.locator(".toast", { hasText: /^Exported / }).last();
   await toast.waitFor({ timeout: 30000 });
-  return { data: readFileSync(await download.path()), name: download.suggestedFilename(), said: await toast.locator("span").first().innerText(), toast, ms: Date.now() - started };
+  return { data: readFileSync(await download.path()), name: download.suggestedFilename(), said: await toast.locator("span").first().innerText(), toast, ms: Date.now() - startedAt };
 }
 
 /** Find source of image, from Catalogues' title bar menu as VS Code places it: by the ID typed, or a file. */

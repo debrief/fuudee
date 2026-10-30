@@ -67,6 +67,8 @@ async function freshPage() {
   page.on("pageerror", (e) => errors.push(String(e)));
   // Every page under its Content-Security-Policy (product owner, 17 Oct 2026): anything it refuses is a failure.
   page.on("console", (m) => /Content Security Policy|Refused to (load|connect|execute|apply|create|frame)/.test(m.text()) && errors.push(`refused by the page's policy: ${m.text()}`));
+  // Every message from a component is checked, as VS Code checks it (PAR-13): one refused is a failure.
+  page.on("console", (m) => m.text().startsWith("webview_message_refused") && errors.push(m.text()));
 }
 const shot = async (name, on = page) => shots && (await on.waitForTimeout(800), await on.screenshot({ path: path.join(shots, `${name}.png`) }));
 const text = (selector) => page.locator(selector).innerText();
@@ -626,27 +628,36 @@ try {
     await shot("time-02-window-narrowed");
 
     // Context tracks: visible, faint or hidden, for the plot; view state, so no step in its history.
-    // In the window's details, folded at first: the summary says the choice.
+    // Chosen from Time's title menu (⋯), as VS Code's title menu has them, the plot's choice checked (A4);
+    // the window's summary says the choice.
     assert.match(await tc(".tc-summary-context").innerText(), /\(Visible\)/);
-    await tc(".tc-disclosure").click();
+    assert.equal(await tc(".tc-context").count(), 0, "not in the panel: in its title menu");
     await mapFrame.locator("#map").focus();
     await page.keyboard.press("Escape"); // nothing selected: nothing dimmed
     await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
-    assert.equal(await tc(".tc-context").inputValue(), "visible");
-    await page.waitForFunction(async () => true);
+    const contextMenu = async (title) => {
+      await page.locator("#time-more").click();
+      const items = page.locator(".context-menu [role=menuitemcheckbox]");
+      assert.deepEqual(await items.allInnerTexts(), ["Context tracks: Visible", "Context tracks: Faint", "Context tracks: Hidden"]);
+      if (!title) return page.keyboard.press("Escape");
+      await items.filter({ hasText: title }).click();
+    };
+    await page.locator("#time-more").click();
+    assert.equal(await page.locator(".context-menu [role=menuitemcheckbox][aria-checked=true]").innerText(), "Context tracks: Visible");
+    await page.keyboard.press("Escape");
     for (let i = 0; i < 30 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
     assert.ok((await contextLines("0.6")) >= 10, "visible: opacity 0.6, at least 3:1 against the map");
     await shot("context-01-visible-light");
-    await tc(".tc-context").selectOption("faint");
+    await contextMenu("Faint");
     for (let i = 0; i < 50 && (await contextLines("0.35")) < 10; i++) await page.waitForTimeout(100);
     assert.ok((await contextLines("0.35")) >= 10, "faint");
-    await tc(".tc-context").selectOption("hidden");
+    await page.waitForFunction(() => /\(Faint\)/.test(document.querySelector("#timebar .tc-summary-context")?.textContent ?? ""));
+    await contextMenu("Hidden");
     for (let i = 0; i < 50 && (await contextLines("0.35")) > 0; i++) await page.waitForTimeout(100);
     assert.equal((await contextLines("0.35")) + (await contextLines("0.6")), 0, "hidden: no context lines");
-    await tc(".tc-context").selectOption("visible");
+    await contextMenu("Visible");
     for (let i = 0; i < 50 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
     assert.ok((await contextLines("0.6")) >= 10, "visible again");
-    await tc(".tc-disclosure").click(); // folded again
     await page.waitForTimeout(500);
     assert.equal(await history(), stepsBefore, "context tracks are view state: no step");
     assert.equal(await page.locator(".toast.warning").count(), 0);

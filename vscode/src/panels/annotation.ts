@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import type { AnnotationSpec, TimeRange } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
+import { receiveAnnotation } from "../../webview/dispatch.js";
 import { webviewHtml } from "./html.js";
 
 export interface AnnotationActions {
@@ -83,33 +84,31 @@ export class AnnotationPanel {
     );
   }
 
-  private async receive(raw: unknown): Promise<void> {
-    let message;
-    try {
-      message = checkMessage(raw);
-    } catch {
-      // Not the message: it can quote what the analyst typed (NFR-14).
-      this.log("webview_message_refused panel=annotation");
-      return;
-    }
-    if (message.kind === "ready") {
-      this.ready = true;
-      this.send();
-    } else if (message.kind === "cancel") {
+  /** The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here. */
+  private readonly receive = receiveAnnotation(
+    {
+      ready: () => {
+        this.ready = true;
+        this.send();
+      },
+      cancel: () => this.close(),
+      save: (annotation, id) => this.saveOrRemove(id, () => this.actions.save(annotation, id)),
+      remove: (id) => this.saveOrRemove(id, () => this.actions.remove(id)),
+    },
+    checkMessage,
+    // Never the message: it can quote what the analyst typed (NFR-14).
+    (panel) => this.log(`webview_message_refused panel=${panel}`),
+  );
+
+  private async saveOrRemove(id: string | undefined, act: () => Promise<string | undefined>): Promise<void> {
+    // The form may have been showing another annotation when the message was sent.
+    if (id !== this.showing?.featureId) return;
+    void this.panel?.webview.postMessage(checkMessage({ kind: "form_busy", message: "Saving…" }));
+    const problem = await act();
+    if (problem) void this.panel?.webview.postMessage(checkMessage({ kind: "form_error", message: problem }));
+    else {
+      this.saved = true;
       this.close();
-    } else if (message.kind === "save_annotation" || message.kind === "delete_annotation") {
-      // The form may have been showing another annotation when the message was sent.
-      if ((message.feature_id ?? undefined) !== this.showing?.featureId) return;
-      void this.panel?.webview.postMessage(checkMessage({ kind: "form_busy", message: "Saving…" }));
-      const problem =
-        message.kind === "save_annotation"
-          ? await this.actions.save(message.annotation!, message.feature_id ?? undefined)
-          : await this.actions.remove(message.feature_id!);
-      if (problem) void this.panel?.webview.postMessage(checkMessage({ kind: "form_error", message: problem }));
-      else {
-        this.saved = true;
-        this.close();
-      }
     }
   }
 }

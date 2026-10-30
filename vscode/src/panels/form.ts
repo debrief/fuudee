@@ -5,6 +5,7 @@
 import * as vscode from "vscode";
 import type { ParameterValue, TimeRange, ToolDeclaration } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
+import { receiveForm } from "../../webview/dispatch.js";
 import { webviewHtml } from "./html.js";
 
 export type RunRequest = (tool: ToolDeclaration, parameters: ParameterValue[]) => Promise<string | undefined>;
@@ -69,27 +70,25 @@ export class FormPanel {
     );
   }
 
-  private async receive(raw: unknown): Promise<void> {
-    let message;
-    try {
-      message = checkMessage(raw);
-    } catch (error) {
-      // Not the message: it can quote what the analyst typed (NFR-14).
-      this.log("webview_message_refused panel=form");
-      return;
-    }
-    if (message.kind === "ready") {
-      this.ready = true;
-      this.send();
-    } else if (message.kind === "cancel") {
-      this.close();
-    } else if (message.kind === "run_tool" && this.pending) {
-      // The form may have been showing another tool when the message was sent.
-      if (message.tool_name !== this.pending.tool.name) return;
-      void this.panel?.webview.postMessage(checkMessage({ kind: "form_busy", message: "Running…" }));
-      const problem = await this.run(this.pending.tool, message.parameters ?? []);
-      if (problem) void this.panel?.webview.postMessage(checkMessage({ kind: "form_error", message: problem }));
-      else this.close();
-    }
-  }
+  /** The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here. */
+  private readonly receive = receiveForm(
+    {
+      ready: () => {
+        this.ready = true;
+        this.send();
+      },
+      cancel: () => this.close(),
+      run: async (toolName, parameters) => {
+        // The form may have been showing another tool when the message was sent.
+        if (!this.pending || toolName !== this.pending.tool.name) return;
+        void this.panel?.webview.postMessage(checkMessage({ kind: "form_busy", message: "Running…" }));
+        const problem = await this.run(this.pending.tool, parameters);
+        if (problem) void this.panel?.webview.postMessage(checkMessage({ kind: "form_error", message: problem }));
+        else this.close();
+      },
+    },
+    checkMessage,
+    // Never the message: it can quote what the analyst typed (NFR-14).
+    (panel) => this.log(`webview_message_refused panel=${panel}`),
+  );
 }

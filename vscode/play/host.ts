@@ -65,9 +65,11 @@ import { callEvent, counts, outlineTarget, TourPanel, tourOfEvent, type TourActi
 import { OutlineTree } from "./outline.js";
 import { fillOutlineRow } from "./outlinerow.js";
 import { filesOf, isBranch, OutlineModel, selectable, type OutlineNode, type OutlineRow } from "../webview/panels/outline.js";
-import { actionOf, entryOf, inPlayground, rowMenu, titleMenu, type Context } from "../webview/panels/actions.js";
+import { actionOf, editorMenu, entryOf, inPlayground, rowMenu, titleMenu, type Context } from "../webview/panels/actions.js";
 import { CataloguesModel, plotTargetOf, trackTargetOf, type PlotSummary } from "../webview/panels/catalogues.js";
 import { fillCatalogues } from "./cataloguelist.js";
+import { bearingsEvents, coverageEvents, receiveAnnotation, receiveBearings, receiveCoverage, receiveForm, receiveMap, receiveResults, receiveTime, receiveTimeline, receiveTote, timeEvents, timelineEvents, toteEvents } from "../webview/dispatch.js";
+import { checkMessage } from "./messagecheck.js";
 import { undoRedo } from "../src/views/historyrows.js";
 import type { HistoryStep } from "../src/service.js";
 import { ToolsModel, type ToolsRow, type Unavailable } from "../webview/panels/tools.js";
@@ -196,6 +198,16 @@ const post = (target: HTMLIFrameElement | undefined, message: unknown) => {
   if (target && name && ready.has(name)) target.contentWindow?.postMessage(message, location.origin);
 };
 
+/** A message refused: said in the console, never with the message (it can quote plot content, NFR-14). */
+function refused(component: string): void {
+  console.warn(`webview_message_refused panel=${component}`);
+}
+/**
+ * The transport for the components the playground builds in its own page: a message handed to its
+ * receiver as VS Code's webviews carry one, as JSON (a member left undefined is left out).
+ */
+const local = (receive: (raw: unknown) => Promise<void>) => (message: Record<string, unknown>) => void receive(JSON.parse(JSON.stringify(message)));
+
 // --- What is open, and the shared state -------------------------------------------
 let opened: Opened | undefined;
 let selection: string[] = [];
@@ -205,27 +217,35 @@ let time: TimeState | undefined;
 // is saved in the plot when the reader lets go of it.
 let timePending = false;
 const TIME_WINDOW_OPEN_KEY = "debrief.play.timeWindowOpen";
-const timeControl = new TimeControl($("timebar"), {
-  moved: (moved) => {
-    time = moved;
-    tourEvent("timeMoved", opened?.item.id);
-    refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
-    bearingsTime?.(); // a line at current time across the bearing view's plots
-    timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
-    coverageControl.setTime(Date.parse(moved.current)); // a line across Coverage's bars
-    narrativeToMap();
-    if (timePending) return; // tell the map at most once a frame, however fast a slider moves
-    timePending = true;
-    requestAnimationFrame(() => {
-      timePending = false;
-      if (time) post(map, { kind: "set_time", time });
-    });
+// The time controller's messages, each checked and handled by the shared receiver (webview/dispatch.ts, PAR-13).
+const fromTime = receiveTime(
+  {
+    ready: () => undefined,
+    timeChanged: (moved) => {
+      time = moved;
+      tourEvent("timeMoved", opened?.item.id);
+      refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
+      bearingsTime?.(); // a line at current time across the bearing view's plots
+      timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
+      coverageControl.setTime(Date.parse(moved.current)); // a line across Coverage's bars
+      narrativeToMap();
+      if (timePending) return; // tell the map at most once a frame, however fast a slider moves
+      timePending = true;
+      requestAnimationFrame(() => {
+        timePending = false;
+        if (time) post(map, { kind: "set_time", time });
+      });
+    },
+    windowChanged: (window) => void saveWindow(window),
+    // Pressing Play follows current time in the Timeline again (product owner, 15 Oct 2026).
+    playingChanged: (playing) => timelineControl.setPlaying(playing),
   },
-  windowSaved: (window) => void saveWindow(window),
-  contextChanged: (context) => void saveView({ context_tracks: context }),
-  // Pressing Play follows current time in the Timeline again (product owner, 15 Oct 2026).
-  playing: (playing) => timelineControl.setPlaying(playing),
-}, {
+  checkMessage,
+  refused,
+);
+// How context tracks are drawn is chosen from the panel's title menu, as in VS Code (A4).
+const timeControl = new TimeControl($("timebar"), timeEvents(local(fromTime)), {
+  contextInView: false,
   // Whether the window's details are open, remembered in this browser (product owner, 28 Oct 2026).
   windowOpen: {
     get: () => {
@@ -258,7 +278,34 @@ const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) 
 /** Current time as set by opening a plot or by a tool, with the window as saved. */
 /** Current time and the window to the bearing view, once it exists (below). */
 let bearingsTime: (() => void) | undefined;
+/**
+ * Time's title bar, as VS Code's: its ⋯ menu, the action catalogue's entries for it (Context
+ * tracks: Visible, Faint, Hidden, the plot's choice checked), offered with a plot open (A4).
+ */
+function renderTimeActions(): void {
+  const context: Context = { "debrief.contextTracks": opened ? contextOf() : "" };
+  const entries = titleMenu("debrief.time", context);
+  const button = Object.assign(document.createElement("button"), { type: "button", id: "time-more", className: "history-action", textContent: "⋯", title: "More actions" });
+  button.setAttribute("aria-label", "More actions");
+  button.setAttribute("aria-haspopup", "menu");
+  button.onclick = () => {
+    const at = button.getBoundingClientRect();
+    openMenu(
+      entries.map((e, i) => ({
+        label: e.title,
+        groupStart: i > 0 && e.group !== entries[i - 1].group,
+        ...(e.checked !== undefined && { checked: e.checked }),
+        ...(!e.enabled && { disabled: e.reason }),
+        act: () => void saveView({ context_tracks: e.id.replace("debrief.contextTracks.", "") as ContextTracks }),
+      })),
+      { label: "Time: more actions", x: at.left, y: at.bottom, from: button },
+    );
+  };
+  $("time-actions").replaceChildren(...(entries.length ? [button] : []));
+}
+
 function showTime(next: TimeState | undefined): void {
+  renderTimeActions();
   time = next;
   bearingsTime?.();
   timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
@@ -273,7 +320,9 @@ function showTime(next: TimeState | undefined): void {
 let toteChoosing: ToteView | undefined;
 const toteChoice = (): ToteView => toteChoosing ?? toteOf(opened?.plot);
 const totePanel = $("panel-tote");
-const toteControl = new ToteControl($("tote"), { changed: (view) => void chooseTote(view) });
+// The Tote's messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13).
+const fromTote = receiveTote({ ready: () => undefined, toteChanged: (view) => void chooseTote(view) }, checkMessage, refused);
+const toteControl = new ToteControl($("tote"), toteEvents(local(fromTote)));
 /** How long Python took to work each answer out, for the latency check (NFR-04). */
 const toteCompute: number[] = [];
 const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteView }>(
@@ -485,46 +534,36 @@ async function select(ids: string[], fromMap = false, keys?: string[]): Promise<
   await refreshOffered();
 }
 
-window.addEventListener("message", (event) => {
-  if (event.origin !== location.origin) return;
-  if (event.data?.debriefKey) return void historyKey(event.data.debriefKey as KeyChord);
-  if (!event.data?.debriefFrame) return;
-  const { debriefFrame: name, message } = event.data as { debriefFrame: string; message: { kind: string } & Record<string, unknown> };
-  if (message.kind === "ready") {
-    ready.add(name);
-    if (name === "map") showPlot();
-    if (name === "form") sendForm();
-    if (name === "annotation") sendAnnotationForm();
-    if (name === "results") pendingResults?.();
-    return;
-  }
-  if (name === "map") {
-    if (message.kind === "selection_changed") {
-      const ids = (message.selection as { feature_ids: string[] }).feature_ids;
+// The frames' messages, each checked and handled by its component's shared receiver (webview/dispatch.ts, PAR-13).
+const fromMap = receiveMap(
+  {
+    ready: () => {
+      ready.add("map");
+      showPlot();
+    },
+    selected: (ids) => {
       selectedByHand(ids);
       void select(ids, true);
-    }
-    if (message.kind === "time_changed") {
+    },
+    timeChanged: (moved) => {
       tourEvent("timeMoved", opened?.item.id);
-      showTime(message.time as TimeState);
-    }
-    if (message.kind === "viewport_changed") viewport = (message.viewport as { bbox: number[] }).bbox;
-    if (message.kind === "show_hidden" && opened) void restyle(hiddenIds(opened.plot), { hidden: false });
-    if (message.kind === "edit_annotation" && message.annotation) {
-      // Dragged or nudged on the map: changed so, as one step. Refused, the map shows the latest.
-      const change = { kind: "edit", feature: message.feature_id, annotation: message.annotation };
-      void annotate(change).then(async (problem) => {
+      showTime(moved);
+    },
+    viewportChanged: (moved) => void (viewport = moved.bbox),
+    showHidden: () => opened && void restyle(hiddenIds(opened.plot), { hidden: false }),
+    // Dragged or nudged on the map: changed so, as one step. Refused, the map shows the latest.
+    annotationMoved: (id, annotation) =>
+      void annotate({ kind: "edit", feature: id, annotation }).then(async (problem) => {
         if (!problem || !opened) return;
         toast(`${problem} Debrief is showing the latest; try again if you still want to.`, "warning");
         await openPlot(opened.item.id, true);
         showPlot();
-      });
-    } else if (message.kind === "edit_annotation") editAnnotation(message.feature_id as string);
-    if (message.kind === "edit_track") {
-      // A track's handle or a fix's let go of, or nudged: changed so, as one step. Refused, the map shows the latest.
-      const change = { kind: "edit", feature: message.feature_id, edit: message.track_edit };
+      }),
+    annotationChosen: (id) => editAnnotation(id),
+    // A track's handle or a fix's let go of, or nudged: changed so, as one step. Refused, the map shows the latest.
+    trackEdited: (id, edit) => {
       const before = opened?.base.plot_hash;
-      void changeTrack(change).then(async (problem) => {
+      void changeTrack({ kind: "edit", feature: id, edit }).then(async (problem) => {
         if (!opened) return;
         // Nothing changed after all: the map still waits for the plot to come back.
         if (!problem) return void (opened.base.plot_hash === before && showPlot());
@@ -532,59 +571,94 @@ window.addEventListener("message", (event) => {
         await openPlot(opened.item.id, true);
         showPlot();
       });
-    }
-    if (message.kind === "fix_chosen") void openFixes(message.feature_id as string, message.fix_time as string);
+    },
+    fixChosen: (id, at) => void openFixes(id, at),
     // One of an ambiguous cut's two lines clicked: that bearing kept, as one step; right-click or press and hold: its menu (CAP-22).
-    if (message.kind === "resolve_asked") void resolveSensor({ keep: message.keep as Keep, cut_ids: [message.feature_id as string] });
-    if (message.kind === "cut_chosen") void cutMenu(message.feature_id as string);
+    resolve: (cut, keep) => void resolveSensor({ keep, cut_ids: [cut] }),
+    cutChosen: (cut) => void cutMenu(cut),
     // A TMA solution dragged: the bearing view works its residuals out again as it moves (CAP-21, NFR-04).
-    if (message.kind === "tma_preview") tmaControl.preview(message.feature_id as string, (message.preview as { coordinates: [number, number][] } | undefined)?.coordinates);
+    tmaPreview: (id, preview) => tmaControl.preview(id, preview?.coordinates as [number, number][] | undefined),
     // Two clicks for a first guess made, or cancelled.
-    if (message.kind === "tma_guessed") {
+    tmaGuessed: (request) => {
       const asked = tmaGuessing;
       tmaGuessing = undefined;
-      const request = message.tma_request as TmaRequest | undefined;
       if (request && asked) void createTma({ ...asked, ...request });
       else toast("No solution made: the two clicks were cancelled.");
-    }
-    if (message.kind === "image_rendered") imageRendered?.(message as { image?: RenderedImage; message?: string });
-    if (message.kind === "latest_asked" && opened) void openPlot(opened.item.id);
-    if (message.kind === "annotation_drawn") {
+    },
+    imageRendered: (drawn) => imageRendered?.("image" in drawn ? { image: drawn.image } : { message: drawn.problem }),
+    latestAsked: () => opened && void openPlot(opened.item.id),
+    annotationDrawn: (annotation) => {
       // Drawn on the map: the form, filled in with what was drawn, to name it and add it as one step.
-      openAnnotationForm({ spec: { ...(message.annotation as AnnotationSpec), name: "" } });
+      openAnnotationForm({ spec: { ...annotation, name: "" } });
       drawnUnsaved = !!annotationFrame;
       if (!annotationFrame) showPlot(); // no form (Python not ready): nothing stays drawn
-    }
-  } else if (name === "annotation") {
-    if (message.kind === "cancel") closeSide();
-    if (message.kind === "save_annotation" || message.kind === "delete_annotation") {
-      if ((message.feature_id as string | undefined) !== annotationShowing?.featureId) return;
-      post(annotationFrame, { kind: "form_busy", message: "Saving…" });
-      const id = message.feature_id as string | undefined;
-      const change =
-        message.kind === "delete_annotation"
-          ? { kind: "delete", features: [id] }
-          : id
-            ? { kind: "edit", feature: id, annotation: message.annotation }
-            : { kind: "add", annotation: message.annotation };
-      void annotate(change).then((problem) => {
-        if (problem) return post(annotationFrame, { kind: "form_error", message: problem });
-        drawnUnsaved = false; // saved: the map has the plot with it
-        closeSide();
-      });
-    }
-  } else if (name === "form") {
-    if (message.kind === "cancel") closeForm();
-    if (message.kind === "run_tool" && formTool && message.tool_name === formTool.name) {
+    },
+  },
+  checkMessage,
+  refused,
+);
+const fromAnnotation = receiveAnnotation(
+  {
+    ready: () => {
+      ready.add("annotation");
+      sendAnnotationForm();
+    },
+    cancel: () => closeSide(),
+    save: (annotation, id) => saveAnnotation(id, id ? { kind: "edit", feature: id, annotation } : { kind: "add", annotation }),
+    remove: (id) => saveAnnotation(id, { kind: "delete", features: [id] }),
+  },
+  checkMessage,
+  refused,
+);
+/** The annotation form's save or delete: one step; the form says why not, or closes. */
+function saveAnnotation(id: string | undefined, change: Record<string, unknown>): void {
+  if (id !== annotationShowing?.featureId) return; // the form was showing another annotation when it was sent
+  post(annotationFrame, { kind: "form_busy", message: "Saving…" });
+  void annotate(change).then((problem) => {
+    if (problem) return post(annotationFrame, { kind: "form_error", message: problem });
+    drawnUnsaved = false; // saved: the map has the plot with it
+    closeSide();
+  });
+}
+const fromForm = receiveForm(
+  {
+    ready: () => {
+      ready.add("form");
+      sendForm();
+    },
+    cancel: () => closeForm(),
+    run: (toolName, parameters) => {
+      if (!formTool || toolName !== formTool.name) return;
       post(form, { kind: "form_busy", message: "Running…" });
-      void runTool(formTool, message.parameters as ParameterValue[])
+      void runTool(formTool, parameters)
         .catch((error: Error) => `${formTool?.title ?? "The tool"} could not run here: ${error.message}`)
         .then((problem) => {
           if (problem) post(form, { kind: "form_error", message: problem });
           else closeForm();
         });
-    }
-  }
+    },
+  },
+  checkMessage,
+  refused,
+);
+const fromResults = receiveResults(
+  {
+    ready: () => {
+      ready.add("results");
+      pendingResults?.();
+    },
+  },
+  checkMessage,
+  refused,
+);
+const FRAMES: Record<string, (raw: unknown) => Promise<void>> = { map: fromMap, annotation: fromAnnotation, form: fromForm, results: fromResults };
+window.addEventListener("message", (event) => {
+  if (event.origin !== location.origin) return;
+  if (event.data?.debriefKey) return void historyKey(event.data.debriefKey as KeyChord);
+  if (!event.data?.debriefFrame) return;
+  const { debriefFrame: name, message } = event.data as { debriefFrame: string; message: unknown };
+  // As VS Code's webviews carry a message, as JSON (a member left undefined is left out).
+  void FRAMES[name]?.(message === undefined ? message : JSON.parse(JSON.stringify(message)));
 });
 
 // --- Tools ------------------------------------------------------------------------
@@ -1593,10 +1667,11 @@ const timelineMemory = {
   },
 };
 let timelineIds = new Map<string, string>();
-const timelineControl = new TimelineControl(
-  $("timeline"),
+// The Timeline's messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13).
+const fromTimeline = receiveTimeline(
   {
-    choose: (id) => goToTime(id),
+    ready: () => undefined,
+    chosen: (id) => goToTime(id),
     save: (spec, id) => void saveNarrative(spec, id),
     remove: (id) => void narrate({ kind: "delete", features: [id] }).then((outcome) => outcome.error && toast(outcome.error, "warning")),
     // The map's narrative box: the plot's choice, in its island like the Tote's lines; left out when on.
@@ -1604,6 +1679,12 @@ const timelineControl = new TimelineControl(
     // Ctrl+Z outside the Timeline's text boxes, decided by the Timeline as in VS Code.
     history: (how) => void move(how),
   },
+  checkMessage,
+  refused,
+);
+const timelineControl = new TimelineControl(
+  $("timeline"),
+  timelineEvents(local(fromTimeline)),
   undefined,
   // The web demo keeps the kinds shown and the view's own settings, never sources, types or
   // phrases, which come from what was opened (panel review, 17 Oct 2026); an embedded demo, nothing.
@@ -1951,9 +2032,14 @@ function selectFromBearings(id: string, at: string): void {
   }
   void select([id]);
 }
-const tmaControl = new TmaControl(
-  $("bearings"),
+// Where the analyst last pointed in Bearings: where a dot's menu opens (the message names the dot, not the place).
+let bearingsPointer = { x: 0, y: 0 };
+$("bearings").addEventListener("contextmenu", (e) => void (bearingsPointer = { x: e.clientX, y: e.clientY }), true);
+$("bearings").addEventListener("pointerdown", (e) => void (bearingsPointer = { x: e.clientX, y: e.clientY }), true);
+// Bearings' messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13).
+const fromBearings = receiveBearings(
   {
+    ready: () => undefined,
     create: (request) => void createTma(request),
     guess: (request) => {
       tmaGuessing = request;
@@ -1968,18 +2054,26 @@ const tmaControl = new TmaControl(
     // A dot clicked: its cut, or the solution at a fix, selected in the Outline and on the map; current time to it.
     select: (id, at) => selectFromBearings(id, at),
     // A dot right-clicked: the Outline's menu for its cut, or the solution's position there (product owner, 29 Oct 2026).
-    menu: (id, at, x, y) => {
+    menu: (id, at) => {
       const s = opened && id === shownSolution() ? outlineIndex(opened.plot).solutions.get(id) : undefined;
       const i = s ? s.times.indexOf(Date.parse(at)) : -1;
       const key = i >= 0 ? fixKey(id, i) : id;
       const choose = { label: i >= 0 ? "Select this position" : "Select this cut", act: () => selectFromBearings(id, at) };
-      outlineRowMenu(key, x ?? 0, y ?? 0, $("bearings").querySelector<HTMLElement>(".tma-canvas") ?? undefined, choose, [key]);
+      outlineRowMenu(key, bearingsPointer.x, bearingsPointer.y, $("bearings").querySelector<HTMLElement>(".tma-canvas") ?? undefined, choose, [key]);
     },
     cutOff: (degrees) => {
       errorCutOff = degrees;
       if (pythonReady) void python("set_error_cut_off", degrees);
     },
+    drawn: () => undefined,
+    panes: () => undefined,
   },
+  checkMessage,
+  refused,
+);
+const tmaControl = new TmaControl(
+  $("bearings"),
+  bearingsEvents(local(fromBearings)),
   undefined,
   {
     load: () => {
@@ -2299,8 +2393,9 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   "debrief.toggleNorthArrow": () => toggleNorthArrow(),
   "debrief.importSensor": () => importSensor(sensorHost),
   "debrief.exportImage": () => exportImage(exportHost),
-  // A walkthrough's step runs it, as VS Code's step runs the command (its place is Catalogues' title bar menu).
+  // A walkthrough's step runs these, as VS Code's step runs the command (PAR-14): their places are Catalogues'.
   "debrief.findImageSource": () => findImageSource(findHost),
+  "debrief.takeNewData": () => takeNewData(collationHost),
 };
 
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
@@ -2531,8 +2626,34 @@ function historyModel(): HistoryModel {
     toolTitle: (name) => tools.find((t) => t.name === name)?.title,
   });
 }
+/** The playground's artwork for the map's title bar (cosmetic: VS Code draws the codicons). */
+const MAP_ACTION_GLYPHS: Record<string, string> = { "device-camera": "📷︎", "arrow-right": "→" };
+/**
+ * The map's title bar, as VS Code's editor title bar over the map: the action catalogue's editor
+ * entries (Go to latest revision while an earlier one is shown, Export image…), each disabled with
+ * its reason where it cannot run (A4, PAR-07, PAR-08). The top bar's Export menu stays a shortcut (§5).
+ */
+function renderMapTitle(): void {
+  const { context, reasons } = playContext();
+  const entries = editorMenu({ ...context, activeWebviewPanelId: "debrief.map" }, reasons).filter((e) => e.group === "navigation");
+  $("map-title").replaceChildren(
+    ...entries.map((entry) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = `map-${entry.id.replace(/^debrief\./, "")}`;
+      button.textContent = MAP_ACTION_GLYPHS[entry.icon ?? ""] ?? entry.title;
+      button.disabled = !entry.enabled;
+      button.title = entry.enabled ? entry.title : `${entry.title}: ${entry.reason}`;
+      button.setAttribute("aria-label", button.title);
+      button.onclick = () => void (entry.id === "debrief.openLatestRevision" ? runHistoryAction(entry.id) : runAction(entry.id));
+      return button;
+    }),
+  );
+}
+
 /** History's title bar (the action catalogue's: Go to latest revision, Undo, Redo) and its rows. */
 function renderHistory(): void {
+  renderMapTitle();
   const { context, reasons } = playContext();
   // Undo and Redo disabled, with the catalogue's reason, when they cannot act (PAR-08), as VS Code's are.
   $("history-actions").replaceChildren(
@@ -2744,13 +2865,9 @@ const collationHost: CollationHost = {
   refreshHistory: async () => renderHistory(),
 };
 const sayCollated = (problem: string | undefined) => void (problem && coverageControl.say(problem));
-const coverageControl = new CoverageControl($("coverage"), {
-  choose: (track, period, source) => void collateFlow(collationHost, { kind: "prefer", feature: track, period, source }).then(sayCollated),
-  link: (track, source, linked) => void collateFlow(collationHost, { kind: "link", feature: track, source, linked }).then(sayCollated),
-  take: (item) => void collateFlow(collationHost, { kind: "take", source: item }).then(sayCollated),
-  dismiss: (item) => void collateFlow(collationHost, { kind: "dismiss", source: item }).then(sayCollated),
-  reviewed: () => void collateFlow(collationHost, { kind: "reviewed" }).then(sayCollated),
-});
+// Coverage's messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13): each ask the shared collation flow.
+const fromCoverage = receiveCoverage({ ready: () => undefined, asked: (ask) => void collateFlow(collationHost, ask).then(sayCollated) }, checkMessage, refused);
+const coverageControl = new CoverageControl($("coverage"), coverageEvents(local(fromCoverage)));
 /** How long each ask for coverage took, from asking Python to its answer, for the performance check (NFR-01). */
 const coverageTimes: number[] = [];
 (window as unknown as { debriefCoverage: () => unknown }).debriefCoverage = () => ({ coverage, flags: reviewFlags, times: coverageTimes.slice(-20) });

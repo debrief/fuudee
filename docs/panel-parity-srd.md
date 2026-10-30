@@ -85,6 +85,7 @@ Only the differences listed here are acceptable. Any other difference is a defec
 | Files: VS Code saves and opens files on disk; the playground uploads and downloads them | Platform. The flow and its questions stay the same (PAR-09) |
 | Catalogue management: Add catalogue, Add plot file, Refresh, choosing a catalogue on import | The playground has one in-browser catalogue. The Catalogues *tree* still matches (PAR-01), and a plot opens from it in both front ends |
 | Playground's top-bar plot list | A shortcut to open a plot, kept beside the Catalogues tree (decision, product owner, 29 Oct 2026) |
+| Playground's top-bar Export menu | A shortcut to Export image…, kept beside the map's title bar, which has it as VS Code's does; blog posts' demos embed it (decision, product owner, 30 Oct 2026) |
 | Playground's next-walkthrough button | Kept (decision, product owner, 29 Oct 2026). *Open*: whether VS Code gains an equivalent; a gap until then |
 | "Starting Python…" state in the playground | Pyodide start-up. It shall reuse VS Code's loading row and disabled reasons, not invent new ones |
 | Where view state persists (webview state vs `localStorage`) | Platform; not visible |

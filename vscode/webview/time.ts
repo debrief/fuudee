@@ -11,6 +11,7 @@ import "./time.css";
 import type { TimeRange, TimeState } from "@debrief/schemas";
 import type { ContextTracks } from "./contrast.js";
 import { TimeControl } from "./timecontrol.js";
+import { timeEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
 
 const root = document.getElementById("root")!;
@@ -20,28 +21,27 @@ const empty = root.querySelector<HTMLElement>(".empty")!;
 // Tell the host at most once a frame, however fast a slider moves. A timer, not
 // requestAnimationFrame, so playing goes on with the view collapsed.
 let pending: TimeState | undefined;
+/** The page's transport: time_changed at most once a frame; whatever moved last reaches the host before the window is saved. */
+const send = (message: Record<string, unknown>) => {
+  if (message.kind === "time_changed") {
+    const first = !pending;
+    pending = message.time as TimeState;
+    if (first) {
+      setTimeout(() => {
+        const time = pending;
+        pending = undefined;
+        if (time) host.postMessage({ kind: "time_changed", time });
+      }, 16);
+    }
+    return;
+  }
+  if (message.kind === "window_changed" && pending) host.postMessage({ kind: "time_changed", time: pending });
+  if (message.kind === "window_changed") pending = undefined;
+  host.postMessage(message);
+};
 const control = new TimeControl(
   document.getElementById("timebar")!,
-  {
-    moved: (time) => {
-      const first = !pending;
-      pending = time;
-      if (first) {
-        setTimeout(() => {
-          const time = pending;
-          pending = undefined;
-          if (time) host.postMessage({ kind: "time_changed", time });
-        }, 16);
-      }
-    },
-    windowSaved: (window) => {
-      // Whatever moved last reaches the host before the window is saved.
-      if (pending) host.postMessage({ kind: "time_changed", time: pending });
-      pending = undefined;
-      host.postMessage({ kind: "window_changed", time_range: window });
-    },
-    playing: (playing) => host.postMessage({ kind: "playing_changed", playing }),
-  },
+  timeEvents(send),
   {
     contextInView: false,
     // Whether the window's details are open: VS Code's state for this view, kept while it is hidden and across reloads.

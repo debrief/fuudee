@@ -584,8 +584,8 @@ export async function playTours(page, shot, root) {
   await page.locator("#freq-label_interval").selectOption({ label: "Every 10 min" });
   await dialog.getByRole("button", { name: "Apply" }).click();
   await done(page, "frequenciesSet");
-  await go(page, 3).click(); // the Export menu, under its button
-  const exported = await exportMap(page, { size: "Slide, 1600 × 900" });
+  await go(page, 3).click(); // Export image…, as VS Code's step runs it (PAR-14): its questions asked at once
+  const exported = await exportMap(page, { size: "Slide, 1600 × 900", started: true });
   assert.match(exported.name, /\.png$/);
   await done(page, "imageExported");
   const short = exported.said.match(/Its ID, (DBF-[0-9A-Z-]+),/)[1];

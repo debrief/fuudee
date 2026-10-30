@@ -204,6 +204,8 @@ export async function playExport(page, shot) {
   const target = await banner.locator("button").boundingBox();
   assert.ok(target.height >= 24 && target.width >= 24, `Go to latest is at least 24 px: ${JSON.stringify(target)}`);
   assert.match(await page.locator("#plot-title").innerText(), /\(read-only\)$/);
+  // The map's title bar, as VS Code's editor title bar over the map (A4): Go to latest revision, then Export image….
+  assert.deepEqual(await page.locator("#map-title button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), ["Go to latest revision of the plot", "Export image…"]);
   await page.locator(".toast", { hasText: `Serial 1 at step ${step}, as when image ${short} was exported. It is shown read-only.` }).getByRole("button", { name: "Go to latest" }).waitFor();
   assert.match(await page.locator("#history li.shown .detail").innerText(), new RegExp(`step ${step} .*shown read-only`));
   const teal = `path.leaflet-interactive[stroke="#00a3a3"]`; // BLUE ONE as the plot has it now; no other feature is teal
@@ -216,8 +218,9 @@ export async function playExport(page, shot) {
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(500);
   assert.equal(await historyRows(), rows + 1);
-  // Exported again from here, the image names the same revision: its short ID starts as the first's.
-  const again = await exportImage({ format: "png", preset: "screen", theme: "current", footer: true });
+  // Exported again from here, from the map's title bar: the image names the same revision, its short ID starting as the first's.
+  await page.locator("#map-exportImage").click();
+  const again = await exportMap(page, { size: "As on screen", started: true });
   assert.match(again.said, new RegExp(`Its ID, ${short.slice(0, 17)}[0-9A-HJKMNP-TV-Z]-[0-9A-HJKMNP-TV-Z]{2},`));
   // Go to latest: the plot as it is, to change.
   await banner.locator("button", { hasText: "Go to latest" }).click();

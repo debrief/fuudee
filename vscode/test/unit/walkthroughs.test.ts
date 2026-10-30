@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
 import { ALL_DONE, commandLink, contextKey, latestSolution, tmaDragEvent, nextLabel, nextTour, NO_SOLUTION, OPEN, plainForVSCode, SOLUTION, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withSolution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
 import { AFTER_OPEN, BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
-import { callEvent, counts, outlineTarget, parseActions, progressOf } from "../../play/tours.js";
+import { callEvent, counts, outlineTarget, parseActions, progressOf, serviceCall } from "../../play/tours.js";
+import { STEP_METHODS } from "../../webview/walkthroughevents.js";
 import { DEMO_META, demoPage } from "../../play/demo.mjs";
 import { CSP, CSP_META, CSP_PAGES } from "../../play/csp.mjs";
 import { contentFree } from "../../webview/timelinelogic.js";
@@ -81,6 +82,21 @@ describe("one source for both hosts", () => {
     expect(EVENTS.size).toBe(27); // no two steps wait for the same thing
   });
 
+  it("does what VS Code's button does with each playground button (PAR-14)", () => {
+    for (const step of steps) {
+      const command = step.vscode.command as string;
+      const actions = parseActions(step.play.action!);
+      const verbs = actions.map((a) => a.verb);
+      // Bringing a panel forward, opening the copy, importing its log or choosing in the Outline: the same in both.
+      if (command.endsWith(".focus") || command === "debrief.showCoverage") expect(verbs, step.id).toEqual(["focus"]);
+      else if (command === "debrief.walkthrough.open") expect(verbs[0], step.id).toBe("open");
+      else if (command === "debrief.walkthrough.importLog") expect(verbs, step.id).toEqual(["import-log"]);
+      else if (command === "debrief.chooseInOutline") expect(verbs, step.id).toEqual(["outline"]);
+      // Any other command: the playground runs the same action, never only shows where it is.
+      else expect(actions.filter((a) => a.verb === "run").map((a) => a.target), step.id).toEqual([command]);
+    }
+  });
+
   it("points each playground button at something on the page", () => {
     for (const step of steps) {
       for (const action of parseActions(step.play.action!)) {
@@ -136,7 +152,9 @@ describe("ticking a step off", () => {
     expect(serviceEvent("debrief/resolve_ambiguity", { keep: "bearing", cut_ids: ["c"] })).toBe("sideKept");
     expect(serviceEvent("debrief/resolve_ambiguity", { keep: "port", sensor_ids: ["s"] })).toBe("sideKept");
     expect(serviceEvent("debrief/resolve_ambiguity", { keep: "ambiguous", cut_ids: ["c"] })).toBeUndefined();
-    expect(serviceEvent("debrief/tma_create", {})).toBe("solutionMade");
+    // A solution made: its feature said back (the same rule as the playground's, PAR-14).
+    expect(serviceEvent("debrief/tma_create", {}, undefined, { changed: true, feature: "track-contact-1-solution" })).toBe("solutionMade");
+    expect(serviceEvent("debrief/tma_create", {})).toBeUndefined();
     expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "shear" } }, solution)).toBe("solutionSheared");
     expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "move" } }, solution)).toBe("solutionMoved");
     expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "rotate" } }, solution)).toBeUndefined();
@@ -168,10 +186,32 @@ describe("ticking a step off", () => {
     const service = ["debrief/import", "debrief/take_new_data", "debrief/set_source_preference", "debrief/remove_jumps", "debrief/smooth_track", "debrief/mark_fix", "debrief/add_annotation", "debrief/set_track_frequencies", "debrief/open_revision"]
       .map((m) => serviceEvent(m))
       .concat(serviceEvent("debrief/edit_track", { edit: { action: "shear" } }), serviceEvent("debrief/export_image", { image: "x" }))
-      .concat(serviceEvent("debrief/tma_create"))
+      .concat(serviceEvent("debrief/tma_create", {}, undefined, { feature: "s" }))
       .concat(serviceEvent("debrief/resolve_ambiguity", { keep: "port" }), serviceEvent("debrief/tma_exclude_cut", { excluded: true }), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "shear" } }, () => 1), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "move" } }, () => 1), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "move", period: { start: "a", end: "b" } } }, () => 2));
     const elsewhere = ["timeMoved", "selected", "toteChosen", "timelineChosen", "coverageShown", ...TOURS.map((t) => openedEvent(t.id))];
     expect(new Set([...service, ...elsewhere])).toEqual(EVENTS);
+  });
+
+  it("names each call to the playground's Python by the tool service's method, one table for both (PAR-14)", () => {
+    const request = (change: object) => ["serial-1-tma", JSON.stringify({ base: {}, change })];
+    const calls: [string, unknown[]][] = [
+      ["clean", request({ kind: "remove_jumps" })],
+      ["clean", request({ kind: "smooth" })],
+      ["clean", request({ kind: "mark" })],
+      ["track", request({ kind: "edit", edit: { action: "shear" } })],
+      ["sensor", request({ kind: "resolve", resolution: { keep: "port" } })],
+      ["tma_change", request({ kind: "create", request: {} })],
+      ["tma_change", request({ kind: "exclude", excluded: true })],
+      ["annotate", request({ kind: "add" })],
+      ["frequencies", request({})],
+      ["import_tour_log", []],
+      ["collate", request({ kind: "take" })],
+      ["collate", request({ kind: "prefer" })],
+      ["export_image", ["serial-1", "{}", new Uint8Array(1)]],
+      ["open_revision", []],
+    ];
+    const methods = calls.map(([call, args]) => serviceCall(call, args)?.method);
+    expect(new Set(methods)).toEqual(new Set(STEP_METHODS));
   });
 
   it("in the playground, by the call to Python that succeeded", () => {
@@ -187,7 +227,8 @@ describe("ticking a step off", () => {
     expect(callEvent("collate", request({ kind: "take" }), JSON.stringify({ changed: true }))).toBe("newDataTaken");
     expect(callEvent("collate", request({ kind: "take" }), JSON.stringify({ changed: false }))).toBeUndefined();
     expect(callEvent("import_tour_log", [], JSON.stringify({ item: "blue-one-nav-log" }))).toBe("imported");
-    expect(callEvent("export_image", [], JSON.stringify({ data: "…" }))).toBe("imageExported");
+    expect(callEvent("export_image", ["serial-1-annotate", "{}", new Uint8Array(3)], JSON.stringify({ data: "…" }))).toBe("imageExported");
+    expect(callEvent("figure_id", ["serial-1-annotate"], JSON.stringify({ id: "DBF1-…" }))).toBeUndefined(); // the image's ID asked for first
     expect(callEvent("open_revision", [], "not JSON")).toBeUndefined();
     // Bearings and TMA's steps.
     const solution = (id: string) => ({ "track-contact-1-solution": 1, "track-contact-2-solution": 2 })[id];
@@ -217,8 +258,9 @@ describe("ticking a step off", () => {
     expect(counts("coverageShown", { active: "collate", copy: "serial-1-collate", item: "serial-1-collate", done: new Set() })).toBe(false);
     expect(counts("coverageShown", { active: "collate", copy: "serial-1-collate", item: "serial-1-collate", done: new Set(["imported"]) })).toBe(true);
     expect(tourOfEvent("sheared")).toBe("tidy");
-    // A file of the reader's own is not the walkthrough's log; a stretch is not a shear.
-    expect(callEvent("import_file", [], JSON.stringify({ item: "mine" }))).toBeUndefined();
+    // A file of the reader's own is an import, as in VS Code, but not into the walkthrough's copy; a stretch is not a shear.
+    expect(callEvent("import_file", ["mine.rep"], JSON.stringify({ item: "mine" }))).toBe("imported");
+    expect(counts("imported", { active: "collate", copy: "serial-1-collate", item: "mine.rep", done: new Set() })).toBe(false);
     expect(callEvent("track", ["serial-1-tidy", JSON.stringify({ change: { kind: "edit", edit: { action: "stretch" } } })], JSON.stringify({ ok: true }))).toBeUndefined();
   });
 

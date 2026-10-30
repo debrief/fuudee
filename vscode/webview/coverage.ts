@@ -9,16 +9,11 @@ import "./coverage.css";
 import "./time.css";
 import type { CoverageReport, TimeState } from "@debrief/schemas";
 import { CoverageControl } from "./coveragecontrol.js";
+import { coverageEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
 
 const root = document.getElementById("root")!;
-const control = new CoverageControl(root, {
-  choose: (track, period, source) => host.postMessage({ kind: "source_chosen", feature_id: track, time_range: period, source }),
-  link: (track, source, linked) => host.postMessage({ kind: "link_changed", feature_id: track, source, linked }),
-  take: (item) => host.postMessage({ kind: "take_asked", item_revision: item }),
-  dismiss: (item) => host.postMessage({ kind: "dismiss_asked", item_revision: item }),
-  reviewed: () => host.postMessage({ kind: "review_cleared" }),
-});
+const control = new CoverageControl(root, coverageEvents((m) => host.postMessage(m)));
 
 onMessage((message) => {
   if (message.kind === "show_coverage") {
