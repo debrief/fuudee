@@ -30,8 +30,10 @@ export async function acceptAll(page, quiet = 4000) {
     const open = page.locator("dialog#ask[open], dialog.track-form[open]").first();
     if (!(await open.waitFor({ timeout: quiet }).then(() => true, () => false))) return;
     const handle = await open.elementHandle();
+    const title = await open.locator("h2").first().textContent();
     await open.locator("button.primary").first().click();
-    await page.waitForFunction((d) => !d.open, handle, { timeout: 10000 });
+    // Closed, or (the dialog the questions share) asking the next question.
+    await page.waitForFunction(([d, t]) => !d.open || d.querySelector("h2")?.textContent !== t, [handle, title], { timeout: 10000 });
   }
 }
 

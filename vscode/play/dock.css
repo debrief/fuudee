@@ -140,3 +140,7 @@ body.docked .dock-panel > #panel-bearings > .panel-body { flex: 1; min-height: 0
 }
 .toasts { z-index: 10000; }
 .dockview-theme-debrief .dv-sash { background: transparent; }
+/* Time's title menu (⋯) floats at the panel's top right, docked: a row of its own would cost the controller its height. */
+body.docked #panel-time { position: relative; }
+body.docked #panel-time > .panel-head { position: absolute; top: 2px; right: 4px; z-index: 2; }
+body.docked #panel-time .tc-now { padding-right: 28px; }

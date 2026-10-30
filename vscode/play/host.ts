@@ -202,6 +202,11 @@ const post = (target: HTMLIFrameElement | undefined, message: unknown) => {
 function refused(component: string): void {
   console.warn(`webview_message_refused panel=${component}`);
 }
+/**
+ * The transport for the components the playground builds in its own page: a message handed to its
+ * receiver as VS Code's webviews carry one, as JSON (a member left undefined is left out).
+ */
+const local = (receive: (raw: unknown) => Promise<void>) => (message: Record<string, unknown>) => void receive(JSON.parse(JSON.stringify(message)));
 
 // --- What is open, and the shared state -------------------------------------------
 let opened: Opened | undefined;
@@ -239,7 +244,7 @@ const fromTime = receiveTime(
   refused,
 );
 // How context tracks are drawn is chosen from the panel's title menu, as in VS Code (A4).
-const timeControl = new TimeControl($("timebar"), timeEvents((m) => void fromTime(m)), {
+const timeControl = new TimeControl($("timebar"), timeEvents(local(fromTime)), {
   contextInView: false,
   // Whether the window's details are open, remembered in this browser (product owner, 28 Oct 2026).
   windowOpen: {
@@ -317,7 +322,7 @@ const toteChoice = (): ToteView => toteChoosing ?? toteOf(opened?.plot);
 const totePanel = $("panel-tote");
 // The Tote's messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13).
 const fromTote = receiveTote({ ready: () => undefined, toteChanged: (view) => void chooseTote(view) }, checkMessage, refused);
-const toteControl = new ToteControl($("tote"), toteEvents((m) => void fromTote(m)));
+const toteControl = new ToteControl($("tote"), toteEvents(local(fromTote)));
 /** How long Python took to work each answer out, for the latency check (NFR-04). */
 const toteCompute: number[] = [];
 const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteView }>(
@@ -652,7 +657,8 @@ window.addEventListener("message", (event) => {
   if (event.data?.debriefKey) return void historyKey(event.data.debriefKey as KeyChord);
   if (!event.data?.debriefFrame) return;
   const { debriefFrame: name, message } = event.data as { debriefFrame: string; message: unknown };
-  void FRAMES[name]?.(message);
+  // As VS Code's webviews carry a message, as JSON (a member left undefined is left out).
+  void FRAMES[name]?.(message === undefined ? message : JSON.parse(JSON.stringify(message)));
 });
 
 // --- Tools ------------------------------------------------------------------------
@@ -1678,7 +1684,7 @@ const fromTimeline = receiveTimeline(
 );
 const timelineControl = new TimelineControl(
   $("timeline"),
-  timelineEvents((m) => void fromTimeline(m)),
+  timelineEvents(local(fromTimeline)),
   undefined,
   // The web demo keeps the kinds shown and the view's own settings, never sources, types or
   // phrases, which come from what was opened (panel review, 17 Oct 2026); an embedded demo, nothing.
@@ -2067,7 +2073,7 @@ const fromBearings = receiveBearings(
 );
 const tmaControl = new TmaControl(
   $("bearings"),
-  bearingsEvents((m) => void fromBearings(m)),
+  bearingsEvents(local(fromBearings)),
   undefined,
   {
     load: () => {
@@ -2861,7 +2867,7 @@ const collationHost: CollationHost = {
 const sayCollated = (problem: string | undefined) => void (problem && coverageControl.say(problem));
 // Coverage's messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13): each ask the shared collation flow.
 const fromCoverage = receiveCoverage({ ready: () => undefined, asked: (ask) => void collateFlow(collationHost, ask).then(sayCollated) }, checkMessage, refused);
-const coverageControl = new CoverageControl($("coverage"), coverageEvents((m) => void fromCoverage(m)));
+const coverageControl = new CoverageControl($("coverage"), coverageEvents(local(fromCoverage)));
 /** How long each ask for coverage took, from asking Python to its answer, for the performance check (NFR-01). */
 const coverageTimes: number[] = [];
 (window as unknown as { debriefCoverage: () => unknown }).debriefCoverage = () => ({ coverage, flags: reviewFlags, times: coverageTimes.slice(-20) });
