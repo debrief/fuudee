@@ -882,8 +882,12 @@ export async function playTmaTour(page, shot) {
   console.log(said);
 }
 
-/** The most the trial's tasks may take in the playground before the speed run fails: a regression in what they ask. */
-export const SPEED_RUN_MOST = 36;
+/**
+ * The most the trial's tasks may take in the playground before the speed run fails: a regression in
+ * what they ask. 40 since panel parity phase 4 (product owner, 30 Oct 2026): export asks VS Code's
+ * three questions, and Find source of image is on Catalogues' title bar menu, as in VS Code.
+ */
+export const SPEED_RUN_MOST = 40;
 
 /**
  * The onboarding trial's tasks, in the playground (not VS Code), done as quickly as the page
