@@ -81,7 +81,7 @@ Only the differences listed here are acceptable. Any other difference is a defec
 |---|---|
 | Playground's **Try** menu, **Reset layout** and sample-plot list | Demo only; VS Code has no equivalent need |
 | Docking and layout (tab groups vs VS Code's sidebar and panel areas) | Platform |
-| Bearings pop-out window (VS Code only) | Platform; *Open*: confirm |
+| Where the popped-out Bearings opens | VS Code moves an editor into a new window; the playground opens a browser window. Both are placed by the platform. The pop-out itself, its placeholder, Bring back and the linking are the same in both (decision, product owner, 30 Oct 2026) |
 | Files: VS Code saves and opens files on disk; the playground uploads and downloads them | Platform. The flow and its questions stay the same (PAR-09) |
 | Catalogue management: Add catalogue, Add plot file, Refresh, choosing a catalogue on import | The playground has one in-browser catalogue. The Catalogues *tree* still matches (PAR-01), and a plot opens from it in both front ends |
 | Playground's top-bar plot list | A shortcut to open a plot, kept beside the Catalogues tree (decision, product owner, 29 Oct 2026) |

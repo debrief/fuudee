@@ -21,6 +21,7 @@ await build({
     form: "webview/form.tsx",
     annotation: "webview/annotationform.tsx",
     results: "webview/results.tsx",
+    bearings: "webview/bearings.ts",
     shim: "play/shim.ts",
     geodesic: "play/geodesic.ts",
   },
@@ -41,7 +42,7 @@ await build({
   nodePaths: validator.nodePaths,
   external: ["https://*"],
 });
-for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "theme.css", "host.css", "dock.css", "play.py"]) {
+for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "frame-bearings.html", "theme.css", "host.css", "dock.css", "play.py"]) {
   cpSync(path.join("play", file), path.join(out, file));
 }
 // Dockview's own styles (dockview-core, pinned in package.json), served from here like everything else,

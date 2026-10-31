@@ -8,7 +8,7 @@ Check these in VS Code, not in the playground:
 
 - [ ] **Files on disk.** VS Code saves and opens files on disk; the playground uploads and downloads them. The questions are the same, so check the file handling itself in VS Code.
 - [ ] **Catalogue management.** Add catalogue, Add plot file, Refresh, and choosing a catalogue on import. The playground has one in-browser catalogue.
-- [ ] **Bearings pop-out window.** VS Code only.
+- [ ] **Where Bearings pops out.** VS Code moves an editor into a new window; the playground opens a browser window. Check the window's size and its move to a second monitor in VS Code.
 - [ ] **Where view state persists.** VS Code keeps it in webview state; the playground uses `localStorage`. Check that a view's state survives a reload in VS Code.
 - [ ] **Native rendering.** QuickPicks, the native tree and the codicons are VS Code's. The playground draws inline forms, an HTML tree and its own icon artwork. Check spacing, focus and icons in VS Code.
 - [ ] **Sidebar and panel areas.** VS Code places views in its sidebar and panel; the playground uses tab groups.
