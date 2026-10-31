@@ -375,6 +375,17 @@ async function pressAndHold(page, selector) {
   // Into view first: a row below the outline's visible part has a box, but the touch would
   // land on whatever is drawn there (fonts differ between machines, so rows do too).
   const row = page.locator(selector);
+  // The Tote's group follows the Tote's height a frame after it changes (product owner, 31 Oct 2026),
+  // moving the Outline below it: the row is found once nothing moves.
+  await page.waitForFunction(
+    (selector) =>
+      new Promise((done) => {
+        const at = () => document.querySelector(selector)?.closest("section")?.getBoundingClientRect().top;
+        const before = at();
+        requestAnimationFrame(() => requestAnimationFrame(() => done(at() === before)));
+      }),
+    selector,
+  );
   await row.scrollIntoViewIfNeeded();
   // The list's scroll event comes a frame later, and a scroll cancels a hold (as a finger's would):
   // the hold starts once the list has settled.
