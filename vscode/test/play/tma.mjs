@@ -1198,14 +1198,18 @@ export async function playSelectBearings(page, shot) {
   });
   assert.ok(run.separable && run.ids.length >= 10, `a run of unresolved pairs, left and right apart: ${run.ids.length}`);
   const [, a1] = s.axes.bearing;
+  // What a box says, read as the button is let go: say() clears it 6 s later, and Python can take
+  // longer than that to make the step on a busy machine.
+  const said = () => view.locator(".tma-status").textContent();
   let before = await steps();
   await drag(await at("bearing", run.split, run.to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+  const keptSaid = await said();
   await stepAdded(before);
   assert.equal(await steps(), before + 1, "one step");
   const side = run.sides.length === 1 ? run.sides[0] : "the sides boxed";
   const named = await latest();
   assert.match(named, new RegExp(`^Kept ${run.ids.length} Towed array cuts to ${side}, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ$`));
-  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Kept ${run.ids.length} cuts to ${side}, one step`));
+  assert.match(keptSaid, new RegExp(`^Kept ${run.ids.length} cuts to ${side}, one step`));
   const keptNow = () => page.evaluate((ids) => Object.fromEntries(window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id)).map((c) => [c.id, c.resolved ?? null])), run.ids);
   await page.waitForFunction((ids) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).length === ids.length, run.ids, { timeout: 30000 });
   assert.deepEqual(await keptNow(), run.keeps, "each cut kept on the side boxed");
@@ -1230,14 +1234,15 @@ export async function playSelectBearings(page, shot) {
   const boxRun = async (to) => {
     const steps0 = await steps();
     await drag(await at("bearing", run.split, to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+    const saidNow = await said();
     await stepAdded(steps0);
     assert.equal(await steps(), steps0 + 1, "one step");
-    return latest();
+    return { note: await latest(), said: saidNow };
   };
   const n = run.ids.length;
   const unresolved = await boxRun(run.to);
-  assert.match(unresolved, new RegExp(`^Made ${n} Towed array cuts ambiguous again, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ$`));
-  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Made ${n} cuts ambiguous again, one step`));
+  assert.match(unresolved.note, new RegExp(`^Made ${n} Towed array cuts ambiguous again, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ$`));
+  assert.match(unresolved.said, new RegExp(`^Made ${n} cuts ambiguous again, one step`));
   await settledTo(run.ids, 0);
   const pairsBack = await page.evaluate((ids) => window.debriefTma.bearingMarkers().filter((m) => ids.includes(m.id)).length, run.ids);
   assert.equal(pairsBack, 2 * n, "both faint dots of each pair back");
@@ -1257,10 +1262,22 @@ export async function playSelectBearings(page, shot) {
   await boxRun(middle);
   const part = await resolvedOf(run.ids);
   assert.ok(part.length > 0 && part.length < n, `part of the run kept: ${part.length} of ${n}`);
+  // Each cut of the run as the box will find it: resolved in the view, its dots as drawn, and the
+  // History's latest steps. On CI (30 Oct 2026) the step twice made 7 ambiguous again where the view
+  // showed 13 resolved: Python's plot and the view disagreed. This says how, when it happens again.
+  const dotsBefore = await page.evaluate((ids) => {
+    const c = window.debriefTma;
+    const st = c.plotState;
+    const resolved = new Map(c.shown.cuts.filter((x) => ids.includes(x.id)).map((x) => [x.id, x.resolved ?? null]));
+    const dots = c.bearingMarkers().filter((m) => ids.includes(m.id)).map((m) => `${m.id.slice(-6)}:${m.keep}@${m.value.toFixed(1)},${new Date(m.time).toISOString().slice(11, 19)}`);
+    const history = [...document.querySelectorAll("#history li .name")].slice(0, 8).map((e) => e.textContent);
+    return { resolved: Object.fromEntries(resolved), dots, reference: st.reference, axes: st.axes.bearing, span: st.span, history };
+  }, run.ids);
   const mixed = await boxRun(run.to);
   const plural = n - part.length === 1 ? "" : "s";
-  assert.match(mixed, new RegExp(`^Kept ${n - part.length} (Towed array )?cut${plural} to ${side} and made ${part.length} ambiguous again(, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ)?$`));
-  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Kept ${n - part.length} cuts? to ${side} and made ${part.length} ambiguous again, one step`));
+  const why = `the run as boxed: ${JSON.stringify({ split: run.split, a1, from: run.from, to: run.to, ...dotsBefore })}`;
+  assert.match(mixed.note, new RegExp(`^Kept ${n - part.length} (Towed array )?cut${plural} to ${side} and made ${part.length} ambiguous again(, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ)?$`), why);
+  assert.match(mixed.said, new RegExp(`^Kept ${n - part.length} cuts? to ${side} and made ${part.length} ambiguous again, one step`), why);
   await settledTo(run.ids, n - part.length);
   assert.deepEqual((await resolvedOf(run.ids)).sort(), run.ids.filter((id) => !part.includes(id)).sort(), "the part kept made ambiguous, the rest kept");
   await showPanel(page, "history");
@@ -1307,7 +1324,7 @@ export async function playSelectBearings(page, shot) {
   assert.equal(await view.locator(".tma-legend li").count(), 2);
   await picture("select-bearings-03-both-tracks");
   if (rearranged) await everyPanelLeft(page);
-  console.log(`Select bearings on serial 1: "${named}", then "${unresolved}", then "${mixed}", one step each, the zoom kept; Course/Speed: BLUE ONE ${cLo.toFixed(1)}° to ${cHi.toFixed(1)}°, speeds to ${s.course.series[0].speeds[1].toFixed(1)}; then BLUE ONE and ${s.course.series[1].name}.`);
+  console.log(`Select bearings on serial 1: "${named}", then "${unresolved.note}", then "${mixed.note}", one step each, the zoom kept; Course/Speed: BLUE ONE ${cLo.toFixed(1)}° to ${cHi.toFixed(1)}°, speeds to ${s.course.series[0].speeds[1].toFixed(1)}; then BLUE ONE and ${s.course.series[1].name}.`);
 }
 
 /**

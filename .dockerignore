@@ -1,0 +1,13 @@
+# The review image (deploy/review) needs only the packages, the extension and the lockfiles.
+**/node_modules
+**/.venv
+**/__pycache__
+**/dist
+**/dist-test
+**/dist-gen
+**/.vscode-test
+.git
+.github
+docs
+site
+spikes
