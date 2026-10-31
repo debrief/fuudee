@@ -35,19 +35,47 @@ async function get(base: string, file: string): Promise<Response> {
   return response;
 }
 
-/** Pyodide and its packages, from the CDN; a network that blocks it is named plainly. */
+/**
+ * Why Python could not be had, as the reader can act on it (a locked-down network, a browser
+ * policy), never a cause guessed: the step that failed, and what was found when it was looked into.
+ */
+async function whyNot(step: string, file: string, error: unknown): Promise<string> {
+  if (typeof WebAssembly === "undefined") return "Python couldn't start: WebAssembly is turned off in this browser, perhaps by your organisation's policy.";
+  const host = new URL(PYODIDE).host;
+  try {
+    const response = await fetch(`${PYODIDE}${file}`, { method: "HEAD", cache: "no-store" });
+    if (!response.ok) return `Python couldn't be downloaded: ${host} answered ${response.status} for ${file}; your network may block it.`;
+  } catch {
+    return `Python couldn't be downloaded: ${host} could not be reached; your network may block it.`;
+  }
+  const said = String((error as Error)?.message ?? error).split("\n")[0].slice(0, 200);
+  return `Python couldn't start while ${step}: ${said}`;
+}
+
+/** Pyodide and its packages, from the CDN; what stopped it named plainly (whyNot). */
 async function loadPython(say: (text: string) => void): Promise<Pyodide> {
+  let step = "loading Python";
+  let file = "pyodide.mjs";
   try {
     say("Loading Python…");
     const { loadPyodide } = (await import(/* @vite-ignore */ `${PYODIDE}pyodide.mjs`)) as {
       loadPyodide(options: { indexURL: string }): Promise<Pyodide>;
     };
-    const pyodide = await loadPyodide({ indexURL: PYODIDE });
+    file = "pyodide.asm.wasm";
+    // Asked for first: refused (a proxy's 403), Pyodide says so only on the console and waits for ever.
+    const wasm = await fetch(`${PYODIDE}${file}`, { method: "HEAD" });
+    if (!wasm.ok) throw new Error(`${file}: ${wasm.status}`);
+    const pyodide = await Promise.race([
+      loadPyodide({ indexURL: PYODIDE }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("no answer in 3 minutes")), 180_000)),
+    ]);
+    step = "loading Python packages";
+    file = "pyodide-lock.json";
     say("Loading Python packages…");
     await pyodide.loadPackage(PACKAGES);
     return pyodide;
-  } catch {
-    throw new Error("Python couldn't be downloaded from cdn.jsdelivr.net; your network may block it.");
+  } catch (error) {
+    throw new Error(await whyNot(step, file, error));
   }
 }
 
@@ -85,7 +113,11 @@ self.onmessage = async (event: MessageEvent<{ id: number; call: string; args: un
   try {
     if (call === "start") {
       ready ??= start(base!, (text) => self.postMessage({ progress: text }));
-      await ready;
+      // Failed: asked again (Try again), it starts afresh.
+      await ready.catch((error) => {
+        ready = undefined;
+        throw error;
+      });
       self.postMessage({ id, result: "ready" });
       return;
     }

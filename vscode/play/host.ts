@@ -4010,8 +4010,12 @@ async function preview(item: string): Promise<void> {
 
 /** Python could not start: say so plainly, and mark what needs it as unavailable. */
 function withoutPython(why: string): void {
-  status(`${why} The map still works; tools, history and import need Python.`);
+  status(`${/[.!?]$/.test(why) ? why : `${why}.`} The map still works; tools, history and import need Python.`);
   $("status").classList.add("problem");
+  // Started again from the top: a network that let it through a moment later, or a policy changed.
+  const again = Object.assign(document.createElement("button"), { type: "button", className: "link", textContent: "Try again" });
+  again.onclick = () => location.reload();
+  $("status").append(" ", again);
   for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).classList.add("unavailable");
   // As VS Code's Tools and History say when the tool service could not start.
   pythonProblem = why;
