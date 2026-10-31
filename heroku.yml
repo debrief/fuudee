@@ -1,4 +1,4 @@
 # The review copy of Debrief on Heroku: see deploy/review/README.md.
 build:
   docker:
-    web: deploy/review/Dockerfile
+    web: review.Dockerfile
