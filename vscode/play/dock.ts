@@ -38,6 +38,13 @@ export const COLLAPSED_KEY = "debrief.play.layout.collapsed";
 export const LAYOUT_VERSION = 7;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
+/**
+ * Panels never taller than what they show, in front in a group that shares its column (product
+ * owner, 31 Oct 2026): Time and the Tote take no room they do not need, the others in the column
+ * take the rest. As what they show shrinks, so do they. Where the column is short they can still be
+ * squeezed and scroll, as before; they never squeeze the others below their own least height.
+ */
+export const FITTED = new Set(["panel-time", "panel-tote"]);
 
 /** The parts of browser storage this needs. */
 export type LayoutStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -204,6 +211,7 @@ export class Dock {
   private readonly ids: string[];
   private saving: number | undefined;
   private readonly observer: ResizeObserver;
+  private readonly fitter: ResizeObserver;
   private readonly cleanups: (() => void)[] = [];
   private disposed = false;
 
@@ -229,11 +237,21 @@ export class Dock {
       this.saveFolds();
     }
     this.api.onDidLayoutChange(() => {
+      // A group fitted to its panel is not the reader's change: not remembered for it.
+      const byFit = this.fitChanged;
+      this.fitChanged = false;
       this.decorate();
       options.changed();
-      this.save();
+      if (!byFit) this.save();
     });
     this.api.onDidActivePanelChange(() => queueMicrotask(() => this.decorate()));
+    // What a fitted panel shows changed height: its group follows.
+    this.fitter = new ResizeObserver(() => requestAnimationFrame(() => this.fitHeights()));
+    for (const id of FITTED) {
+      const section = options.sections.get(id);
+      if (section) for (const child of Array.from(section.children)) this.fitter.observe(child);
+    }
+    requestAnimationFrame(() => this.fitHeights());
     // A group gone (its last panel moved away) leaves its room to its neighbours, in proportion:
     // the side columns would widen and the map narrow. The map takes it instead.
     this.api.onDidRemoveGroup(() => requestAnimationFrame(() => this.keepMapWide()));
@@ -477,6 +495,7 @@ export class Dock {
     // A change not yet written is written now: going narrow and back keeps it.
     if (this.saving !== undefined) this.save(true);
     this.observer.disconnect();
+    this.fitter.disconnect();
     for (const cleanup of this.cleanups) cleanup();
     this.api.dispose();
     this.options.container.replaceChildren();
@@ -644,6 +663,7 @@ export class Dock {
    * is no tab panel.
    */
   private decorate(): void {
+    this.fitHeights();
     const mapGroup = this.mapGroup();
     if (mapGroup) {
       if (!mapGroup.header.hidden) mapGroup.header.hidden = true;
@@ -749,6 +769,60 @@ export class Dock {
     return { element, init: () => undefined, dispose: () => element.remove() };
   }
 
+  /** Groups capped at their panel's height (FITTED), by group id: the cap. */
+  private fitted = new Map<string, number>();
+  /** Groups the cap took down, by group id: the height each had, to give back as what it shows grows again. */
+  private shrunk = new Map<string, number>();
+  /** A fit changed the layout since the last layout change was handled. */
+  private fitChanged = false;
+
+  /** The height a panel needs in its group: the tab strip and what the panel shows, nothing scrolling; undefined if it is not shown. */
+  private neededHeight(group: DockviewGroupPanel, id: string): number | undefined {
+    const section = this.options.sections.get(id);
+    if (!section || !section.offsetParent) return undefined;
+    const top = section.getBoundingClientRect().top;
+    let bottom = top;
+    for (const child of Array.from(section.children)) {
+      const box = child.getBoundingClientRect();
+      if (box.height) bottom = Math.max(bottom, box.bottom);
+    }
+    const strip = group.element.querySelector(".dv-tabs-and-actions-container")?.getBoundingClientRect().height ?? 35;
+    return Math.ceil(strip + bottom - top + (parseFloat(getComputedStyle(section).paddingBottom) || 0));
+  }
+
+  /** Each group with a fitted panel in front capped at that panel's height (FITTED); every other let go. */
+  private fitHeights(): void {
+    if (this.disposed) return;
+    for (const group of this.api.groups) {
+      if (this.collapsed.has(group.id)) continue;
+      const active = group.activePanel?.id;
+      const need = active && FITTED.has(active) && this.sharesColumn(group) ? this.neededHeight(group, active) : undefined;
+      const held = this.fitted.get(group.id);
+      if (need === undefined) {
+        if (held === undefined) continue;
+        this.fitted.delete(group.id);
+        this.shrunk.delete(group.id);
+        this.fitChanged = true;
+        group.api.setConstraints({ minimumHeight: 100, maximumHeight: Number.POSITIVE_INFINITY });
+      } else if (held === undefined || Math.abs(held - need) > 1) {
+        this.fitted.set(group.id, need);
+        this.fitChanged = true;
+        // A cap, not a fixed height: never taller than what it shows, but squeezed (and scrolling) where the column is short.
+        group.api.setConstraints({ minimumHeight: Math.min(100, need), maximumHeight: need });
+        const height = group.element.getBoundingClientRect().height;
+        const before = this.shrunk.get(group.id);
+        if (height > need + 1) {
+          // Taken down to the cap: the height it had is given back if what it shows grows again.
+          this.shrunk.set(group.id, Math.max(before ?? 0, height));
+          group.api.setSize({ height: need });
+        } else if (before !== undefined && height < Math.min(before, need) - 1) {
+          group.api.setSize({ height: Math.min(before, need) });
+          if (need >= before) this.shrunk.delete(group.id);
+        }
+      }
+    }
+  }
+
   /** Groups folded to their tabs, by group id: the height each had, to unfold to. */
   private collapsed = new Map<string, number>();
 
@@ -776,12 +850,14 @@ export class Dock {
     if (was === undefined) {
       const strip = Math.ceil(group.element.querySelector(".dv-tabs-and-actions-container")?.getBoundingClientRect().height ?? 35);
       this.collapsed.set(group.id, group.element.getBoundingClientRect().height);
-      group.api.setConstraints({ minimumHeight: strip });
+      this.fitted.delete(group.id);
+      group.api.setConstraints({ minimumHeight: strip, maximumHeight: Number.POSITIVE_INFINITY });
       group.api.setSize({ height: strip });
     } else {
       this.collapsed.delete(group.id);
       group.api.setConstraints({ minimumHeight: 100 });
       group.api.setSize({ height: Math.max(was, 160) });
+      this.fitHeights();
     }
     this.saveFolds();
     this.focusTab(id);

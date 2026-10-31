@@ -112,7 +112,7 @@ async function moveByMenu(page, id, item) {
 /**
  * The default layout at a size: every tab there, each group's first panel in front, the walkthroughs
  * alone on the right, nothing scrolling the page and no tab strip overflowing; the map half the width
- * or more from 1280 px; the strip under it 22% of the centre's height; Time and the Tote whole; the
+ * or more from 1280 px; the strip under it 22% of the centre's height; Time and the Tote whole and no taller; the
  * Outline's track tools in sight without scrolling (panel review, 23 Oct 2026).
  */
 async function defaultAt(page, width, height) {
@@ -131,6 +131,12 @@ async function defaultAt(page, width, height) {
   for (const id of ["panel-time", "panel-tote"]) {
     const [scroll, client] = await page.locator(`#${id}`).evaluate((s) => [s.parentElement.scrollHeight, s.parentElement.clientHeight]);
     assert.ok(scroll <= client + 1, `${id} without a scroll inside it at ${width} × ${height}: ${scroll} in ${client}`);
+    // As tall as what it shows and no taller (product owner, 31 Oct 2026): no room to spare below it.
+    await page.waitForFunction((id) => {
+      const s = document.getElementById(id);
+      const bottom = Math.max(...[...s.children].map((c) => c.getBoundingClientRect()).filter((b) => b.height).map((b) => b.bottom));
+      return Math.abs(s.parentElement.getBoundingClientRect().bottom - (bottom + (parseFloat(getComputedStyle(s).paddingBottom) || 0))) <= 2;
+    }, id, { timeout: 5000 }).catch(() => assert.fail(`${id} as tall as what it shows at ${width} × ${height}`));
   }
   const hidden = await page.evaluate(() => {
     const panel = document.getElementById("panel-outline").parentElement.getBoundingClientRect();
