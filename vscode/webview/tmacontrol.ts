@@ -459,9 +459,15 @@ export class TmaControl {
 
   /** Say something beneath the plot, read aloud. */
   say(text: string): void {
+    this.status.style.minHeight = "";
     this.status.textContent = text;
     clearTimeout(this.said);
-    this.said = setTimeout(() => (this.status.textContent = ""), 6000);
+    // Cleared, it keeps its height until the next message: a box being drawn when a longer message
+    // clears would otherwise see the plot move under the pointer, and keep the wrong cuts.
+    this.said = setTimeout(() => {
+      this.status.style.minHeight = `${this.status.offsetHeight}px`;
+      this.status.textContent = "";
+    }, 6000);
   }
 
   /** The form's answer: closed once the solution is made, or why not, left open. */
