@@ -1,0 +1,7 @@
+{
+ "number": "89",
+ "title": "Playground: the status bar keeps its line when empty, so the panels never resize under a box",
+ "url": "https://github.com/debrief/fuudee/pull/89",
+ "sha": "d0ee391",
+ "built": "2026-10-31 20:00 UTC"
+}
