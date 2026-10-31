@@ -39,9 +39,10 @@ export const LAYOUT_VERSION = 7;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 /**
- * Panels exactly as tall as what they show, in front in a group that shares its column (product
- * owner, 31 Oct 2026): Time and the Tote take no more room than they need, the others in the column
- * take the rest. As what they show grows or shrinks (Time's window details, the Tote's rows), so do they.
+ * Panels never taller than what they show, in front in a group that shares its column (product
+ * owner, 31 Oct 2026): Time and the Tote take no room they do not need, the others in the column
+ * take the rest. As what they show shrinks, so do they. Where the column is short they can still be
+ * squeezed and scroll, as before; they never squeeze the others below their own least height.
  */
 export const FITTED = new Set(["panel-time", "panel-tote"]);
 
@@ -768,8 +769,10 @@ export class Dock {
     return { element, init: () => undefined, dispose: () => element.remove() };
   }
 
-  /** Groups held to their panel's height (FITTED), by group id: the height each is held to. */
+  /** Groups capped at their panel's height (FITTED), by group id: the cap. */
   private fitted = new Map<string, number>();
+  /** Groups the cap took down, by group id: the height each had, to give back as what it shows grows again. */
+  private shrunk = new Map<string, number>();
   /** A fit changed the layout since the last layout change was handled. */
   private fitChanged = false;
 
@@ -787,7 +790,7 @@ export class Dock {
     return Math.ceil(strip + bottom - top + (parseFloat(getComputedStyle(section).paddingBottom) || 0));
   }
 
-  /** Each group with a fitted panel in front held to that panel's height (FITTED); every other let go. */
+  /** Each group with a fitted panel in front capped at that panel's height (FITTED); every other let go. */
   private fitHeights(): void {
     if (this.disposed) return;
     for (const group of this.api.groups) {
@@ -798,13 +801,24 @@ export class Dock {
       if (need === undefined) {
         if (held === undefined) continue;
         this.fitted.delete(group.id);
+        this.shrunk.delete(group.id);
         this.fitChanged = true;
         group.api.setConstraints({ minimumHeight: 100, maximumHeight: Number.POSITIVE_INFINITY });
       } else if (held === undefined || Math.abs(held - need) > 1) {
         this.fitted.set(group.id, need);
         this.fitChanged = true;
-        group.api.setConstraints({ minimumHeight: need, maximumHeight: need });
-        group.api.setSize({ height: need });
+        // A cap, not a fixed height: never taller than what it shows, but squeezed (and scrolling) where the column is short.
+        group.api.setConstraints({ minimumHeight: Math.min(100, need), maximumHeight: need });
+        const height = group.element.getBoundingClientRect().height;
+        const before = this.shrunk.get(group.id);
+        if (height > need + 1) {
+          // Taken down to the cap: the height it had is given back if what it shows grows again.
+          this.shrunk.set(group.id, Math.max(before ?? 0, height));
+          group.api.setSize({ height: need });
+        } else if (before !== undefined && height < Math.min(before, need) - 1) {
+          group.api.setSize({ height: Math.min(before, need) });
+          if (need >= before) this.shrunk.delete(group.id);
+        }
       }
     }
   }
