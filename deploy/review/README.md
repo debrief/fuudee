@@ -8,9 +8,9 @@ Nothing persists. Every start copies a fresh workspace from the image, so a rest
 
 | File | Does |
 | --- | --- |
-| [`heroku.yml`](../../heroku.yml) | Tells Heroku to build `Dockerfile` from the repository root |
+| [`heroku.yml`](../../heroku.yml) | Tells Heroku to build `review.Dockerfile` |
 | [`app.json`](../../app.json) | Tells a pipeline how to make a review app (below) |
-| `Dockerfile` | Packages the extension as a VSIX, installs Debrief's Python packages from `uv.lock` on Python 3.12, builds the sample catalogue and installs the extension into code-server 4.141 (VS Code 1.141) |
+| [`review.Dockerfile`](../../review.Dockerfile) | At the repository root, because Heroku builds with the Dockerfile's folder as its context. Packages the extension as a VSIX, installs Debrief's Python packages from `uv.lock` on Python 3.12, builds the sample catalogue and installs the extension into code-server 4.141 (VS Code 1.141) |
 | `start.sh` | Copies the seed to `/tmp/debrief-review` and starts code-server on `$PORT` behind `$PASSWORD`, or open to all without one |
 | `settings.json` | The reviewers' VS Code settings: Debrief's Python, no telemetry, no update checks, no AI features |
 
@@ -56,7 +56,7 @@ A closed window's memory is freed 10 minutes later (`--reconnection-grace-time`)
 ## Running it locally
 
 ```bash
-docker build -f deploy/review/Dockerfile -t debrief-review .
+docker build -f review.Dockerfile -t debrief-review .
 ```
 
 ```bash

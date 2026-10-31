@@ -1,6 +1,6 @@
 # The review copy of Debrief: VS Code in the browser (code-server) with the extension
 # and the Python tool service, on the sample data. See deploy/review/README.md.
-# Built from the repository root (heroku.yml).
+# At the repository root because Heroku builds with the Dockerfile's folder as its context (heroku.yml).
 
 # The extension, packaged as a VSIX (DEP-02).
 FROM node:22.22.0-bookworm-slim AS extension
