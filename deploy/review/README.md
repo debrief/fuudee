@@ -11,7 +11,7 @@ Nothing persists. Every start copies a fresh workspace from the image, so a rest
 | [`heroku.yml`](../../heroku.yml) | Tells Heroku to build `Dockerfile` from the repository root |
 | [`app.json`](../../app.json) | Tells a pipeline how to make a review app (below) |
 | `Dockerfile` | Packages the extension as a VSIX, installs Debrief's Python packages from `uv.lock` on Python 3.12, builds the sample catalogue and installs the extension into code-server 4.141 (VS Code 1.141) |
-| `start.sh` | Copies the seed to `/tmp/debrief-review` and starts code-server on `$PORT` behind `$PASSWORD` |
+| `start.sh` | Copies the seed to `/tmp/debrief-review` and starts code-server on `$PORT` behind `$PASSWORD`, or open to all without one |
 | `settings.json` | The reviewers' VS Code settings: Debrief's Python, no telemetry, no update checks, no AI features |
 
 ## Deploying
@@ -40,9 +40,10 @@ To update it, push again. Each push rebuilds the image, which takes several minu
 
 ## Review apps
 
-The `debrief-future-preview` pipeline makes a review app of a pull request, so reviewers try that change in VS Code. [`app.json`](../../app.json) tells Heroku how: the container stack, a Standard-2X dyno and a required `PASSWORD`.
+The `debrief-future-preview` pipeline makes a review app of a pull request, so reviewers try that change in VS Code. [`app.json`](../../app.json) tells Heroku how: the container stack, a Standard-2X dyno and an optional `PASSWORD`.
 
 - Set `PASSWORD` once, in the pipeline's **Review apps → Configure → config vars**, so every review app shares it.
+- **Without `PASSWORD`, a review app is open to anyone with its address**, and the terminal gives them a shell on the dyno. Scanners look for open code-server instances, so keep such an app for a short test and destroy it afterwards.
 - Each review app is a Standard-2X dyno of its own, billed while it exists. Create them by hand and set them to be destroyed after a few days without a push, rather than one for every pull request.
 - Only a branch with `heroku.yml` and `app.json` (this one, and `main` once it is merged) can make one. A pull request opened before that needs `main` merged into it first.
 
