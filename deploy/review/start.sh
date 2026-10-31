@@ -2,7 +2,10 @@
 # Starts the review copy from the image's seed: a fresh workspace on every start,
 # so a restart resets it. Everything written goes under /tmp, whatever user Heroku runs as.
 set -eu
-: "${PASSWORD:?Set PASSWORD: heroku config:set PASSWORD=...}"
+# Behind $PASSWORD; without one, open to anyone with the address, terminal and all: for a
+# short test only (decision, Ian Mayo, 31 Oct 2026).
+auth=password
+[ -n "${PASSWORD:-}" ] || auth=none
 
 state=/tmp/debrief-review
 rm -rf "$state"
@@ -19,7 +22,7 @@ export USER=reviewer
 # kept after the window closes for the reconnection grace time: 10 minutes, not 3 hours.
 exec code-server \
   --bind-addr "0.0.0.0:${PORT:-8080}" \
-  --auth password \
+  --auth "$auth" \
   --user-data-dir "$state/user-data" \
   --extensions-dir "$state/extensions" \
   --disable-telemetry \

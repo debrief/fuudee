@@ -4,8 +4,8 @@
   "stack": "container",
   "env": {
     "PASSWORD": {
-      "description": "The reviewers' shared password. Set once in the pipeline's review app config vars, so every review app shares it.",
-      "required": true
+      "description": "The reviewers' shared password, set once in the pipeline's review app config vars. Left unset, the review app is open to anyone with its address: for a short test only.",
+      "required": false
     }
   },
   "formation": {
