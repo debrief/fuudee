@@ -40,11 +40,11 @@ To update it, push again. Each push rebuilds the image, which takes several minu
 
 ## Review apps
 
-The `debrief-future-preview` pipeline makes a review app of a pull request, so reviewers try that change in VS Code. [`app.json`](../../app.json) tells Heroku how: the container stack, a Standard-2X dyno and an optional `PASSWORD`.
+The `fuudee` pipeline makes a review app of each pull request, a preview of that change in VS Code; GitHub links to it from the pull request. [`app.json`](../../app.json) tells Heroku how: the container stack, a Basic dyno and an optional `PASSWORD`.
 
 - Set `PASSWORD` once, in the pipeline's **Review apps → Configure → config vars**, so every review app shares it.
 - **Without `PASSWORD`, a review app is open to anyone with its address**, and the terminal gives them a shell on the dyno. Scanners look for open code-server instances, so keep such an app for a short test and destroy it afterwards.
-- Each review app is a Standard-2X dyno of its own, billed while it exists. Create them by hand and set them to be destroyed after a few days without a push, rather than one for every pull request.
+- Each review app is a Basic dyno (512 MB) of its own, billed while it exists, and destroyed when its pull request closes. Basic is enough for one reviewer at a time (decision, Ian Mayo, 31 Oct 2026); it swaps with more. Set stale review apps to be destroyed after a few days without a push.
 - Only a branch with `heroku.yml` and `app.json` (this one, and `main` once it is merged) can make one. A pull request opened before that needs `main` merged into it first.
 
 ## Size

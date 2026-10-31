@@ -16,6 +16,7 @@ Tags as in the decision logs: **DEC** decided · **OPEN** unresolved · **CAUTIO
 - **DEC** A container deploy (`heroku.yml` and a Dockerfile). The image holds the sample catalogue (DEP-08), and each start copies it into a fresh workspace, so code-server is listening well within Heroku's 60-second boot limit. Nothing persists: a restart, at least daily on Heroku, resets it.
 - **DEC** One shared password, held as a Heroku config variable. code-server includes a terminal; open to all, it would be a free shell on our Heroku account, and such instances are found by scanners within days.
 - **DEC** A Standard-2X dyno (1 GB), enough for two reviewers at once. Measured: code-server about 380 MB, and each browser window about 300 MB more (its extension host and tool service). Two at once is enough (Ian Mayo, 30 Oct); a `performance-m` dyno (2.5 GB) would serve about seven.
+- **DEC** A review app of each pull request, as its preview, on a Basic dyno (512 MB): deployed and tried on Basic, 31 Oct, and enough for one reviewer (Ian Mayo, 31 Oct).
 - **DEC** The playground stays as the public demonstration (DEP-06) and the blog's examples (DEV-06). The review instance is in addition to it.
 
 ## Tested
