@@ -99,8 +99,8 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-means.tma-problem, .tma-form-problem { color: var(--vscode-errorForeground); }
 .tma-form-problem:empty { display: none; }
 .tma-form-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.tma-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
-.tma-status:empty { display: none; }
+/* A line kept for what is said, said or not: the plot above never moves when a message comes or goes. */
+.tma-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; min-height: 1lh; }
 
 /* Forced colours (Windows High Contrast): a pressed toggle in the system's Highlight, never only a theme colour it drops. */
 @media (forced-colors: active) {
