@@ -359,7 +359,8 @@ export async function playTma(page, shot) {
     await page.waitForFunction(() => Object.values(window.debriefTma.plotState.boxes ?? {}).length === 2);
     const at = await page.evaluate(() => ({ plot: document.querySelector("#bearings .tma-canvas").getBoundingClientRect().height, panes: Object.values(window.debriefTma.plotState.boxes).map((b) => b.w), column: document.getElementById("panel-bearings").getBoundingClientRect().width, map: document.getElementById("main").getBoundingClientRect().width, tour: document.getElementById("panel-tour").closest(".dock-panel").getBoundingClientRect().height }));
     console.log(`Stacked Dots at ${w} × ${h}: the plot ${Math.round(at.plot)} px tall, panes ${at.panes.map(Math.round).join(" and ")} px wide; the column ${Math.round(at.column)} px, the map ${Math.round(at.map)} px; the walkthroughs ${Math.round(at.tour)} px tall`);
-    assert.ok(at.plot >= 270 && at.panes.every((p) => p >= 160) && at.tour >= 150, `at ${w} × ${h}: ${JSON.stringify(at)}`);
+    // 255, not 270: the status bar under the panels keeps its line when empty (31 Oct 2026), 15 px it gave back before.
+    assert.ok(at.plot >= 255 && at.panes.every((p) => p >= 160) && at.tour >= 150, `at ${w} × ${h}: ${JSON.stringify(at)}`);
     if (name) {
       await page.mouse.move(2, 2);
       await picture(name);
