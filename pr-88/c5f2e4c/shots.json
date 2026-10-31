@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "guides/interaction-models/browser-layout.md",
+   "url": "guides/interaction-models/browser-layout/",
+   "title": "Browser layout",
+   "file": "guides-interaction-models-browser-layout.png"
+  },
+  {
+   "source": "guides/interaction-models/time-controller.md",
+   "url": "guides/interaction-models/time-controller/",
+   "title": "Time controller",
+   "file": "guides-interaction-models-time-controller.png"
+  }
+ ],
+ "more": 0
+}
