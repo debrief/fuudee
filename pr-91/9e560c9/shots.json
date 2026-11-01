@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "index.md",
+   "url": "",
+   "title": "Debrief v4",
+   "file": "index.png"
+  },
+  {
+   "source": "try.md",
+   "url": "try/",
+   "title": "Try Debrief",
+   "file": "try.png"
+  }
+ ],
+ "more": 0
+}
