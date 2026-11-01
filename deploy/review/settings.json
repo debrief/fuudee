@@ -3,6 +3,7 @@
   "workbench.startupEditor": "none",
   "workbench.tips.enabled": false,
   "chat.disableAIFeatures": true,
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
   "security.workspace.trust.enabled": false,
   "extensions.autoUpdate": false,
   "extensions.autoCheckUpdates": false,
