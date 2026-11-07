@@ -57,13 +57,14 @@ from debrief_kernel.units import Quantity
 from debrief_schemas import DebriefFeatureCollection, models
 from debrief_schemas.documents import tma_request_problems
 from debrief_stac import sensors, tracks
+from debrief_stac.errors import DomainError
 
 # The colour Debrief gives a solution unless the analyst says (vscode/webview/palette.ts).
 TMA_COLOUR = "#e8710a"
 CONTACT = re.compile(r"^Contact (\d+)$")
 
 
-class TmaError(ValueError):
+class TmaError(DomainError):
     """A TMA change that cannot be made as asked, said in plain words."""
 
 

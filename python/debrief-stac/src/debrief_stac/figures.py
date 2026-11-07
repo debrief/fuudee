@@ -44,6 +44,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from debrief_schemas import models
+from debrief_stac.errors import DomainError
 
 if TYPE_CHECKING:
     from debrief_stac.catalogue import Catalogue
@@ -77,7 +78,7 @@ MAX_PICTURES = 256 * 1024 * 1024
 ODF_OR_OOXML_PICTURE = re.compile(r"^((word|ppt|xl)/media|Pictures)/")
 
 
-class FigureIdError(ValueError):
+class FigureIdError(DomainError):
     """Text that is not an image ID, or one mistyped. The message is for the analyst."""
 
     def __init__(self, message: str, code: str):
