@@ -109,7 +109,7 @@ From the think-aloud pass ("What was hardest? What would have helped?"): ______
 ## Recording results
 
 - Keep each sheet, and any recording, where the product owner keeps pilot records; not in this repository.
-- Summarise in a new dated section of this note, **Results**: the pre-registered rule as written; then, by participant number, each task's time, success and reason for any failure, the silent total and the highest help rung; then the stuck points that recurred, and the words. State whether the pass rule held. Record the outcome as a dated decision in `docs/delivery-plan.md` (pass, or the findings to fix) and update NFR-09's note in the SRD.
+- Summarise in a new dated section of this note, **Results**: the pre-registered rule as written; then, by participant number, each task's time, success and reason for any failure, the silent total and the highest help rung; then the stuck points that recurred, and the words. State whether the pass rule held. Record the outcome as a dated decision in the decision log (`docs/decision-log-2026-10.md`, or a newer log) (pass, or the findings to fix) and update NFR-09's note in the SRD.
 - Findings become issues against the walkthroughs (`vscode/walkthroughs/tours.json`), the language guide or the feature concerned.
 
 ## The automated speed run (playground only)
