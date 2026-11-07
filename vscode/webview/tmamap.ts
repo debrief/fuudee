@@ -12,7 +12,7 @@
  */
 import L from "leaflet";
 import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
-import type { DebriefFeatureCollection, TmaRequest } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TmaRequest, WebviewMessage } from "@debrief/schemas";
 import { densify, travel, type LonLat } from "./geodesic.js";
 import { bearingText, placeOfCut, sensorsOf, type CutFeature, type SensorEntry } from "./sensors.js";
 import { describeTwoClicks, ontoLine } from "./tma.js";
@@ -25,7 +25,7 @@ const SHOWN_M = 10 * 1852;
 
 export interface GuessHost {
   map: L.Map;
-  post(message: Record<string, unknown>): void;
+  post(message: WebviewMessage): void;
   plot(): DebriefFeatureCollection | undefined;
   say(text: string): void;
 }

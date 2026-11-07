@@ -59,7 +59,7 @@ import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReck
 import { FIX_COLOURS } from "../webview/palette.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { formatQuantity, UNIT_LABELS } from "@debrief/kernel";
-import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
+import type { FigureSource, ImageExport, RenderedImage, RevisionShown, WebviewMessage } from "@debrief/schemas";
 import type { ImageFormat, ImagePreset, ImageTheme } from "../webview/exportlogic.js";
 import { READ_ONLY, revisionOf } from "../src/figures.js";
 import { callEvent, counts, outlineTarget, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
@@ -207,7 +207,7 @@ function refused(component: string): void {
  * The transport for the components the playground builds in its own page: a message handed to its
  * receiver as VS Code's webviews carry one, as JSON (a member left undefined is left out).
  */
-const local = (receive: (raw: unknown) => Promise<void>) => (message: Record<string, unknown>) => void receive(JSON.parse(JSON.stringify(message)));
+const local = (receive: (raw: unknown) => Promise<void>) => (message: WebviewMessage) => void receive(JSON.parse(JSON.stringify(message)));
 
 // --- What is open, and the shared state -------------------------------------------
 let opened: Opened | undefined;

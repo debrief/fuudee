@@ -12,8 +12,6 @@
 import { pageReady, pageShown } from "./timing.js";
 import "./tma.css";
 import "./time.css";
-import type { TimeState, TmaView } from "@debrief/schemas";
-import type { LonLat } from "./geodesic.js";
 import { TmaControl } from "./tmacontrol.js";
 import { bearingsEvents } from "./dispatch.js";
 import { PANES, readPanes, type PanesShown } from "./stackeddots.js";
@@ -52,17 +50,16 @@ const control = new TmaControl(
 
 onMessage((message) => {
   if (message.kind === "show_tma") {
-    control.show(message.tma as TmaView | undefined);
+    control.show(message.tma ?? undefined);
     pageShown(!!message.tma);
   } else if (message.kind === "set_time") {
-    const time = message.time as TimeState;
+    const time = message.time;
     control.setTime(Date.parse(time.current), time.range);
   } else if (message.kind === "tma_preview") {
-    const preview = message.preview as { coordinates: LonLat[] } | undefined;
-    control.preview(message.feature_id as string, preview?.coordinates);
+    control.preview(message.feature_id, message.preview?.coordinates);
   } else if (message.kind === "tma_made") {
     // The host's answer to a solution asked for: made, or why not.
-    control.made(message.message as string | undefined);
+    control.made(message.message ?? undefined);
   }
 });
 
