@@ -28,7 +28,9 @@ describe("the action catalogue", () => {
     expect(new Set(ids).size).toBe(ids.length);
     // The Outline entries' commands are registered from the Tools panel model's OPERATION_COMMANDS; the
     // shared features' through webview/panels/flows/features.ts, by both hosts (test/unit/registration.test.ts).
-    const source = read("src/extension.ts") + read("webview/panels/tools.ts");
+    // VS Code's own commands out of activate() are registered from src/features.
+    const features = readdirSync(path.join(vscodeDir, "src", "features")).map((f) => read(path.join("src", "features", f)));
+    const source = [read("src/extension.ts"), read("webview/panels/tools.ts"), ...features].join("\n");
     const registered = (id: string) => source.includes(`"${id}"`) || FEATURE_COMMANDS.includes(id) || (id.startsWith("debrief.contextTracks.") && source.includes("command(`debrief.contextTracks.${choice}`"));
     expect(ids.filter((id) => !registered(id))).toEqual([]);
   });
