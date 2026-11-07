@@ -93,6 +93,7 @@ import { importNarrative, registerNarrativeImport, type NarrativeHost, type Reme
 import { importSensor, registerSensorImport, type SensorHost, type SensorRead } from "../webview/panels/flows/sensor.js";
 import { exportImage, registerExport, type ExportHost, type FindHost, type Traced } from "../webview/panels/flows/exportimage.js";
 import { registerBearings, type Made } from "../webview/panels/flows/bearings.js";
+import { PopOut, type PoppedWindow } from "../webview/panels/popout.js";
 import type { Host, Run, Target } from "../webview/panels/flows/register.js";
 import { operationContext as sharedOperationContext, operationsFor, registerOperations, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import type { TreeNode } from "../webview/outlinetree.js";
@@ -2087,7 +2088,8 @@ const fromBearings = receiveBearings(
   {
     // The popped-out window's page loaded: shown what Bearings shows, its title bar added.
     ready: () => {
-      if (!bearingsWindow || bearingsWindow.closed) return;
+      const popped = bearingsWindow();
+      if (!popped || popped.closed) return;
       bearingsWindowReady = true;
       bearingsWindowTitle();
       void refreshBearings();
@@ -2112,9 +2114,9 @@ const fromBearings = receiveBearings(
       const key = i >= 0 ? fixKey(id, i) : id;
       const choose = { label: i >= 0 ? "Select this position" : "Select this cut", act: () => selectFromBearings(id, at) };
       // Popped out, the menu opens here, over the panel's placeholder: the Outline's menu is this page's.
-      if (bearingsWindow) window.focus();
-      const away = bearingsWindow ? $("bearings-away").getBoundingClientRect() : undefined;
-      outlineRowMenu(key, away ? away.left + 16 : bearingsPointer.x, away ? away.top + 16 : bearingsPointer.y, (bearingsWindow ? $("bearings-away") : $("bearings").querySelector<HTMLElement>(".tma-canvas")) ?? undefined, choose, [key]);
+      if (bearingsWindow()) window.focus();
+      const away = bearingsWindow() ? $("bearings-away").getBoundingClientRect() : undefined;
+      outlineRowMenu(key, away ? away.left + 16 : bearingsPointer.x, away ? away.top + 16 : bearingsPointer.y, (bearingsWindow() ? $("bearings-away") : $("bearings").querySelector<HTMLElement>(".tma-canvas")) ?? undefined, choose, [key]);
     },
     cutOff: (degrees) => {
       errorCutOff = degrees;
@@ -2160,79 +2162,101 @@ bearingsTime = () => {
 // messages through the same receiver. One live at a time: popped out, the panel's Bearings is put
 // away and the panel says where it went (webview/bearingspopout.ts); brought back, it is made
 // afresh, as VS Code's page loads afresh, with the panes the window showed.
-let bearingsWindow: Window | undefined;
 let bearingsWindowReady = false;
 /** What the window was last shown, for the column's width and the Tools. */
 let bearingsWindowShown: TmaView | undefined;
 const toBearingsWindow = (message: Record<string, unknown>) => {
-  if (bearingsWindow && bearingsWindowReady && !bearingsWindow.closed) bearingsWindow.postMessage(message, location.origin);
+  const popped = bearingsWindow();
+  if (popped && bearingsWindowReady && !popped.closed) popped.postMessage(message, location.origin);
 };
 /** Bearings where it is live: the window while popped out, else the panel. */
 const bearingsView = {
   show(view: TmaView | undefined): void {
-    if (!bearingsWindow) return tmaControl.show(view);
+    if (!bearingsWindow()) return tmaControl.show(view);
     bearingsWindowShown = view;
     toBearingsWindow({ kind: "show_tma", ...(view && { tma: view }) });
   },
   /** While Python starts: the panel says so; the window shows nothing until it is ready. */
   waiting(text: string): void {
-    if (!bearingsWindow) return tmaControl.waiting(text);
+    if (!bearingsWindow()) return tmaControl.waiting(text);
     this.show(undefined);
   },
   setTime(): void {
     if (!time) return;
-    if (!bearingsWindow) return tmaControl.setTime(Date.parse(time.current), time.range);
+    if (!bearingsWindow()) return tmaControl.setTime(Date.parse(time.current), time.range);
     toBearingsWindow({ kind: "set_time", time });
   },
   preview(id: string, preview: { coordinates?: unknown } | undefined): void {
-    if (!bearingsWindow) return tmaControl.preview(id, preview?.coordinates as [number, number][] | undefined);
+    if (!bearingsWindow()) return tmaControl.preview(id, preview?.coordinates as [number, number][] | undefined);
     toBearingsWindow({ kind: "tma_preview", feature_id: id, ...(preview && { preview }) });
   },
   made(problem: string | undefined): void {
-    if (!bearingsWindow) return tmaControl.made(problem);
+    if (!bearingsWindow()) return tmaControl.made(problem);
     toBearingsWindow({ kind: "tma_made", ...(problem && { message: problem }) });
   },
   get shown(): TmaView | undefined {
-    return bearingsWindow ? bearingsWindowShown : tmaControl.shown;
+    return bearingsWindow() ? bearingsWindowShown : tmaControl.shown;
   },
 };
-FRAMES.bearings = (raw) => (bearingsWindow ? fromBearings(raw) : Promise.resolve());
+FRAMES.bearings = (raw) => (bearingsWindow() ? fromBearings(raw) : Promise.resolve());
 
+/** A browser window Bearings is popped out into. */
+interface BrowserWindow extends PoppedWindow {
+  win: Window;
+}
+/**
+ * Popped out and brought back: the lifecycle VS Code's PoppableView runs too (webview/panels/popout.ts).
+ * Brought back, Bearings is made afresh in the panel, as VS Code's page loads afresh.
+ */
+const bearingsPopOut = new PopOut<BrowserWindow>({
+  open: () => {
+    const opened = window.open(`frame-bearings.html?frame=bearings&theme=${theme}`, "debrief-bearings", "popup,width=960,height=640");
+    if (!opened) return void toast("The browser blocked the new window. Allow pop-ups for this page, then try again.", "warning");
+    const popped: BrowserWindow = { win: opened, focus: () => opened.focus(), close: () => void (opened.closed || opened.close()) };
+    // Closed by the reader (its close box): Bearings back in the panel, as closing VS Code's tab brings it back.
+    const watch = setInterval(() => {
+      if (!opened.closed) return;
+      clearInterval(watch);
+      bearingsPopOut.closed(popped);
+    }, 400);
+    return popped;
+  },
+  poppedOut: () => {
+    bearingsWindowReady = false;
+    bearingsWindowShown = undefined;
+    showPanel("panel-bearings");
+    renderBearingsPlace();
+    bearingsWidth();
+  },
+  placed: () => ({ where: "window" }),
+  cameBack: () => {
+    bearingsWindowReady = false;
+    bearingsWindowShown = undefined;
+    $("bearings").replaceChildren();
+    tmaControl = makeTmaControl();
+    (window as unknown as { debriefTma: TmaControl }).debriefTma = tmaControl;
+    renderBearingsPlace();
+    showPanel("panel-bearings");
+    void refreshBearings();
+  },
+});
+/** The window Bearings is popped out into, while it is. */
+function bearingsWindow(): Window | undefined {
+  return bearingsPopOut.window?.win;
+}
 /** Pop out: Bearings opened in a window of its own; popped out already, that window to the front. */
 function popOutBearings(): void {
-  if (bearingsWindow && !bearingsWindow.closed) return void bearingsWindow.focus();
-  const opened = window.open(`frame-bearings.html?frame=bearings&theme=${theme}`, "debrief-bearings", "popup,width=960,height=640");
-  if (!opened) return toast("The browser blocked the new window. Allow pop-ups for this page, then try again.", "warning");
-  bearingsWindow = opened;
-  bearingsWindowReady = false;
-  bearingsWindowShown = undefined;
-  showPanel("panel-bearings");
-  renderBearingsPlace();
-  bearingsWidth();
-  // Closed by the reader (its close box): Bearings back in the panel, as closing VS Code's tab brings it back.
-  const watch = setInterval(() => {
-    if (!opened.closed) return;
-    clearInterval(watch);
-    if (bearingsWindow === opened) bringBackBearings();
-  }, 400);
+  // Closed a moment ago, before the watch saw it: back first, then out again.
+  const popped = bearingsPopOut.window;
+  if (popped?.win.closed) bearingsPopOut.closed(popped);
+  void bearingsPopOut.popOut();
 }
 /** Bring back: the window closed, Bearings in the panel again, made afresh. */
 function bringBackBearings(): void {
-  const away = bearingsWindow;
-  if (!away) return;
-  bearingsWindow = undefined;
-  bearingsWindowReady = false;
-  bearingsWindowShown = undefined;
-  if (!away.closed) away.close();
-  $("bearings").replaceChildren();
-  tmaControl = makeTmaControl();
-  (window as unknown as { debriefTma: TmaControl }).debriefTma = tmaControl;
-  renderBearingsPlace();
-  showPanel("panel-bearings");
-  void refreshBearings();
+  bearingsPopOut.bringBack();
 }
 // The playground closed or reloaded: its popped-out Bearings with it, as VS Code's goes with its window.
-window.addEventListener("pagehide", () => bearingsWindow?.close());
+window.addEventListener("pagehide", () => bearingsWindow()?.close());
 
 /** Bearings' title bar (the action catalogue's: Pop out, or Bring back), and the panel's placeholder while popped out. */
 function renderBearingsPlace(): void {
@@ -2246,17 +2270,17 @@ function renderBearingsPlace(): void {
         return button;
       }),
   );
-  $("bearings").hidden = !!bearingsWindow;
+  $("bearings").hidden = !!bearingsWindow();
   const away = $("bearings-away");
-  away.hidden = !bearingsWindow;
-  if (!bearingsWindow) return away.replaceChildren();
+  away.hidden = !bearingsWindow();
+  if (!bearingsWindow()) return away.replaceChildren();
   const said = poppedOutSaid(true);
   const status = Object.assign(document.createElement("p"), { textContent: said.status });
   status.setAttribute("role", "status");
   const back = Object.assign(document.createElement("button"), { type: "button", className: "primary", textContent: said.bringBack.label, title: said.bringBack.title });
   back.onclick = () => bringBackBearings();
   const focus = Object.assign(document.createElement("button"), { type: "button", textContent: said.focus.label, title: said.focus.title });
-  focus.onclick = () => bearingsWindow?.focus();
+  focus.onclick = () => bearingsWindow()?.focus();
   const actions = Object.assign(document.createElement("p"), { className: "actions" });
   actions.append(back, focus);
   away.replaceChildren(status, actions);
@@ -2264,7 +2288,7 @@ function renderBearingsPlace(): void {
 
 /** The window's title bar, as VS Code's editor title bar has it there (Bring back): the action catalogue's editor entries. */
 function bearingsWindowTitle(): void {
-  const doc = bearingsWindow?.document;
+  const doc = bearingsWindow()?.document;
   if (!doc) return;
   const { context, reasons } = playContext();
   const entries = editorMenu({ ...context, activeWebviewPanelId: "debrief.bearingsWindow" }, reasons).filter((e) => e.group === "navigation");
@@ -2353,7 +2377,7 @@ function bearingsWidth(): void {
   requestAnimationFrame(() => {
     const shown = bearingsView.shown;
     // Popped out, the panel holds only its placeholder: the column back to its width.
-    if (dock?.widenFor("panel-bearings", !bearingsWindow && !!shown?.solution_id && !!shown.residuals)) placeSoon();
+    if (dock?.widenFor("panel-bearings", !bearingsWindow() && !!shown?.solution_id && !!shown.residuals)) placeSoon();
   });
 }
 /**
@@ -2525,7 +2549,7 @@ function playContext(keys: readonly string[] = outlinePicks): { context: Context
     "debrief.toteCanAdd": tote.canAdd,
     "debrief.toteCanRemove": tote.canRemove,
     "debrief.toteCanSetPrimary": !tote.primaryReason,
-    "debrief.bearingsPoppedOut": !!bearingsWindow,
+    "debrief.bearingsPoppedOut": !!bearingsWindow(),
   };
   return { context, reasons };
 }
@@ -2553,7 +2577,7 @@ registerBearings(playHost, {
   show: () => showPanel("panel-bearings"),
   popOut: () => popOutBearings(),
   bringBack: () => bringBackBearings(),
-  focusWindow: () => bearingsWindow?.focus(),
+  focusWindow: () => bearingsPopOut.focusWindow(),
   idOf: firstOf,
   solutionOf: firstOf,
   currentTime: () => time?.current,
