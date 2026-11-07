@@ -2,8 +2,10 @@
 
 Validation runs in three layers, in order:
 
-1. Schema version (SUB-14), for file kinds: a file written against another
-   schema version is refused before anything else is read.
+1. Schema version (SUB-13, SUB-14), for file kinds: a file written against an
+   older schema version is migrated to the current one when registered
+   migrations lead there (debrief_schemas.migrations; none yet), and refused
+   otherwise; a newer one is always refused. Before anything else is read.
 2. JSON Schema generated from LinkML: the same check the TypeScript side runs.
 3. Rules LinkML cannot express, such as parallel arrays matching the
    geometry. These live here only, in Python (PRN-03).
@@ -26,6 +28,7 @@ import math
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import cache
 from importlib.resources import files
@@ -40,11 +43,13 @@ from debrief_schemas.chain import (
     chain_problem,
     content_text_of,
     pointer_problems,
+    step_hash,
     text_hash,
 )
 from debrief_schemas.generated import debrief as g
 from debrief_schemas.generated.schema_version import SCHEMA_VERSION
 from debrief_schemas.island import dump_json
+from debrief_schemas.migrations import chain, migration_record, now_utc
 
 
 class DocumentKind(StrEnum):
@@ -219,8 +224,14 @@ def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
     return list(check.iter_errors(item))
 
 
+# The quick checks below mirror generated classes by hand. A test holds their member sets
+# to the generated JSON Schema: each member of the class is either checked here or left
+# to the schema (an item carrying it is not passed here), so a new attribute cannot slip
+# past them unnoticed.
+_FEATURE_MEMBERS = frozenset(("type", "id", "geometry", "properties"))
 _NARRATIVE_REQUIRED = frozenset(("kind", "time", "source", "text"))
 _NARRATIVE_MEMBERS = _NARRATIVE_REQUIRED | {"entry_type", "track_id"}
+_NARRATIVE_LEFT_TO_SCHEMA = frozenset(("provenance",))
 
 
 @cache
@@ -240,7 +251,7 @@ def _plain_narrative(item: Any) -> bool:
     props = item.get("properties")
     if not isinstance(props, dict) or props.get("kind") != "narrative":
         return False
-    if not item.keys() <= {"type", "id", "geometry", "properties"}:
+    if not item.keys() <= _FEATURE_MEMBERS:
         return False
     if item.get("type") != "Feature" or not isinstance(item.get("id"), str):
         return False
@@ -261,6 +272,9 @@ def _plain_narrative(item: Any) -> bool:
 
 _CUT_REQUIRED = frozenset(("kind", "sensor_id", "time", "bearing"))
 _CUT_MEMBERS = _CUT_REQUIRED | {"ambiguous_bearing", "resolved", "label", "colour", "hidden"}
+_CUT_LEFT_TO_SCHEMA = frozenset(
+    ("range", "origin", "origin_derived", "course", "bearing_accuracy", "comment")
+)
 _ANGLE_UNITS = frozenset(("deg", "rad"))
 
 
@@ -275,11 +289,12 @@ def _plain_angle(value: Any) -> bool:
 
 def _plain_cut(item: Any) -> bool:
     """A sensor cut as importers write it, checked by hand: exactly what
-    SensorCutFeature's JSON Schema allows, less a range, an origin and a comment (a cut
-    carrying any is left to the schema). True only where the schema would pass it too, so
-    this can only make checking quicker, never more lenient. A dense sensor holds tens
+    SensorCutFeature's JSON Schema allows, less the members in _CUT_LEFT_TO_SCHEMA (a range,
+    an origin and a comment among them: a cut carrying any is left to the schema). True
+    only where the schema would pass it too, so this can only make checking quicker,
+    never more lenient. A dense sensor holds tens
     of thousands of cuts (NFR-06), each checked once, as a narrative entry is."""
-    if not isinstance(item, dict) or not item.keys() <= {"type", "id", "geometry", "properties"}:
+    if not isinstance(item, dict) or not item.keys() <= _FEATURE_MEMBERS:
         return False
     props = item.get("properties")
     if not isinstance(props, dict) or props.get("kind") != "sensor_cut":
@@ -391,9 +406,130 @@ def _check_version(kind: DocumentKind, document: Any) -> None:
         raise DocumentValidationError(
             [f"schema version {found!r} is not a semantic version"]
         ) from None
-    # Before 1.0.0 there is no migration guarantee (SUB-13), so only an exact match opens.
+    # Only the current version is read; an older file is first brought to it by the
+    # registered migrations, if any lead there (see _migrated). Before 1.0.0 there is
+    # no migration guarantee (SUB-13) and none is registered.
     if parsed != _parse_version(SCHEMA_VERSION):
         raise SchemaVersionError(found)
+
+
+def _set_version(kind: DocumentKind, document: dict[str, Any], version: str) -> None:
+    if kind is DocumentKind.STAC_ITEM:
+        document["properties"]["debrief:schema_version"] = version
+    elif kind is DocumentKind.STAC_CATALOG:
+        document["debrief:schema_version"] = version
+    else:
+        document["schema_version"] = version
+
+
+@dataclass
+class _Migrated:
+    """A file brought to the current schema version in memory."""
+
+    document: Any  # the migrated copy, or the document as given when it needed none
+    as_read: dict[str, Any] | None = None  # the plot as read, when one was migrated
+    records: list[dict[str, Any]] = field(default_factory=list)  # one a migration applied
+
+
+def _migrated(kind: DocumentKind, document: Any) -> _Migrated:
+    """A file of an older schema version brought to the current one by the registered
+    migrations (debrief_schemas.migrations), or the document as given when it needs
+    none. Refuses an older version no chain of migrations leads from, naming it.
+
+    In memory only: the document given is never changed. Each migration applied to a
+    plot is recorded in its provenance. Its history is left as read: the step holding
+    the migration is added when the plot is first written (dump_document).
+    """
+    if kind not in _FILE_KINDS or not isinstance(document, dict):
+        return _Migrated(document)
+    found = _recorded_version(kind, document)
+    if not isinstance(found, str) or found == SCHEMA_VERSION:
+        return _Migrated(document)  # _check_version says what is wrong, if anything
+    try:
+        if _parse_version(found) > _parse_version(SCHEMA_VERSION):
+            return _Migrated(document)  # newer: refused by _check_version (SUB-14)
+    except ValueError:
+        return _Migrated(document)
+    steps = chain(found, SCHEMA_VERSION)
+    if steps is None:
+        raise SchemaVersionError(found)
+    migrated = copy.deepcopy(document)
+    records = []
+    for step in steps:
+        migrated = step.migrate(kind.value, migrated)
+        _set_version(kind, migrated, step.to_version)
+        records.append(migration_record(step, now_utc()))
+    if kind is not DocumentKind.PLOT:
+        return _Migrated(migrated)
+    migrated["provenance"] = [*migrated.get("provenance", []), *records]
+    return _Migrated(migrated, as_read=document, records=records)
+
+
+# A plot migrated on opening whose history does not record the migration yet holds
+# the records the step will hold, added when it is first written, as private state
+# on the model itself (pydantic's __pydantic_private__). Private state is never
+# serialised, and it goes with the plot: model_copy, copy.deepcopy and pickling all
+# carry it, so a copy made after opening records the migration when it is written.
+_UNRECORDED = "_debrief_unrecorded_migration"
+
+
+def _private(plot: BaseModel) -> dict[str, Any]:
+    return getattr(plot, "__pydantic_private__", None) or {}
+
+
+def _mark_unrecorded(plot: BaseModel, records: list[dict[str, Any]]) -> None:
+    object.__setattr__(plot, "__pydantic_private__", {**_private(plot), _UNRECORDED: records})
+
+
+def _clear_unrecorded(plot: BaseModel) -> None:
+    private = {k: v for k, v in _private(plot).items() if k != _UNRECORDED}
+    object.__setattr__(plot, "__pydantic_private__", private or None)
+
+
+def _unrecorded(plot: BaseModel) -> list[dict[str, Any]] | None:
+    records = _private(plot).get(_UNRECORDED)
+    return records if isinstance(records, list) else None
+
+
+def unrecorded_migration(plot: BaseModel) -> list[g.ProvRecord]:
+    """The migrations applied to a plot when it was opened that its history does not
+    record yet. They are recorded, in one step, when it is first written. Empty for a
+    plot that needed none, has no history, or has been written since."""
+    return [g.ProvRecord.model_validate(r) for r in _unrecorded(plot) or []]
+
+
+def _record_in_history(plot: dict[str, Any], records: list[dict[str, Any]]) -> None:
+    """Add a step holding the migration's records to a plot's history, if it has one,
+    after its current step, as any recorded change is: its result_hash is the content's
+    as written, chained from the last step. Steps undone are then abandoned (SUB-21).
+    A history that is not whole is left alone, to be refused as it would have been."""
+    history = plot.get(HISTORY_MEMBER)
+    if not isinstance(history, dict):
+        return
+    steps, current, head = history.get("steps"), history.get("current"), history.get("head_hash")
+    if not (isinstance(steps, list) and isinstance(current, int) and isinstance(head, str)):
+        return
+    if not all(
+        isinstance(s, dict) and isinstance(s.get("seq"), int) and isinstance(s.get("after"), int)
+        for s in steps
+    ):
+        return
+    seq = len(steps) + 1
+    step: dict[str, Any] = {
+        "seq": seq,
+        "state": "applied",
+        "after": current,
+        "records": records,
+        "result_hash": text_hash(content_text_of(plot)),
+    }
+    step["step_hash"] = step_hash(step, head)
+    steps = [*steps, step]
+    problems, states = pointer_problems([(s["seq"], s["after"], None) for s in steps], seq)
+    if problems:
+        return
+    history["steps"] = [{**s, "state": state} for s, state in zip(steps, states, strict=True)]
+    history["current"] = seq
+    history["head_hash"] = step["step_hash"]
 
 
 # --- Layer 3: rules LinkML cannot express --------------------------------------
@@ -864,7 +1000,9 @@ def _raw_feature_problems(raw_features: Any, label: str) -> list[str]:
     ]
 
 
-def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> list[str]:
+def _plot_problems(
+    plot: g.DebriefFeatureCollection, raw: dict[str, Any], as_read: dict[str, Any] | None = None
+) -> list[str]:
     problems = _raw_feature_problems(raw.get("features"), "feature")
     ids = [f.id for f in plot.features]
     duplicates = sorted(i for i, n in Counter(ids).items() if n > 1)
@@ -881,14 +1019,19 @@ def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> lis
         if missing:
             problems.append(f"named set {named_set.id}: unknown features {missing}")
     if plot.history is not None:
-        problems += history_problems(plot.history, raw)
+        problems += history_problems(plot.history, raw, as_read)
     return problems
 
 
-def history_problems(history: g.PlotHistory, raw: dict[str, Any]) -> list[str]:
+def history_problems(
+    history: g.PlotHistory, raw: dict[str, Any], as_read: dict[str, Any] | None = None
+) -> list[str]:
     """Rules for a plot file's history (decision 13 Oct): each step's own rules, the
     numbering and pointers, the hash chain, and the current step's result_hash
-    matching the file's content (island and history left out)."""
+    matching the file's content (island and history left out).
+
+    as_read: the plot as its file holds it, when it was migrated on opening. Until it
+    is written, its history records that content, not the migrated one."""
     raw_steps = raw[HISTORY_MEMBER]["steps"]
     problems = []
     for step, raw_step in zip(history.steps, raw_steps, strict=True):
@@ -901,10 +1044,11 @@ def history_problems(history: g.PlotHistory, raw: dict[str, Any]) -> list[str]:
     if broken:
         problems.append(f"history: {broken}")
     if not pointers:
-        content = text_hash(content_text_of(raw))
+        held = raw if as_read is None else as_read
+        content = text_hash(content_text_of(held))
         if history.current and history.steps[history.current - 1].result_hash != content:
             problems.append("history: the current step's result_hash is not the content's hash")
-        if not history.current and (raw.get("features") or raw.get("provenance")):
+        if not history.current and (held.get("features") or held.get("provenance")):
             problems.append("history: a plot with content has no current step")
     return problems
 
@@ -1424,6 +1568,7 @@ def _validate(
     text: str | bytes | None,
     build: bool,
     model: BaseModel | None = None,
+    as_read: dict[str, Any] | None = None,
 ) -> Any:
     """Check a document, unless its text has passed before. Returns its model if build is set.
 
@@ -1446,7 +1591,10 @@ def _validate(
 
     if model is None:
         model = _MODELS[kind].model_validate(_to_model_shape(kind, document))
-    problems = _RULES[kind](model, document)
+    if as_read is not None:  # a plot migrated on opening, its history as read
+        problems = _plot_problems(model, document, as_read)
+    else:
+        problems = _RULES[kind](model, document)
     if problems:
         raise DocumentValidationError(problems)
     if key is not None:
@@ -1457,11 +1605,25 @@ def _validate(
 
 
 def load_document(kind: DocumentKind | str, source: str | bytes | dict[str, Any]) -> Any:
-    """Parse and fully validate a document. Never returns a partially loaded one."""
+    """Parse and fully validate a document. Never returns a partially loaded one.
+
+    A file of an older schema version is first migrated, in memory, if registered
+    migrations lead from its version to the current one, and refused otherwise
+    (SUB-13, SUB-14). Opening changes nothing else: a migrated plot's history is as
+    read, and gains the step recording the migration when it is first written."""
     kind = DocumentKind(kind)
     text = source if isinstance(source, (str, bytes)) else None
     document = json.loads(source) if text is not None else source
-    return _validate(kind, document, text, build=True)
+    migrated = _migrated(kind, document)
+    if migrated.document is document:
+        return _validate(kind, document, text, build=True)
+    # The text read is not the document checked, so it is not remembered as passed.
+    has_history = isinstance(migrated.document.get(HISTORY_MEMBER), dict)
+    as_read = migrated.as_read if has_history else None
+    model = _validate(kind, migrated.document, None, build=True, as_read=as_read)
+    if as_read is not None:
+        _mark_unrecorded(model, migrated.records)
+    return model
 
 
 def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
@@ -1471,9 +1633,22 @@ def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
     as read, or in a step of its history) are not checked against it again, so a
     large plot changed by one note, or rebuilt by replaying its steps, is quick to
     write.
+
+    Writing never migrates: only the current version is written. A plot migrated on
+    opening is written the first time with a step added to its history holding the
+    migration's records (SUB-13). The model given gains that step too, so that it
+    holds what was written and the migration is recorded once.
     """
     kind = DocumentKind(kind)
     document = _to_json_shape(kind, model.model_dump(mode="json", by_alias=True, exclude_none=True))
+    records = _unrecorded(model) if kind is DocumentKind.PLOT else None
+    if records is not None and isinstance(document.get(HISTORY_MEMBER), dict):
+        _record_in_history(document, records)
+        text = dump_json(document)
+        written = _validate(kind, document, text, build=True)
+        model.history = written.history  # type: ignore[attr-defined]
+        _clear_unrecorded(model)
+        return text
     text = dump_json(document)
     # The rules run on the model given when it is of the kind's own class.
     given = model if type(model) is _MODELS[kind] else None
