@@ -1,0 +1,7 @@
+{
+ "number": "100",
+ "title": "Schema versions: bump script, an empty migration registry in both languages, fast-path guards",
+ "url": "https://github.com/debrief/fuudee/pull/100",
+ "sha": "aa5272a",
+ "built": "2026-11-07 12:14 UTC"
+}
