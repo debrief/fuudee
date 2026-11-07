@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ from starlette.testclient import TestClient
 from debrief_schemas import models
 from debrief_tools import diagnostics
 from debrief_tools import service as service_module
+from debrief_tools.methods import tool_name
 from debrief_tools.service import ToolService, build_app
 from debrief_tools.worker import ToolWorker
 
@@ -77,7 +79,7 @@ def test_tools_list_offers_exactly_the_registered_methods_but_the_protocols(clie
     result = rpc(client, "tools/list").json()["result"]
     methods = [t for t in result["tools"] if "debrief/method" in t.get("_meta", {})]
     offered = [m for m in service_module.METHODS.values() if not m.protocol]
-    assert [t["name"] for t in methods] == [m.name for m in offered]
+    assert [t["name"] for t in methods] == [m.tool_name for m in offered]
     assert methods == [m.listing() for m in offered]
     tools = [t for t in result["tools"] if "debrief/declaration" in t["_meta"]]
     assert len(tools) + len(methods) == len(result["tools"])  # each entry one or the other
@@ -86,12 +88,29 @@ def test_tools_list_offers_exactly_the_registered_methods_but_the_protocols(clie
     assert {"initialize", "ping", "tools/list", "tools/call"} <= protocol
     assert {"debrief/host_poll", "debrief/host_answer"} <= protocol  # the host's bridge
     assert not protocol & {t["name"] for t in result["tools"]}
-    stores = next(t for t in methods if t["name"] == "debrief/stores")
+    stores = next(t for t in methods if t["name"] == "debrief.stores")
     assert stores["description"] == service_module.METHODS["debrief/stores"].does
     assert stores["inputSchema"] == {"type": "object", "properties": {}, "required": []}
-    undo = next(t for t in methods if t["name"] == "debrief/undo")
+    undo = next(t for t in methods if t["name"] == "debrief.undo")
     assert undo["inputSchema"]["required"][:2] == ["store", "item"]
-    assert undo["_meta"]["debrief/method"] == {"writes": True, "agent": False, "history": True}
+    assert undo["_meta"]["debrief/method"] == {
+        "method": "debrief/undo",
+        "writes": True,
+        "agent": False,
+        "history": True,
+    }
+
+
+def test_every_tool_name_is_one_the_claude_api_and_mcp_accept_and_none_collide(client) -> None:
+    """^[A-Za-z0-9_.-]{1,64}$, the libraries' tools too; each name once. A method's tool
+    name is its own with the slash a dot, from one function (methods.tool_name)."""
+    names = [t["name"] for t in rpc(client, "tools/list").json()["result"]["tools"]]
+    pattern = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+    assert [n for n in names if not pattern.match(n)] == []
+    assert len(names) == len(set(names))
+    assert "core.range_rings" in names and "debrief.set_hidden" in names
+    for method in service_module.METHODS.values():
+        assert method.tool_name == method.name.replace("/", ".")
 
 
 def test_every_entry_tools_list_offers_runs_through_tools_call(client) -> None:
@@ -102,21 +121,25 @@ def test_every_entry_tools_list_offers_runs_through_tools_call(client) -> None:
         answer = rpc(client, "tools/call", {"name": entry["name"], "arguments": {}}).json()
         assert "result" in answer, (entry["name"], answer)
         assert isinstance(answer["result"]["isError"], bool), entry["name"]
-    for protocol in service_module.METHODS.names(protocol=True):
-        refused = rpc(client, "tools/call", {"name": protocol, "arguments": {}}).json()
-        assert refused["error"]["code"] == -32602
-        assert refused["error"]["message"] == f"There is no tool called {protocol}."
+    # Neither a protocol method, by either name, nor a method by its slashed (JSON-RPC)
+    # name: a tool is called by its tool name only.
+    offered = service_module.METHODS.names(protocol=False)
+    protocol = service_module.METHODS.names(protocol=True)
+    for name in {*protocol, *(tool_name(p) for p in protocol), *offered}:
+        refused = rpc(client, "tools/call", {"name": name, "arguments": {}}).json()
+        assert refused["error"]["code"] == -32602, name
+        assert refused["error"]["message"] == f"There is no tool called {name}."
 
 
 def test_tools_call_runs_a_reading_method(client) -> None:
-    result = rpc(client, "tools/call", {"name": "debrief/stores", "arguments": {}}).json()["result"]
+    result = rpc(client, "tools/call", {"name": "debrief.stores", "arguments": {}}).json()["result"]
     direct = rpc(client, "debrief/stores").json()["result"]
     assert result["isError"] is False and result["structuredContent"] == direct
     assert json.loads(result["content"][0]["text"]) == direct  # agents reading only text
     history = rpc(
         client,
         "tools/call",
-        {"name": "debrief/history", "arguments": {"store": "exercise", "item": "serial"}},
+        {"name": "debrief.history", "arguments": {"store": "exercise", "item": "serial"}},
     ).json()["result"]
     assert history["isError"] is False and "steps" in history["structuredContent"]
 
@@ -127,7 +150,7 @@ def test_tools_call_runs_a_change_as_its_own_request_would(client, catalogue) ->
     before = rpc(client, "debrief/history", where).json()["result"]["base"]
     # Refused as the request is: without agent (SUB-24), the code in _meta.
     anonymous = rpc(
-        client, "tools/call", {"name": "debrief/set_hidden", "arguments": change}
+        client, "tools/call", {"name": "debrief.set_hidden", "arguments": change}
     ).json()["result"]
     direct = rpc(client, "debrief/set_hidden", change).json()["error"]
     assert anonymous["isError"] and anonymous["content"][0]["text"] == direct["message"]
@@ -135,7 +158,7 @@ def test_tools_call_runs_a_change_as_its_own_request_would(client, catalogue) ->
     hidden = rpc(
         client,
         "tools/call",
-        {"name": "debrief/set_hidden", "arguments": {**change, "agent": AGENT}},
+        {"name": "debrief.set_hidden", "arguments": {**change, "agent": AGENT}},
     ).json()["result"]
     assert hidden["isError"] is False and hidden["structuredContent"]["changed"]
     plot = catalogue.read_plot("serial")
@@ -147,7 +170,7 @@ def test_tools_call_runs_a_change_as_its_own_request_would(client, catalogue) ->
         client,
         "tools/call",
         {
-            "name": "debrief/set_hidden",
+            "name": "debrief.set_hidden",
             "arguments": {**change, "agent": AGENT, "base": before},
         },
     ).json()["result"]
@@ -166,13 +189,13 @@ def test_tools_call_refuses_a_change_to_a_read_only_store(client, config_file) -
     where = {"store": "exercise", "item": "serial"}
     change = {**where, "features": ["track-late"], "hidden": True, "agent": AGENT}
     direct = rpc(client, "debrief/set_hidden", change).json()["error"]
-    refused = rpc(client, "tools/call", {"name": "debrief/set_hidden", "arguments": change}).json()[
+    refused = rpc(client, "tools/call", {"name": "debrief.set_hidden", "arguments": change}).json()[
         "result"
     ]
     assert "read-only" in direct["message"]
     assert refused["isError"] and refused["content"][0]["text"] == direct["message"]
     # Reading it still runs.
-    read = rpc(client, "tools/call", {"name": "debrief/history", "arguments": where}).json()
+    read = rpc(client, "tools/call", {"name": "debrief.history", "arguments": where}).json()
     assert read["result"]["isError"] is False
 
 
@@ -252,7 +275,7 @@ def test_official_mcp_client_lists_and_calls_tools(config_file: Path, catalogue)
             ):
                 await client.initialize()
                 listed = await client.list_tools()
-                stores = await client.call_tool("debrief/stores", {})
+                stores = await client.call_tool("debrief.stores", {})
                 called = await client.call_tool(
                     "core.track_summary",
                     {
@@ -266,7 +289,10 @@ def test_official_mcp_client_lists_and_calls_tools(config_file: Path, catalogue)
 
         listed, called, stores = asyncio.run(session())
         assert {"core.track_summary", "core.add_note"} <= {t.name for t in listed.tools}
-        offered = service_module.METHODS.names(protocol=False)
+        offered = {
+            service_module.METHODS[m].tool_name
+            for m in service_module.METHODS.names(protocol=False)
+        }
         assert offered <= {t.name for t in listed.tools}
         assert stores.is_error is False
         assert stores.structured_content["stores"][0]["id"] == "exercise"
