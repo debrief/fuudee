@@ -55,6 +55,7 @@ from debrief_stac import (
     tma,
     tracks,
 )
+from debrief_stac.errors import DomainError
 from debrief_stac.figures import PLOT_LOG_LIMIT, revision_symbols
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
@@ -2270,14 +2271,7 @@ class Catalogue:
             plot = history.replay(base.current)
         try:
             made = change(plot)
-        except (
-            annotations.AnnotationError,
-            narrative.NarrativeError,
-            tracks.TrackError,
-            collation.CollationError,
-            sensors.SensorError,
-            tma.TmaError,
-        ) as error:
+        except DomainError as error:  # any domain module's refusal, for the analyst
             raise CatalogueError(str(error)) from None
         if made is None:
             return None

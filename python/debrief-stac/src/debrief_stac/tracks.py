@@ -63,6 +63,7 @@ from debrief_kernel.geodesy import Position, destination, range_bearing
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import models
+from debrief_stac.errors import DomainError
 
 # A part of a split track, as a LineString, needs at least two fixes.
 FEWEST_FIXES = 2
@@ -71,7 +72,7 @@ FEWEST_FIXES = 2
 SERIES = ("speeds", "courses", "depths", "logged_courses", "logged_speeds")
 
 
-class TrackError(ValueError):
+class TrackError(DomainError):
     """A track operation that cannot be done as asked, said in plain words."""
 
 

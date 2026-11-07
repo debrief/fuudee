@@ -25,6 +25,7 @@ from debrief_kernel.geodesy import CURVE_SIDES, Position, circle_ring, ellipse_r
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import models
+from debrief_stac.errors import DomainError
 
 SHAPE_TITLES = {
     "line": "Line",
@@ -52,7 +53,7 @@ LARGEST_M = 10_000_000.0
 NORTH_ARROW_ID = "furniture-north-arrow"
 
 
-class AnnotationError(ValueError):
+class AnnotationError(DomainError):
     """An annotation that cannot be made as described, said in plain words."""
 
 
