@@ -12,6 +12,8 @@ Background documents for Debrief v4, first exported from their live Claude Docs 
 
 Requirement identifiers (SUB-, CAP-, TL-, DEV- and so on) used across the codebase refer to the SRD.
 
+How a change is made, so that each kind of thing is added in one place: the [engineering guide](engineering.md). The root `CLAUDE.md` is its short form, read first by agents.
+
 Reviews:
 
 | Review | File |

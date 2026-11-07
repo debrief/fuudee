@@ -1,6 +1,6 @@
 # Guides
 
-Three guides keep Debrief consistent as it grows one pull request at a time.
+Three guides keep Debrief consistent as it grows one pull request at a time. A fourth, the [engineering guide](https://github.com/debrief/fuudee/blob/main/docs/engineering.md) in the repository, does the same for the code: where each kind of thing is added and the recipe for each change.
 
 | Guide | North Star (draft) | Owner |
 | --- | --- | --- |
