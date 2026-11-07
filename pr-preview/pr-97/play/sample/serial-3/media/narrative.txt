@@ -1,0 +1,38 @@
+# Narrative, Serial 3 of the Debrief sample exercise. Times are Zulu.
+# Fiction: the exercise and its platforms are invented; AIS vessel names are generated.
+15 Jun 2023 17:00:00Z  EXCON     Log        Serial 3 started. BLUE ONE to sprint and drift; sonar off when sprinting.
+15 Jun 2023 17:00:00Z  RED ONE   Intention  Intention: evade to the north, then double back to the west.
+15 Jun 2023 17:00:00Z  BLUE ONE  Intention  Intention: sprint and drift to hold RED ONE as it evades.
+15 Jun 2023 17:00:00Z  BLUE ONE  Course     Steady on 050.0°T, 5.0 kn.
+15 Jun 2023 17:00:00Z  RED ONE   Course     Steady on 340.0°T, 5.0 kn, 15 m.
+15 Jun 2023 17:39:00Z  BLUE ONE  Sonar      Bow sonar contact, bearing 103.7°T. Classifying.
+15 Jun 2023 17:46:30Z  BLUE ONE  Sonar      Contact classified submarine, designated RED ONE, bearing 108.3°T.
+15 Jun 2023 17:46:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 108.3°T.
+15 Jun 2023 18:00:00Z  BLUE ONE  Course     Came to 140.0°T, 14.0 kn.
+15 Jun 2023 18:00:00Z  BLUE ONE  Sonar      Sprinting: sonar off.
+15 Jun 2023 18:20:00Z  BLUE ONE  Course     Came to 345.0°T, 5.0 kn.
+15 Jun 2023 18:20:00Z  BLUE ONE  Sonar      Drifting: sonar listening.
+15 Jun 2023 18:30:00Z  BLUE ONE  Sonar      Not regained RED ONE after sprint.
+15 Jun 2023 19:00:00Z  RED ONE   Course     Came to 280.0°T, 4.0 kn, 25 m.
+15 Jun 2023 19:20:00Z  BLUE ONE  Course     Came to 290.0°T, 14.0 kn.
+15 Jun 2023 19:20:00Z  BLUE ONE  Sonar      Sprinting: sonar off.
+15 Jun 2023 19:40:00Z  BLUE ONE  Course     Came to 220.0°T, 5.0 kn.
+15 Jun 2023 19:40:00Z  BLUE ONE  Sonar      Drifting: sonar listening.
+15 Jun 2023 19:44:00Z  BLUE ONE  Sonar      Regained RED ONE, bearing 335.2°T.
+15 Jun 2023 20:00:00Z  BLUE ONE  Sonar      RED ONE bearing 342.0°T, drawing right 0.2°/min.
+15 Jun 2023 20:11:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 343.7°T.
+15 Jun 2023 20:20:00Z  EXCON     Log        Communications check with all units: good.
+15 Jun 2023 21:00:00Z  BLUE ONE  Course     Came to 345.0°T, 14.0 kn.
+15 Jun 2023 21:00:00Z  RED ONE   Course     Came to 200.0°T, 6.0 kn, 20 m.
+15 Jun 2023 21:00:00Z  BLUE ONE  Sonar      Sprinting: sonar off.
+15 Jun 2023 21:20:00Z  BLUE ONE  Course     Came to 255.0°T, 5.0 kn.
+15 Jun 2023 21:20:00Z  BLUE ONE  Sonar      Drifting: sonar listening.
+15 Jun 2023 21:21:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 331.3°T.
+15 Jun 2023 21:30:00Z  BLUE ONE  Sonar      RED ONE bearing 348.2°T, drawing right 1.8°/min.
+15 Jun 2023 21:48:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 032.5°T.
+15 Jun 2023 21:51:32Z  EXCON     CPA        Closest approach of BLUE ONE and RED ONE: 0.58 nmi.
+15 Jun 2023 22:00:00Z  BLUE ONE  Log        Searching for RED ONE.
+15 Jun 2023 22:17:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 135.5°T.
+15 Jun 2023 22:30:00Z  BLUE ONE  Sonar      RED ONE bearing 136.1°T, steady.
+15 Jun 2023 22:43:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 139.1°T.
+15 Jun 2023 23:00:00Z  EXCON     Log        Serial 3 ended. End of exercise.
