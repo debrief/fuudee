@@ -1855,7 +1855,7 @@
 <ul>
 <li><strong>Detecting and merging:</strong> <code>History.commit</code> and <code>_check_merge</code> in <code>debrief_stac.history</code>; <code>Catalogue.save_as_new</code> (<code>History.fork_into</code>).</li>
 <li><strong>Checksums:</strong> <code>debrief_schemas.chain</code> (the hash chain, the content hash, the step rules); the <code>DAMAGED</code> and <code>MISMATCH</code> messages in <code>debrief_stac.history</code>.</li>
-<li><strong>The service:</strong> <code>base</code> and <code>on_conflict</code> on <code>tools/call</code>; error -32001 on <code>debrief/undo</code>, <code>redo</code> and <code>goto</code>.</li>
+<li><strong>The service:</strong> <code>base</code> and <code>on_conflict</code> on <code>tools/call</code>; error -32001 on <code>debrief/undo</code>, <code>redo</code> and <code>goto</code>, and on every change; from any method, -32004 when another process is saving the plot (send it again) and -32005 when its history refuses or is damaged (open it again), in <code>debrief_tools.rpc</code>.</li>
 <li><strong>The extension:</strong> <code>watch</code>, <code>askAboutConflict</code> and <code>runTool</code> in <code>vscode/src/extension.ts</code>; <code>historyOnDisk</code> and <code>changedSince</code> in <code>vscode/src/catalogue.ts</code>.</li>
 </ul>
 
