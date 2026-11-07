@@ -257,6 +257,26 @@
       "title": "AnnotationAppearance",
       "type": "object"
     },
+    "AnnotationDrawnMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step.",
+      "properties": {
+        "annotation": {
+          "$ref": "#/$defs/AnnotationSpec",
+          "description": "An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation)."
+        },
+        "kind": {
+          "const": "annotation_drawn",
+          "type": "string"
+        }
+      },
+      "required": [
+        "annotation",
+        "kind"
+      ],
+      "title": "AnnotationDrawnMessage",
+      "type": "object"
+    },
     "AnnotationFeature": {
       "additionalProperties": false,
       "description": "Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04); chart furniture has null geometry and needs neither. A circle or an ellipse is a polygon approximating it, for other tools, with its centre and size as properties, which Debrief draws from.",
@@ -602,6 +622,21 @@
       "title": "AssetKindEnum",
       "type": "string"
     },
+    "CancelMessage": {
+      "additionalProperties": false,
+      "description": "Form to host: close without running.",
+      "properties": {
+        "kind": {
+          "const": "cancel",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "CancelMessage",
+      "type": "object"
+    },
     "CatalogTypeEnum": {
       "description": "",
       "enum": [
@@ -644,6 +679,26 @@
         }
       },
       "title": "CollationView",
+      "type": "object"
+    },
+    "ContextChangedMessage": {
+      "additionalProperties": false,
+      "description": "Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks).",
+      "properties": {
+        "context_tracks": {
+          "$ref": "#/$defs/ContextTracksEnum",
+          "description": "How tracks outside the time window are drawn (CAP-29)."
+        },
+        "kind": {
+          "const": "context_changed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "context_tracks",
+        "kind"
+      ],
+      "title": "ContextChangedMessage",
       "type": "object"
     },
     "ContextTracksEnum": {
@@ -961,6 +1016,26 @@
       "title": "CoverageSource",
       "type": "object"
     },
+    "CutChosenMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "cut_chosen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "kind"
+      ],
+      "title": "CutChosenMessage",
+      "type": "object"
+    },
     "DebriefFeatureCollection": {
       "additionalProperties": false,
       "description": "The unit of analysis (SUB-05), stored as an asset of a STAC item.",
@@ -1034,6 +1109,46 @@
         "provenance"
       ],
       "title": "DebriefFeatureCollection",
+      "type": "object"
+    },
+    "DeleteAnnotationMessage": {
+      "additionalProperties": false,
+      "description": "Annotation form to host: delete this annotation (feature_id).",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "delete_annotation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "kind"
+      ],
+      "title": "DeleteAnnotationMessage",
+      "type": "object"
+    },
+    "DeleteNarrativeMessage": {
+      "additionalProperties": false,
+      "description": "Timeline to host: delete this narrative entry (feature_id), as one recorded step.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "delete_narrative",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "kind"
+      ],
+      "title": "DeleteNarrativeMessage",
       "type": "object"
     },
     "Delta": {
@@ -1180,6 +1295,26 @@
       "title": "Delta",
       "type": "object"
     },
+    "DismissAskedMessage": {
+      "additionalProperties": false,
+      "description": "Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10).",
+      "properties": {
+        "item_revision": {
+          "$ref": "#/$defs/ItemRevision",
+          "description": "The item, at the revision the analyst saw (take_asked, dismiss_asked)."
+        },
+        "kind": {
+          "const": "dismiss_asked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_revision",
+        "kind"
+      ],
+      "title": "DismissAskedMessage",
+      "type": "object"
+    },
     "Duration": {
       "additionalProperties": false,
       "description": "",
@@ -1208,6 +1343,82 @@
       ],
       "title": "DurationUnitEnum",
       "type": "string"
+    },
+    "EditAnnotationMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step.",
+      "properties": {
+        "annotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation)."
+        },
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "edit_annotation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "kind"
+      ],
+      "title": "EditAnnotationMessage",
+      "type": "object"
+    },
+    "EditTrackMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "edit_track",
+          "type": "string"
+        },
+        "track_edit": {
+          "$ref": "#/$defs/TrackEdit",
+          "description": "How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track)."
+        }
+      },
+      "required": [
+        "feature_id",
+        "track_edit",
+        "kind"
+      ],
+      "title": "EditTrackMessage",
+      "type": "object"
+    },
+    "ExportImageMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25).",
+      "properties": {
+        "image_request": {
+          "$ref": "#/$defs/ImageRequest",
+          "description": "What image to draw, and how (export_image)."
+        },
+        "kind": {
+          "const": "export_image",
+          "type": "string"
+        }
+      },
+      "required": [
+        "image_request",
+        "kind"
+      ],
+      "title": "ExportImageMessage",
+      "type": "object"
     },
     "ExportLog": {
       "additionalProperties": false,
@@ -1327,6 +1538,32 @@
       "title": "FigureSource",
       "type": "object"
     },
+    "FixChosenMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "fix_time": {
+          "description": "The time of the fix the analyst chose on the map (fix_chosen).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "fix_chosen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "fix_time",
+        "kind"
+      ],
+      "title": "FixChosenMessage",
+      "type": "object"
+    },
     "FixIntervalAllEnum": {
       "description": "A track's time labels or symbols at every recorded fix (CAP-32), legacy Debrief's \"All\" (decision, product owner, 15 Oct 2026): still thinned when zoomed out. Not for arrows.",
       "enum": [
@@ -1393,6 +1630,44 @@
         "time"
       ],
       "title": "FixMark",
+      "type": "object"
+    },
+    "FormBusyMessage": {
+      "additionalProperties": false,
+      "description": "Host to form: the tool is running (message).",
+      "properties": {
+        "kind": {
+          "const": "form_busy",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "kind"
+      ],
+      "title": "FormBusyMessage",
+      "type": "object"
+    },
+    "FormErrorMessage": {
+      "additionalProperties": false,
+      "description": "Host to form: the run failed or a value was refused (message).",
+      "properties": {
+        "kind": {
+          "const": "form_error",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "kind"
+      ],
+      "title": "FormErrorMessage",
       "type": "object"
     },
     "FormatSettings": {
@@ -1797,6 +2072,38 @@
       "title": "ImagePresetEnum",
       "type": "string"
     },
+    "ImageRenderedMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn.",
+      "properties": {
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RenderedImage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The image the map drew (image_rendered)."
+        },
+        "kind": {
+          "const": "image_rendered",
+          "type": "string"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ImageRenderedMessage",
+      "type": "object"
+    },
     "ImageRequest": {
       "additionalProperties": false,
       "description": "What the host asks the map to draw for an export (export_image).",
@@ -1985,6 +2292,21 @@
       "title": "LabelPositionEnum",
       "type": "string"
     },
+    "LatestAskedMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members).",
+      "properties": {
+        "kind": {
+          "const": "latest_asked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "LatestAskedMessage",
+      "type": "object"
+    },
     "Length": {
       "additionalProperties": false,
       "description": "",
@@ -2080,6 +2402,36 @@
       ],
       "title": "LineStyleEnum",
       "type": "string"
+    },
+    "LinkChangedMessage": {
+      "additionalProperties": false,
+      "description": "Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "link_changed",
+          "type": "string"
+        },
+        "linked": {
+          "description": "Whether the source is the track's platform (link_changed).",
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceTrackRef",
+          "description": "A track in a catalogue item (source_chosen, link_changed)."
+        }
+      },
+      "required": [
+        "feature_id",
+        "source",
+        "linked",
+        "kind"
+      ],
+      "title": "LinkChangedMessage",
+      "type": "object"
     },
     "LoggedExport": {
       "additionalProperties": false,
@@ -2346,6 +2698,26 @@
       "title": "NarrativeKindEnum",
       "type": "string"
     },
+    "NarrativeOnMapChangedMessage": {
+      "additionalProperties": false,
+      "description": "Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island.",
+      "properties": {
+        "kind": {
+          "const": "narrative_on_map_changed",
+          "type": "string"
+        },
+        "narrative_on_map": {
+          "description": "Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "narrative_on_map",
+        "kind"
+      ],
+      "title": "NarrativeOnMapChangedMessage",
+      "type": "object"
+    },
     "NarrativeProperties": {
       "additionalProperties": false,
       "description": "",
@@ -2397,6 +2769,34 @@
         "text"
       ],
       "title": "NarrativeProperties",
+      "type": "object"
+    },
+    "NarrativeSavedMessage": {
+      "additionalProperties": false,
+      "description": "Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "narrative_saved",
+          "type": "string"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "NarrativeSavedMessage",
       "type": "object"
     },
     "NarrativeSpec": {
@@ -2508,6 +2908,28 @@
       ],
       "title": "ObservationTypeEnum",
       "type": "string"
+    },
+    "OpenNarrativeFormMessage": {
+      "additionalProperties": false,
+      "description": "Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "open_narrative_form",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "OpenNarrativeFormMessage",
+      "type": "object"
     },
     "ParameterDeclaration": {
       "additionalProperties": false,
@@ -2774,6 +3196,26 @@
         "platform"
       ],
       "title": "PlatformTrack",
+      "type": "object"
+    },
+    "PlayingChangedMessage": {
+      "additionalProperties": false,
+      "description": "Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts.",
+      "properties": {
+        "kind": {
+          "const": "playing_changed",
+          "type": "string"
+        },
+        "playing": {
+          "description": "Whether current time is playing (playing_changed).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "playing",
+        "kind"
+      ],
+      "title": "PlayingChangedMessage",
       "type": "object"
     },
     "PlotFeature": {
@@ -3167,6 +3609,36 @@
       "title": "QuantityKindEnum",
       "type": "string"
     },
+    "ReadyMessage": {
+      "additionalProperties": false,
+      "description": "Webview to host: loaded and listening.",
+      "properties": {
+        "kind": {
+          "const": "ready",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ReadyMessage",
+      "type": "object"
+    },
+    "RedoAskedMessage": {
+      "additionalProperties": false,
+      "description": "Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone.",
+      "properties": {
+        "kind": {
+          "const": "redo_asked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "RedoAskedMessage",
+      "type": "object"
+    },
     "RenderedImage": {
       "additionalProperties": false,
       "description": "The image the map drew (image_rendered), before its ID goes into its metadata.",
@@ -3215,6 +3687,31 @@
         "height"
       ],
       "title": "RenderedImage",
+      "type": "object"
+    },
+    "ResolveAskedMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects).",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "keep": {
+          "$ref": "#/$defs/AmbiguityKeepEnum",
+          "description": "Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked)."
+        },
+        "kind": {
+          "const": "resolve_asked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "keep",
+        "kind"
+      ],
+      "title": "ResolveAskedMessage",
       "type": "object"
     },
     "ResultColumn": {
@@ -3275,6 +3772,21 @@
       ],
       "title": "ResultPresentationEnum",
       "type": "string"
+    },
+    "ReviewClearedMessage": {
+      "additionalProperties": false,
+      "description": "Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12).",
+      "properties": {
+        "kind": {
+          "const": "review_cleared",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ReviewClearedMessage",
+      "type": "object"
     },
     "ReviewFlag": {
       "additionalProperties": false,
@@ -3346,6 +3858,86 @@
       "title": "RevisionShown",
       "type": "object"
     },
+    "RunToolMessage": {
+      "additionalProperties": false,
+      "description": "Form to host: run the tool with these values (tool_name, parameters).",
+      "properties": {
+        "kind": {
+          "const": "run_tool",
+          "type": "string"
+        },
+        "parameters": {
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          },
+          "type": "array"
+        },
+        "tool_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_name",
+        "parameters",
+        "kind"
+      ],
+      "title": "RunToolMessage",
+      "type": "object"
+    },
+    "SaveAnnotationMessage": {
+      "additionalProperties": false,
+      "description": "Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one).",
+      "properties": {
+        "annotation": {
+          "$ref": "#/$defs/AnnotationSpec",
+          "description": "An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation)."
+        },
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "save_annotation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "annotation",
+        "kind"
+      ],
+      "title": "SaveAnnotationMessage",
+      "type": "object"
+    },
+    "SaveNarrativeMessage": {
+      "additionalProperties": false,
+      "description": "Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "save_narrative",
+          "type": "string"
+        },
+        "narrative": {
+          "$ref": "#/$defs/NarrativeSpec",
+          "description": "A narrative entry as the Timeline's form describes it (save_narrative)."
+        }
+      },
+      "required": [
+        "narrative",
+        "kind"
+      ],
+      "title": "SaveNarrativeMessage",
+      "type": "object"
+    },
     "Selection": {
       "additionalProperties": false,
       "description": "",
@@ -3366,6 +3958,25 @@
         "feature_ids"
       ],
       "title": "Selection",
+      "type": "object"
+    },
+    "SelectionChangedMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst changed the selection (selection).",
+      "properties": {
+        "kind": {
+          "const": "selection_changed",
+          "type": "string"
+        },
+        "selection": {
+          "$ref": "#/$defs/Selection"
+        }
+      },
+      "required": [
+        "selection",
+        "kind"
+      ],
+      "title": "SelectionChangedMessage",
       "type": "object"
     },
     "SensorCutFeature": {
@@ -3761,6 +4372,135 @@
       "title": "SensorProperties",
       "type": "object"
     },
+    "SetContextMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.",
+      "properties": {
+        "context_tracks": {
+          "$ref": "#/$defs/ContextTracksEnum",
+          "description": "How tracks outside the time window are drawn (CAP-29)."
+        },
+        "kind": {
+          "const": "set_context",
+          "type": "string"
+        }
+      },
+      "required": [
+        "context_tracks",
+        "kind"
+      ],
+      "title": "SetContextMessage",
+      "type": "object"
+    },
+    "SetNarrativeMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away.",
+      "properties": {
+        "kind": {
+          "const": "set_narrative",
+          "type": "string"
+        },
+        "timeline_entry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimelineEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The narrative entry current time is at, to show on the map beside its track (set_narrative)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "SetNarrativeMessage",
+      "type": "object"
+    },
+    "SetSelectionMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: the selection changed elsewhere (selection).",
+      "properties": {
+        "kind": {
+          "const": "set_selection",
+          "type": "string"
+        },
+        "selection": {
+          "$ref": "#/$defs/Selection"
+        }
+      },
+      "required": [
+        "selection",
+        "kind"
+      ],
+      "title": "SetSelectionMessage",
+      "type": "object"
+    },
+    "SetTimeMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: current time changed elsewhere (time).",
+      "properties": {
+        "kind": {
+          "const": "set_time",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeState"
+        }
+      },
+      "required": [
+        "time",
+        "kind"
+      ],
+      "title": "SetTimeMessage",
+      "type": "object"
+    },
+    "SetToteMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen.",
+      "properties": {
+        "kind": {
+          "const": "set_tote",
+          "type": "string"
+        },
+        "tote_view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "SetToteMessage",
+      "type": "object"
+    },
+    "SetViewportMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: show this area (viewport).",
+      "properties": {
+        "kind": {
+          "const": "set_viewport",
+          "type": "string"
+        },
+        "viewport": {
+          "$ref": "#/$defs/Viewport"
+        }
+      },
+      "required": [
+        "viewport",
+        "kind"
+      ],
+      "title": "SetViewportMessage",
+      "type": "object"
+    },
     "SharedState": {
       "additionalProperties": false,
       "description": "",
@@ -3828,6 +4568,511 @@
       "title": "SharedStateChange",
       "type": "object"
     },
+    "ShowAnnotationFormMessage": {
+      "additionalProperties": false,
+      "description": "Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known.",
+      "properties": {
+        "annotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation)."
+        },
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "show_annotation_form",
+          "type": "string"
+        },
+        "time_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowAnnotationFormMessage",
+      "type": "object"
+    },
+    "ShowCoverageMessage": {
+      "additionalProperties": false,
+      "description": "Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown.",
+      "properties": {
+        "coverage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoverageReport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The open plot's coverage (show_coverage)."
+        },
+        "kind": {
+          "const": "show_coverage",
+          "type": "string"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowCoverageMessage",
+      "type": "object"
+    },
+    "ShowFixesMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fix_times": {
+          "description": "The times of the fixes the map rings (show_fixes).",
+          "items": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "show_fixes",
+          "type": "string"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineStringGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowFixesMessage",
+      "type": "object"
+    },
+    "ShowFormMessage": {
+      "additionalProperties": false,
+      "description": "Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known).",
+      "properties": {
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "show_form",
+          "type": "string"
+        },
+        "selected_names": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "time_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen)."
+        },
+        "tool": {
+          "$ref": "#/$defs/ToolDeclaration"
+        }
+      },
+      "required": [
+        "tool",
+        "selected_names",
+        "kind"
+      ],
+      "title": "ShowFormMessage",
+      "type": "object"
+    },
+    "ShowHiddenMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: show every feature hidden on the map (no members).",
+      "properties": {
+        "kind": {
+          "const": "show_hidden",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowHiddenMessage",
+      "type": "object"
+    },
+    "ShowPlotMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only.",
+      "properties": {
+        "context_tracks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextTracksEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How tracks outside the time window are drawn (CAP-29)."
+        },
+        "hidden_count": {
+          "description": "How many of the plot's features are hidden on the map (SUB-22), so the map can say so.",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "show_plot",
+          "type": "string"
+        },
+        "plot": {
+          "$ref": "#/$defs/DebriefFeatureCollection"
+        },
+        "plot_title": {
+          "type": "string"
+        },
+        "revision_shown": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RevisionShown"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot shown is an earlier revision, read-only (show_plot)."
+        },
+        "selection": {
+          "$ref": "#/$defs/Selection"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "viewport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Viewport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "plot",
+        "plot_title",
+        "selection",
+        "kind"
+      ],
+      "title": "ShowPlotMessage",
+      "type": "object"
+    },
+    "ShowResultsMessage": {
+      "additionalProperties": false,
+      "description": "Host to results: show a tool's result (tool, result_title, result).",
+      "properties": {
+        "kind": {
+          "const": "show_results",
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/ToolResult"
+        },
+        "result_title": {
+          "type": "string"
+        },
+        "tool": {
+          "$ref": "#/$defs/ToolDeclaration"
+        }
+      },
+      "required": [
+        "tool",
+        "result_title",
+        "result",
+        "kind"
+      ],
+      "title": "ShowResultsMessage",
+      "type": "object"
+    },
+    "ShowTimeMessage": {
+      "additionalProperties": false,
+      "description": "Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open.",
+      "properties": {
+        "context_tracks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextTracksEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How tracks outside the time window are drawn (CAP-29)."
+        },
+        "kind": {
+          "const": "show_time",
+          "type": "string"
+        },
+        "minimum_context_contrast": {
+          "description": "The analyst's setting that shows faint context tracks as visible, so the time controller can say so.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "saved_window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28)."
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowTimeMessage",
+      "type": "object"
+    },
+    "ShowTimelineMessage": {
+      "additionalProperties": false,
+      "description": "Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open.",
+      "properties": {
+        "kind": {
+          "const": "show_timeline",
+          "type": "string"
+        },
+        "narrative_on_map": {
+          "description": "Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "plot_id": {
+          "description": "Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timeline_entries": {
+          "description": "The Timeline's rows, in its order (show_timeline).",
+          "items": {
+            "$ref": "#/$defs/TimelineEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "timeline_tracks": {
+          "description": "The plot's tracks, which a narrative entry can belong to (show_timeline).",
+          "items": {
+            "$ref": "#/$defs/ToteTrack"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowTimelineMessage",
+      "type": "object"
+    },
+    "ShowTmaMessage": {
+      "additionalProperties": false,
+      "description": "Host to bearing view: the plot's sensors and TMA solutions, the cuts of the sensor chosen, and the residuals of the solution shown (tma); none when no plot is open (CAP-21).",
+      "properties": {
+        "kind": {
+          "const": "show_tma",
+          "type": "string"
+        },
+        "tma": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What the bearing view shows (show_tma)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowTmaMessage",
+      "type": "object"
+    },
+    "ShowToteMessage": {
+      "additionalProperties": false,
+      "description": "Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open.",
+      "properties": {
+        "kind": {
+          "const": "show_tote",
+          "type": "string"
+        },
+        "tote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Tote's values at current time (show_tote)."
+        },
+        "tote_tracks": {
+          "description": "The plot's tracks, which the analyst can choose from for the Tote (show_tote).",
+          "items": {
+            "$ref": "#/$defs/ToteTrack"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tote_view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ShowToteMessage",
+      "type": "object"
+    },
     "SideEnum": {
       "description": "Which side of the host's course a bearing is on (CAP-22).",
       "enum": [
@@ -3836,6 +5081,36 @@
       ],
       "title": "SideEnum",
       "type": "string"
+    },
+    "SourceChosenMessage": {
+      "additionalProperties": false,
+      "description": "Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09).",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_chosen",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceTrackRef",
+          "description": "A track in a catalogue item (source_chosen, link_changed)."
+        },
+        "time_range": {
+          "$ref": "#/$defs/TimeRange",
+          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen)."
+        }
+      },
+      "required": [
+        "feature_id",
+        "time_range",
+        "source",
+        "kind"
+      ],
+      "title": "SourceChosenMessage",
+      "type": "object"
     },
     "SourceRef": {
       "additionalProperties": false,
@@ -4336,6 +5611,45 @@
       "title": "StoreKindEnum",
       "type": "string"
     },
+    "TakeAskedMessage": {
+      "additionalProperties": false,
+      "description": "Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11).",
+      "properties": {
+        "item_revision": {
+          "$ref": "#/$defs/ItemRevision",
+          "description": "The item, at the revision the analyst saw (take_asked, dismiss_asked)."
+        },
+        "kind": {
+          "const": "take_asked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_revision",
+        "kind"
+      ],
+      "title": "TakeAskedMessage",
+      "type": "object"
+    },
+    "TimeChangedMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the analyst moved current time (time).",
+      "properties": {
+        "kind": {
+          "const": "time_changed",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeState"
+        }
+      },
+      "required": [
+        "time",
+        "kind"
+      ],
+      "title": "TimeChangedMessage",
+      "type": "object"
+    },
     "TimeRange": {
       "additionalProperties": false,
       "description": "A closed interval of time. Start shall not be after end.",
@@ -4384,6 +5698,26 @@
       ],
       "title": "TimeStyleEnum",
       "type": "string"
+    },
+    "TimelineChosenMessage": {
+      "additionalProperties": false,
+      "description": "Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "timeline_chosen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "kind"
+      ],
+      "title": "TimelineChosenMessage",
+      "type": "object"
     },
     "TimelineEntry": {
       "additionalProperties": false,
@@ -4469,6 +5803,46 @@
       ],
       "title": "TimelineEntryKindEnum",
       "type": "string"
+    },
+    "TmaChosenMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id).",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "tma_chosen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "kind"
+      ],
+      "title": "TmaChosenMessage",
+      "type": "object"
+    },
+    "TmaCreateMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: make a TMA solution as asked (tma_request: the cuts, and a first guess by form), as one recorded step (CAP-21; product owner, 24 Oct 2026).",
+      "properties": {
+        "kind": {
+          "const": "tma_create",
+          "type": "string"
+        },
+        "tma_request": {
+          "$ref": "#/$defs/TmaRequest",
+          "description": "A TMA solution asked for (tma_create, tma_guess, tma_guessed)."
+        }
+      },
+      "required": [
+        "tma_request",
+        "kind"
+      ],
+      "title": "TmaCreateMessage",
+      "type": "object"
     },
     "TmaCut": {
       "additionalProperties": false,
@@ -4571,6 +5945,61 @@
       "title": "TmaCut",
       "type": "object"
     },
+    "TmaCutOffMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026).",
+      "properties": {
+        "error_cut_off": {
+          "description": "The analyst's error cut-off, degrees (tma_cut_off).",
+          "maximum": 180,
+          "minimum": 0.01,
+          "type": "number"
+        },
+        "kind": {
+          "const": "tma_cut_off",
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_cut_off",
+        "kind"
+      ],
+      "title": "TmaCutOffMessage",
+      "type": "object"
+    },
+    "TmaExcludeMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step.",
+      "properties": {
+        "cut_ids": {
+          "description": "The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "excluded": {
+          "description": "Whether the cuts are left out (tma_exclude).",
+          "type": "boolean"
+        },
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "tma_exclude",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "cut_ids",
+        "excluded",
+        "kind"
+      ],
+      "title": "TmaExcludeMessage",
+      "type": "object"
+    },
     "TmaFocus": {
       "additionalProperties": false,
       "description": "What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period, or cut_ids, the first guess's form opened for them if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The plot then has the keyboard (the form, if opened).",
@@ -4620,6 +6049,112 @@
         }
       },
       "title": "TmaFocus",
+      "type": "object"
+    },
+    "TmaGuessMessage": {
+      "additionalProperties": false,
+      "description": "Host to map: the analyst asked to make a TMA solution by two clicks (tma_request: the cuts), one on the first cut's line and one on the last's; with no tma_request, stop asking.",
+      "properties": {
+        "kind": {
+          "const": "tma_guess",
+          "type": "string"
+        },
+        "tma_request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A TMA solution asked for (tma_create, tma_guess, tma_guessed)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "TmaGuessMessage",
+      "type": "object"
+    },
+    "TmaGuessedMessage": {
+      "additionalProperties": false,
+      "description": "Map to host: the two clicks made (tma_request, with first_position and last_position), so the solution is made as one recorded step; with no tma_request, the analyst cancelled.",
+      "properties": {
+        "kind": {
+          "const": "tma_guessed",
+          "type": "string"
+        },
+        "tma_request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A TMA solution asked for (tma_create, tma_guess, tma_guessed)."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "TmaGuessedMessage",
+      "type": "object"
+    },
+    "TmaMadeMessage": {
+      "additionalProperties": false,
+      "description": "Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "const": "tma_made",
+          "type": "string"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "TmaMadeMessage",
+      "type": "object"
+    },
+    "TmaMenuMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: the analyst right-clicked a dot in the Bearings view's plot: the Outline's menu for it (feature_id: the cut, or the solution for one of its fixes; current_time: the dot's time), whose entries include splitting the solution there and selecting it (product owner, 29 Oct 2026).",
+      "properties": {
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "tma_menu",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "current_time",
+        "kind"
+      ],
+      "title": "TmaMenuMessage",
       "type": "object"
     },
     "TmaOwnship": {
@@ -4672,6 +6207,89 @@
         "courses"
       ],
       "title": "TmaOwnship",
+      "type": "object"
+    },
+    "TmaPanesMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: which of the plot's panes show (panes_shown: bearing, error, course), when the page starts and when the analyst toggles one, so the same panes show wherever Bearings is next opened: in the panel or popped out into an editor tab or window of its own (product owner, 28 Oct 2026).",
+      "properties": {
+        "kind": {
+          "const": "tma_panes",
+          "type": "string"
+        },
+        "panes_shown": {
+          "description": "The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "panes_shown",
+        "kind"
+      ],
+      "title": "TmaPanesMessage",
+      "type": "object"
+    },
+    "TmaPlotDrawnMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026).",
+      "properties": {
+        "kind": {
+          "const": "tma_plot_drawn",
+          "type": "string"
+        },
+        "pane_widths": {
+          "description": "The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "plot_height": {
+          "description": "The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "plot_height",
+        "pane_widths",
+        "kind"
+      ],
+      "title": "TmaPlotDrawnMessage",
+      "type": "object"
+    },
+    "TmaPreviewMessage": {
+      "additionalProperties": false,
+      "description": "Map to host, and host to bearing view: a TMA solution as a drag on the map now leaves it (feature_id, preview: one position per fix), so its residuals are worked out again as it moves; with no preview, the drag ended or was put back.",
+      "properties": {
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "tma_preview",
+          "type": "string"
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineStringGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes)."
+        }
+      },
+      "required": [
+        "feature_id",
+        "kind"
+      ],
+      "title": "TmaPreviewMessage",
       "type": "object"
     },
     "TmaRequest": {
@@ -5025,6 +6643,52 @@
       "title": "TmaResiduals",
       "type": "object"
     },
+    "TmaResolveMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026).",
+      "properties": {
+        "kind": {
+          "const": "tma_resolve",
+          "type": "string"
+        },
+        "resolution": {
+          "$ref": "#/$defs/AmbiguityResolution",
+          "description": "The sides of the cuts boxed in the Bearings plot to keep (tma_resolve)."
+        }
+      },
+      "required": [
+        "resolution",
+        "kind"
+      ],
+      "title": "TmaResolveMessage",
+      "type": "object"
+    },
+    "TmaSelectMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026).",
+      "properties": {
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "tma_select",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "current_time",
+        "kind"
+      ],
+      "title": "TmaSelectMessage",
+      "type": "object"
+    },
     "TmaSensorRow": {
       "additionalProperties": false,
       "description": "A sensor whose cuts the bearing view can list.",
@@ -5203,6 +6867,53 @@
         "cuts"
       ],
       "title": "TmaSolutionRow",
+      "type": "object"
+    },
+    "TmaSplitMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step.",
+      "properties": {
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "feature_id": {
+          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
+          "type": "string"
+        },
+        "kind": {
+          "const": "tma_split",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "current_time",
+        "kind"
+      ],
+      "title": "TmaSplitMessage",
+      "type": "object"
+    },
+    "TmaTimeAskedMessage": {
+      "additionalProperties": false,
+      "description": "Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.",
+      "properties": {
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "tma_time_asked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "current_time",
+        "kind"
+      ],
+      "title": "TmaTimeAskedMessage",
       "type": "object"
     },
     "TmaView": {
@@ -5535,6 +7246,26 @@
         }
       },
       "title": "ToolResult",
+      "type": "object"
+    },
+    "ToteChangedMessage": {
+      "additionalProperties": false,
+      "description": "Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).",
+      "properties": {
+        "kind": {
+          "const": "tote_changed",
+          "type": "string"
+        },
+        "tote_view": {
+          "$ref": "#/$defs/ToteView",
+          "description": "Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed)."
+        }
+      },
+      "required": [
+        "tote_view",
+        "kind"
+      ],
+      "title": "ToteChangedMessage",
       "type": "object"
     },
     "ToteResult": {
@@ -6257,6 +7988,21 @@
       "title": "TrackSupply",
       "type": "object"
     },
+    "UndoAskedMessage": {
+      "additionalProperties": false,
+      "description": "Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026).",
+      "properties": {
+        "kind": {
+          "const": "undo_asked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "UndoAskedMessage",
+      "type": "object"
+    },
     "UserConfig": {
       "additionalProperties": false,
       "description": "",
@@ -6331,505 +8077,254 @@
       "title": "Viewport",
       "type": "object"
     },
-    "WebviewMessage": {
+    "ViewportChangedMessage": {
       "additionalProperties": false,
-      "description": "",
+      "description": "Map to host: the analyst panned or zoomed (viewport).",
       "properties": {
-        "annotation": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AnnotationSpec"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation)."
-        },
-        "context_tracks": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ContextTracksEnum"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "How tracks outside the time window are drawn (CAP-29)."
-        },
-        "coverage": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/CoverageReport"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The open plot's coverage (show_coverage)."
-        },
-        "current_time": {
-          "description": "Current time from shared state, which a tool form offers for its time fields.",
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "cut_ids": {
-          "description": "The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).",
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "error_cut_off": {
-          "description": "The analyst's error cut-off, degrees (tma_cut_off).",
-          "maximum": 180,
-          "minimum": 0.01,
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "excluded": {
-          "description": "Whether the cuts are left out (tma_exclude).",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "feature_id": {
-          "description": "The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "fix_time": {
-          "description": "The time of the fix the analyst chose on the map (fix_chosen).",
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "fix_times": {
-          "description": "The times of the fixes the map rings (show_fixes).",
-          "items": {
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "hidden_count": {
-          "description": "How many of the plot's features are hidden on the map (SUB-22), so the map can say so.",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "image": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/RenderedImage"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The image the map drew (image_rendered)."
-        },
-        "image_request": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ImageRequest"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "What image to draw, and how (export_image)."
-        },
-        "item_revision": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ItemRevision"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The item, at the revision the analyst saw (take_asked, dismiss_asked)."
-        },
-        "keep": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AmbiguityKeepEnum"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked)."
-        },
         "kind": {
-          "$ref": "#/$defs/WebviewMessageKindEnum"
-        },
-        "linked": {
-          "description": "Whether the source is the track's platform (link_changed).",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "message": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "minimum_context_contrast": {
-          "description": "The analyst's setting that shows faint context tracks as visible, so the time controller can say so.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "narrative": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/NarrativeSpec"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "A narrative entry as the Timeline's form describes it (save_narrative)."
-        },
-        "narrative_on_map": {
-          "description": "Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "pane_widths": {
-          "description": "The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).",
-          "items": {
-            "type": "integer"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "panes_shown": {
-          "description": "The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).",
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "parameters": {
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "playing": {
-          "description": "Whether current time is playing (playing_changed).",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "plot": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DebriefFeatureCollection"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "plot_height": {
-          "description": "The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "plot_id": {
-          "description": "Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "plot_title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "preview": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/LineStringGeometry"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes)."
-        },
-        "resolution": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AmbiguityResolution"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The sides of the cuts boxed in the Bearings plot to keep (tma_resolve)."
-        },
-        "result": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolResult"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "result_title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "revision_shown": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/RevisionShown"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The plot shown is an earlier revision, read-only (show_plot)."
-        },
-        "saved_window": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TimeRange"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28)."
-        },
-        "selected_names": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "selection": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Selection"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "source": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SourceTrackRef"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "A track in a catalogue item (source_chosen, link_changed)."
-        },
-        "time": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TimeState"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "time_range": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TimeRange"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen)."
-        },
-        "timeline_entries": {
-          "description": "The Timeline's rows, in its order (show_timeline).",
-          "items": {
-            "$ref": "#/$defs/TimelineEntry"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "timeline_entry": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TimelineEntry"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The narrative entry current time is at, to show on the map beside its track (set_narrative)."
-        },
-        "timeline_tracks": {
-          "description": "The plot's tracks, which a narrative entry can belong to (show_timeline).",
-          "items": {
-            "$ref": "#/$defs/ToteTrack"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "tma": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TmaView"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "What the bearing view shows (show_tma)."
-        },
-        "tma_request": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TmaRequest"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "A TMA solution asked for (tma_create, tma_guess, tma_guessed)."
-        },
-        "tool": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolDeclaration"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "tool_name": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "tote": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToteResult"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The Tote's values at current time (show_tote)."
-        },
-        "tote_tracks": {
-          "description": "The plot's tracks, which the analyst can choose from for the Tote (show_tote).",
-          "items": {
-            "$ref": "#/$defs/ToteTrack"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "tote_view": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToteView"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed)."
-        },
-        "track_edit": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TrackEdit"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track)."
+          "const": "viewport_changed",
+          "type": "string"
         },
         "viewport": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Viewport"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/Viewport"
+        }
+      },
+      "required": [
+        "viewport",
+        "kind"
+      ],
+      "title": "ViewportChangedMessage",
+      "type": "object"
+    },
+    "WebviewMessage": {
+      "description": "Any of WebviewMessageBase's classes, told apart by kind.",
+      "discriminator": {
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ReadyMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowPlotMessage"
+        },
+        {
+          "$ref": "#/$defs/SetSelectionMessage"
+        },
+        {
+          "$ref": "#/$defs/SelectionChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/SetTimeMessage"
+        },
+        {
+          "$ref": "#/$defs/TimeChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/SetViewportMessage"
+        },
+        {
+          "$ref": "#/$defs/ViewportChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowHiddenMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowFormMessage"
+        },
+        {
+          "$ref": "#/$defs/RunToolMessage"
+        },
+        {
+          "$ref": "#/$defs/CancelMessage"
+        },
+        {
+          "$ref": "#/$defs/FormBusyMessage"
+        },
+        {
+          "$ref": "#/$defs/FormErrorMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowResultsMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowTimeMessage"
+        },
+        {
+          "$ref": "#/$defs/WindowChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/ContextChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/SetContextMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowAnnotationFormMessage"
+        },
+        {
+          "$ref": "#/$defs/SaveAnnotationMessage"
+        },
+        {
+          "$ref": "#/$defs/DeleteAnnotationMessage"
+        },
+        {
+          "$ref": "#/$defs/EditAnnotationMessage"
+        },
+        {
+          "$ref": "#/$defs/AnnotationDrawnMessage"
+        },
+        {
+          "$ref": "#/$defs/EditTrackMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowFixesMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowToteMessage"
+        },
+        {
+          "$ref": "#/$defs/ToteChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/SetToteMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowTimelineMessage"
+        },
+        {
+          "$ref": "#/$defs/NarrativeOnMapChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/PlayingChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/TimelineChosenMessage"
+        },
+        {
+          "$ref": "#/$defs/SaveNarrativeMessage"
+        },
+        {
+          "$ref": "#/$defs/DeleteNarrativeMessage"
+        },
+        {
+          "$ref": "#/$defs/OpenNarrativeFormMessage"
+        },
+        {
+          "$ref": "#/$defs/NarrativeSavedMessage"
+        },
+        {
+          "$ref": "#/$defs/SetNarrativeMessage"
+        },
+        {
+          "$ref": "#/$defs/UndoAskedMessage"
+        },
+        {
+          "$ref": "#/$defs/RedoAskedMessage"
+        },
+        {
+          "$ref": "#/$defs/FixChosenMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowCoverageMessage"
+        },
+        {
+          "$ref": "#/$defs/SourceChosenMessage"
+        },
+        {
+          "$ref": "#/$defs/LinkChangedMessage"
+        },
+        {
+          "$ref": "#/$defs/TakeAskedMessage"
+        },
+        {
+          "$ref": "#/$defs/DismissAskedMessage"
+        },
+        {
+          "$ref": "#/$defs/ReviewClearedMessage"
+        },
+        {
+          "$ref": "#/$defs/ExportImageMessage"
+        },
+        {
+          "$ref": "#/$defs/ImageRenderedMessage"
+        },
+        {
+          "$ref": "#/$defs/LatestAskedMessage"
+        },
+        {
+          "$ref": "#/$defs/ResolveAskedMessage"
+        },
+        {
+          "$ref": "#/$defs/CutChosenMessage"
+        },
+        {
+          "$ref": "#/$defs/ShowTmaMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaChosenMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaCreateMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaGuessMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaGuessedMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaPreviewMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaExcludeMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaSplitMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaTimeAskedMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaSelectMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaMenuMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaResolveMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaCutOffMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaPlotDrawnMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaPanesMessage"
+        },
+        {
+          "$ref": "#/$defs/TmaMadeMessage"
+        }
+      ],
+      "title": "WebviewMessage"
+    },
+    "WebviewMessageBase": {
+      "additionalProperties": false,
+      "description": "What every webview message has: its kind. Each kind's class below is one of these; the generator makes WebviewMessage, their union told apart by kind, in JSON Schema, Pydantic and TypeScript.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/WebviewMessageKindEnum"
         }
       },
       "required": [
         "kind"
       ],
-      "title": "WebviewMessage",
+      "title": "WebviewMessageBase",
       "type": "object"
     },
     "WebviewMessageKindEnum": {
-      "description": "",
+      "description": "Every webview message's kind. Each has one class below, which says what the message is for and which members it carries.",
       "enum": [
         "ready",
         "show_plot",
@@ -6902,6 +8397,26 @@
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"
+    },
+    "WindowChangedMessage": {
+      "additionalProperties": false,
+      "description": "Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range).",
+      "properties": {
+        "kind": {
+          "const": "window_changed",
+          "type": "string"
+        },
+        "time_range": {
+          "$ref": "#/$defs/TimeRange",
+          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen)."
+        }
+      },
+      "required": [
+        "time_range",
+        "kind"
+      ],
+      "title": "WindowChangedMessage",
+      "type": "object"
     }
   },
   "$id": "https://debrief.info/schemas/debrief",

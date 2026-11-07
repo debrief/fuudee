@@ -210,6 +210,6 @@ describe("annotation messages are boundary types (CON-08)", () => {
     expect(checkMessage(raw)).toEqual(raw);
   });
   it.each(["save-annotation-without-annotation", "delete-annotation-without-feature"])("refuses %s", (name) => {
-    expect(() => checkMessage(fixture(`webview_message/invalid/semantic/${name}.json`))).toThrow();
+    expect(() => checkMessage(fixture(`webview_message/invalid/schema/${name}.json`))).toThrow();
   });
 });

@@ -88,7 +88,7 @@ describe("Timeline messages are boundary types (CON-08)", () => {
     const raw = fixture(`webview_message/valid/${name}.json`);
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["semantic/save-narrative-without-narrative", "semantic/timeline-chosen-without-entry", "schema/show-timeline-unknown-entry-kind", "schema/set-narrative-colour-not-hex", "semantic/playing-changed-without-playing", "schema/narrative-on-map-not-boolean", "semantic/undo-asked-carrying-entry"])("refuses %s", (name) => {
+  it.each(["schema/save-narrative-without-narrative", "schema/timeline-chosen-without-entry", "schema/show-timeline-unknown-entry-kind", "schema/set-narrative-colour-not-hex", "schema/playing-changed-without-playing", "schema/narrative-on-map-not-boolean", "schema/undo-asked-carrying-entry"])("refuses %s", (name) => {
     expect(() => checkMessage(fixture(`webview_message/invalid/${name}.json`))).toThrow();
   });
 });

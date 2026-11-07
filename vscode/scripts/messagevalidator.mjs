@@ -15,7 +15,7 @@ const standalone = require("ajv/dist/standalone/index.js").default;
 /** Write the validator's module, and return where it is and where the runtime it needs is found. */
 export function writeMessageValidator(folder) {
   const schema = JSON.parse(readFileSync(path.join(schemas, "src/generated/debrief.schema.json"), "utf8"));
-  const ajv = new Ajv2019({ allErrors: true, strict: false, code: { source: true, esm: true } });
+  const ajv = new Ajv2019({ allErrors: true, strict: false, discriminator: true, code: { source: true, esm: true } });
   ajv.addSchema(schema, "debrief");
   const validate = ajv.compile({ $id: "webview-message", $ref: "debrief#/$defs/WebviewMessage" });
   mkdirSync(folder, { recursive: true });

@@ -1,4 +1,15 @@
 {
-  "kind": "ready",
+  "kind": "show_plot",
+  "plot": {
+    "type": "FeatureCollection",
+    "schema_version": "0.0.24",
+    "features": [],
+    "provenance": []
+  },
+  "plot_title": "Serial 1",
+  "selection": {
+    "plot": "serial-01",
+    "feature_ids": []
+  },
   "hidden_count": -1
 }

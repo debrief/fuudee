@@ -1131,278 +1131,77 @@ class TimelineEntryKindEnum(str, Enum):
 
 
 class WebviewMessageKindEnum(str, Enum):
+    """
+    Every webview message's kind. Each has one class below, which says what the message is for and which members it carries.
+    """
     ready = "ready"
-    """
-    Webview to host: loaded and listening.
-    """
     show_plot = "show_plot"
-    """
-    Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only.
-    """
     set_selection = "set_selection"
-    """
-    Host to map: the selection changed elsewhere (selection).
-    """
     selection_changed = "selection_changed"
-    """
-    Map to host: the analyst changed the selection (selection).
-    """
     set_time = "set_time"
-    """
-    Host to map: current time changed elsewhere (time).
-    """
     time_changed = "time_changed"
-    """
-    Map to host: the analyst moved current time (time).
-    """
     set_viewport = "set_viewport"
-    """
-    Host to map: show this area (viewport).
-    """
     viewport_changed = "viewport_changed"
-    """
-    Map to host: the analyst panned or zoomed (viewport).
-    """
     show_hidden = "show_hidden"
-    """
-    Map to host: show every feature hidden on the map (no members).
-    """
     show_form = "show_form"
-    """
-    Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known).
-    """
     run_tool = "run_tool"
-    """
-    Form to host: run the tool with these values (tool_name, parameters).
-    """
     cancel = "cancel"
-    """
-    Form to host: close without running.
-    """
     form_busy = "form_busy"
-    """
-    Host to form: the tool is running (message).
-    """
     form_error = "form_error"
-    """
-    Host to form: the run failed or a value was refused (message).
-    """
     show_results = "show_results"
-    """
-    Host to results: show a tool's result (tool, result_title, result).
-    """
     show_time = "show_time"
-    """
-    Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open.
-    """
     window_changed = "window_changed"
-    """
-    Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range).
-    """
     context_changed = "context_changed"
-    """
-    Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks).
-    """
     set_context = "set_context"
-    """
-    Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.
-    """
     show_annotation_form = "show_annotation_form"
-    """
-    Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known.
-    """
     save_annotation = "save_annotation"
-    """
-    Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one).
-    """
     delete_annotation = "delete_annotation"
-    """
-    Annotation form to host: delete this annotation (feature_id).
-    """
     edit_annotation = "edit_annotation"
-    """
-    Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step.
-    """
     annotation_drawn = "annotation_drawn"
-    """
-    Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step.
-    """
     edit_track = "edit_track"
-    """
-    Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step.
-    """
     show_fixes = "show_fixes"
-    """
-    Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away.
-    """
     show_tote = "show_tote"
-    """
-    Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open.
-    """
     tote_changed = "tote_changed"
-    """
-    Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).
-    """
     set_tote = "set_tote"
-    """
-    Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen.
-    """
     show_timeline = "show_timeline"
-    """
-    Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open.
-    """
     narrative_on_map_changed = "narrative_on_map_changed"
-    """
-    Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island.
-    """
     playing_changed = "playing_changed"
-    """
-    Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts.
-    """
     timeline_chosen = "timeline_chosen"
-    """
-    Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it.
-    """
     save_narrative = "save_narrative"
-    """
-    Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step.
-    """
     delete_narrative = "delete_narrative"
-    """
-    Timeline to host: delete this narrative entry (feature_id), as one recorded step.
-    """
     open_narrative_form = "open_narrative_form"
-    """
-    Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked.
-    """
     narrative_saved = "narrative_saved"
-    """
-    Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not.
-    """
     set_narrative = "set_narrative"
-    """
-    Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away.
-    """
     undo_asked = "undo_asked"
-    """
-    Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026).
-    """
     redo_asked = "redo_asked"
-    """
-    Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone.
-    """
     fix_chosen = "fix_chosen"
-    """
-    Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard.
-    """
     show_coverage = "show_coverage"
-    """
-    Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown.
-    """
     source_chosen = "source_chosen"
-    """
-    Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09).
-    """
     link_changed = "link_changed"
-    """
-    Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step.
-    """
     take_asked = "take_asked"
-    """
-    Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11).
-    """
     dismiss_asked = "dismiss_asked"
-    """
-    Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10).
-    """
     review_cleared = "review_cleared"
-    """
-    Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12).
-    """
     export_image = "export_image"
-    """
-    Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25).
-    """
     image_rendered = "image_rendered"
-    """
-    Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn.
-    """
     latest_asked = "latest_asked"
-    """
-    Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members).
-    """
     resolve_asked = "resolve_asked"
-    """
-    Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects).
-    """
     cut_chosen = "cut_chosen"
-    """
-    Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it.
-    """
     show_tma = "show_tma"
-    """
-    Host to bearing view: the plot's sensors and TMA solutions, the cuts of the sensor chosen, and the residuals of the solution shown (tma); none when no plot is open (CAP-21).
-    """
     tma_chosen = "tma_chosen"
-    """
-    Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id).
-    """
     tma_create = "tma_create"
-    """
-    Bearing view to host: make a TMA solution as asked (tma_request: the cuts, and a first guess by form), as one recorded step (CAP-21; product owner, 24 Oct 2026).
-    """
     tma_guess = "tma_guess"
-    """
-    Host to map: the analyst asked to make a TMA solution by two clicks (tma_request: the cuts), one on the first cut's line and one on the last's; with no tma_request, stop asking.
-    """
     tma_guessed = "tma_guessed"
-    """
-    Map to host: the two clicks made (tma_request, with first_position and last_position), so the solution is made as one recorded step; with no tma_request, the analyst cancelled.
-    """
     tma_preview = "tma_preview"
-    """
-    Map to host, and host to bearing view: a TMA solution as a drag on the map now leaves it (feature_id, preview: one position per fix), so its residuals are worked out again as it moves; with no preview, the drag ended or was put back.
-    """
     tma_exclude = "tma_exclude"
-    """
-    Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step.
-    """
     tma_split = "tma_split"
-    """
-    Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step.
-    """
     tma_time_asked = "tma_time_asked"
-    """
-    Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.
-    """
     tma_select = "tma_select"
-    """
-    Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026).
-    """
     tma_menu = "tma_menu"
-    """
-    Bearing view to host: the analyst right-clicked a dot in the Bearings view's plot: the Outline's menu for it (feature_id: the cut, or the solution for one of its fixes; current_time: the dot's time), whose entries include splitting the solution there and selecting it (product owner, 29 Oct 2026).
-    """
     tma_resolve = "tma_resolve"
-    """
-    Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026).
-    """
     tma_cut_off = "tma_cut_off"
-    """
-    Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026).
-    """
     tma_plot_drawn = "tma_plot_drawn"
-    """
-    Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026).
-    """
     tma_panes = "tma_panes"
-    """
-    Bearing view to host: which of the plot's panes show (panes_shown: bearing, error, course), when the page starts and when the analyst toggles one, so the same panes show wherever Bearings is next opened: in the panel or popped out into an editor tab or window of its own (product owner, 28 Oct 2026).
-    """
     tma_made = "tma_made"
-    """
-    Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open.
-    """
 
 
 class StepStateEnum(str, Enum):
@@ -1810,12 +1609,12 @@ class ProvRecord(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     started_at: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     ended_at: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
-    tool: Optional[ToolRef] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'WebviewMessage']} })
+    tool: Optional[ToolRef] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ShowFormMessage', 'ShowResultsMessage']} })
     agent: AgentRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
-    parameters: Optional[list[ParameterValue]] = Field(default=None, description="""Parameter values the operation ran with, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'WebviewMessage']} })
+    parameters: Optional[list[ParameterValue]] = Field(default=None, description="""Parameter values the operation ran with, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'RunToolMessage']} })
     selected: Optional[list[str]] = Field(default=None, description="""Ids of the features the operation was applied to, in selection order, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     used: Optional[list[SourceRef]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'TmaResidualRow']} })
     seed: Optional[int] = Field(default=None, description="""Random seed, for operations that use randomness (SUB-20).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
@@ -1901,7 +1700,7 @@ class AgentRef(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -2097,7 +1896,7 @@ class TrackProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -2154,7 +1953,7 @@ class TrackProperties(ConfiguredBaseModel):
     supplies: Optional[list[TrackSupply]] = Field(default=None, description="""Which catalogue item supplies each period of the track (CAP-09): where two items have data for the platform over the same period, the analyst chooses which supplies it, and the track is stitched from the chosen periods. In time order, not overlapping, each from its first fix to its last. Left out, the plot itself supplies the whole track, as imported. Content: each change is a recorded, undoable step (SUB-22), naming the items and periods.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     platform_links: Optional[list[SourceTrackRef]] = Field(default=None, description="""Tracks in other catalogue items the analyst confirmed, or linked by hand, as this track's platform (CAP-09; decision, product owner, 16 Oct 2026). Tracks whose names match this one's, ignoring case and spaces, are proposed until confirmed or refused. Each change is a recorded, undoable step.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     platform_unlinks: Optional[list[SourceTrackRef]] = Field(default=None, description="""Tracks in other catalogue items whose names match this one's but which the analyst said are another platform: no longer proposed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
-    tma: Optional[TmaSolution] = Field(default=None, description="""The track is a TMA solution of a contact, rooted in a period of bearing cuts (CAP-21; product owner, 24 Oct 2026). Otherwise an ordinary track, plotted by dead reckoning, so every track operation works on it unchanged; this says which cuts its bearing residuals are worked out against, its legs, and the cuts left out of its RMS error. Content: each change is a recorded, undoable step (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'WebviewMessage']} })
+    tma: Optional[TmaSolution] = Field(default=None, description="""The track is a TMA solution of a contact, rooted in a period of bearing cuts (CAP-21; product owner, 24 Oct 2026). Otherwise an ordinary track, plotted by dead reckoning, so every track operation works on it unchanged; this says which cuts its bearing residuals are worked out against, its legs, and the cuts left out of its RMS error. Content: each change is a recorded, undoable step (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'ShowTmaMessage']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, description="""Feature-level provenance where needed (SUB-18).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
@@ -2188,7 +1987,7 @@ class TmaSolution(ConfiguredBaseModel):
                        'TmaRequest',
                        'AmbiguityResolution',
                        'TmaFocus',
-                       'WebviewMessage']} })
+                       'TmaExcludeMessage']} })
     period: TimeRange = Field(default=..., description="""The period of bearings it is rooted in, ends included.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'TrackEdit',
@@ -2229,7 +2028,7 @@ class TmaRequest(ConfiguredBaseModel):
                        'TmaRequest',
                        'AmbiguityResolution',
                        'TmaFocus',
-                       'WebviewMessage']} })
+                       'TmaExcludeMessage']} })
     contact: Optional[str] = Field(default=None, description="""The contact's name; left out, the next of \"Contact 1\", \"Contact 2\"...""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaRequest', 'TmaSolutionRow']} })
     name: Optional[str] = Field(default=None, description="""The solution track's name; left out, the contact's with \"solution\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
@@ -2521,7 +2320,12 @@ class FixMark(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     colour: Optional[str] = Field(default=None, description="""The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
                        'TrackStyle',
                        'FixMark',
@@ -2588,7 +2392,7 @@ class TrackEdit(ConfiguredBaseModel):
     anchor: Optional[TrackEditAnchorEnum] = Field(default=None, description="""The end of the period a shear or a stretch holds fixed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     course: Optional[Angle] = Field(default=None, description="""The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'SensorCutProperties']} })
     speed: Optional[Speed] = Field(default=None, description="""The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit']} })
-    fix_time: Optional[str] = Field(default=None, description="""The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'WebviewMessage']} })
+    fix_time: Optional[str] = Field(default=None, description="""The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'FixChosenMessage']} })
     position: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     plotting_mode: Optional[PlottingModeEnum] = Field(default=None, description="""How set_plotting_mode plots the track, over the ground or by dead reckoning.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TrackEdit']} })
     discard_dr_changes: Optional[bool] = Field(default=None, description="""set_plotting_mode to otg only: plot the track over the ground although it was changed while plotted by dead reckoning, losing those changes, as the analyst confirmed (decision, product owner, 14 Oct 2026). Without it such a change is refused, saying why.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
@@ -2685,7 +2489,7 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     style: AnnotationStyleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
@@ -2727,11 +2531,20 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
-                       'WebviewMessage']} })
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
     shape: Optional[AnnotationShapeEnum] = Field(default=None, description="""How it is drawn. Required for circles and ellipses; otherwise it may be left out and follows from the geometry.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
     centre: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""The centre of a circle or an ellipse, [longitude, latitude] in WGS84 degrees. Its geometry is the polygon that approximates it.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
@@ -2879,11 +2692,20 @@ class AnnotationSpec(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
-                       'WebviewMessage']} })
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
     appearance: Optional[AnnotationAppearance] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
 
     @field_validator('time')
@@ -2975,7 +2797,7 @@ class NarrativeProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     time: str = Field(default=..., description="""When it was logged, to the millisecond, Zulu (SUB-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
                        'AnnotationProperties',
                        'AnnotationSpec',
@@ -2987,11 +2809,17 @@ class NarrativeProperties(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     source: str = Field(default=..., description="""Who wrote it: the platform, person or document whose log it is (legacy Debrief's track name on an entry), such as \"BLUE ONE\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
                        'NarrativeSpec',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'SourceChosenMessage',
+                       'LinkChangedMessage']} })
     entry_type: Optional[str] = Field(default=None, description="""What kind of entry, in the source's own words, such as legacy Debrief's GenComment, Posn, CSD or FCS. Free text: each source has its own types. Left out where the source gives none.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
     text: str = Field(default=..., description="""What was logged. May run to several lines.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -3037,11 +2865,17 @@ class NarrativeSpec(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     source: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
                        'NarrativeSpec',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'SourceChosenMessage',
+                       'LinkChangedMessage']} })
     entry_type: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -3139,7 +2973,7 @@ class SensorProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     name: str = Field(default=..., description="""The sensor's name, as its source gives it, such as \"Towed array\" or \"2087\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -3286,7 +3120,7 @@ class SensorCutProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     sensor_id: str = Field(default=..., description="""The sensor the cut is from, a sensor feature in the plot.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut', 'TmaView']} })
     time: str = Field(default=..., description="""When the cut was taken, to the millisecond, Zulu (SUB-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
                        'AnnotationProperties',
@@ -3299,7 +3133,12 @@ class SensorCutProperties(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     bearing: Angle = Field(default=..., description="""The bearing to the target, true, clockwise from north, from 0 up to 360 degrees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties', 'TmaCut']} })
     ambiguous_bearing: Optional[Angle] = Field(default=None, description="""A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut']} })
     resolved: Optional[SensorCutKeptEnum] = Field(default=None, description="""Which of the two bearings the analyst kept, for a cut with an ambiguous bearing; left out while it is unresolved, when both are drawn. Each resolution, of one cut or of every cut in a period, is one recorded, undoable step with provenance (product owner, 24 Oct 2026), and can be undone or reset to ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut']} })
@@ -3368,12 +3207,12 @@ class AmbiguityResolution(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    keep: AmbiguityKeepEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution', 'WebviewMessage']} })
+    keep: AmbiguityKeepEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution', 'ResolveAskedMessage']} })
     cut_ids: Optional[list[str]] = Field(default=None, description="""The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',
                        'TmaFocus',
-                       'WebviewMessage']} })
+                       'TmaExcludeMessage']} })
     sensor_ids: Optional[list[str]] = Field(default=None, description="""Sensors whose cuts in the period are resolved; every cut of each, without a period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaRequest', 'AmbiguityResolution']} })
     period: Optional[TimeRange] = Field(default=None, description="""The cuts whose times fall in it, ends included, of the sensors named.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
@@ -3460,7 +3299,7 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -3491,7 +3330,11 @@ class SensorObservationsProperties(ConfiguredBaseModel):
     time_range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
-                       'WebviewMessage']} })
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
     observation_count: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     payload: PayloadRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
@@ -3700,7 +3543,7 @@ class PlotProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     title: Optional[str] = Field(default=None, description="""The plot's title. Content, like everything outside view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -3734,9 +3577,15 @@ class PlotView(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     time_window: Optional[TimeRange] = Field(default=None, description="""The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
-    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
-    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
-    narrative_on_map: Optional[bool] = Field(default=None, description="""Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowPlotMessage',
+                       'ShowTimeMessage',
+                       'ContextChangedMessage',
+                       'SetContextMessage']} })
+    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'ShowToteMessage']} })
+    narrative_on_map: Optional[bool] = Field(default=None, description="""Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowTimelineMessage',
+                       'NarrativeOnMapChangedMessage']} })
     collation: Optional[CollationView] = Field(default=None, description="""What the analyst has said of catalogue items while collating (CAP-10, CAP-12): new data set aside for now, and revisions reviewed. View state: never a step in the history.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
     exports: Optional[list[ImageExport]] = Field(default=None, description="""The plot's export log: each image exported from it, with its ID, the revision exported, when, by whom, the view and the time, the format and the file's name (SUB-25; decision, product owner, 16 Oct 2026). View state: never a step, so an export changes neither the plot's revision nor any product that drew from it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ExportLog']} })
 
@@ -4391,7 +4240,7 @@ class TimeState(ConfiguredBaseModel):
 class Selection(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    plot: str = Field(default=..., description="""Href of the plot the selection belongs to.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Selection', 'WebviewMessage']} })
+    plot: str = Field(default=..., description="""Href of the plot the selection belongs to.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Selection', 'ShowPlotMessage']} })
     feature_ids: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NamedSet', 'Selection']} })
 
 
@@ -4417,13 +4266,24 @@ class SharedState(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
-    selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ShowPlotMessage',
+                       'SetSelectionMessage',
+                       'SelectionChangedMessage']} })
     viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
                        'SharedStateChange',
                        'ImageExport',
                        'RenderedImage',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetViewportMessage',
+                       'ViewportChangedMessage']} })
 
 
 class SharedStateChange(ConfiguredBaseModel):
@@ -4443,13 +4303,24 @@ class SharedStateChange(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
-    selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ShowPlotMessage',
+                       'SetSelectionMessage',
+                       'SelectionChangedMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
                        'SharedStateChange',
                        'ImageExport',
                        'RenderedImage',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetViewportMessage',
+                       'ViewportChangedMessage']} })
     save_window: Optional[bool] = Field(default=None, description="""From a tool whose purpose is to set the time window: save time's range as the plot's window. Honoured only when the analyst ran the tool by hand on this plot; otherwise, and without it, a range beyond the saved window is shown, never saved (CAP-28). Needs time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SharedStateChange']} })
 
 
@@ -4508,7 +4379,7 @@ class ToolDeclaration(ConfiguredBaseModel):
     applies_to: list[str] = Field(default=..., description="""Feature kinds from the taxonomy, or \"*\" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     min_selected: Optional[int] = Field(default=1, ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration'], 'ifabsent': 'int(1)'} })
     max_selected: Optional[int] = Field(default=None, ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
-    parameters: Optional[list[ParameterDeclaration]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'WebviewMessage']} })
+    parameters: Optional[list[ParameterDeclaration]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'RunToolMessage']} })
     outputs: list[ToolOutputKindEnum] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     uses_randomness: Optional[bool] = Field(default=None, description="""When true, Debrief records the seed (SUB-20).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
 
@@ -4598,7 +4469,7 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     quantity_kind: Optional[QuantityKindEnum] = Field(default=None, description="""Required when kind is quantity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
                        'ParameterDeclaration',
                        'ResultColumn',
@@ -5034,7 +4905,12 @@ class ToteResult(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     group: MeasureGroup = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult']} })
     measures: list[MeasureDefinition] = Field(default=..., description="""The definitions of the group's measures, in its order.""", json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureGroup', 'ToteResult']} })
     primary: Optional[ToteRow] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView', 'ToteResult']} })
@@ -5246,7 +5122,7 @@ class KnownStore(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     location: str = Field(default=..., description="""Absolute path to the folder holding catalog.json: a POSIX path, a Windows drive path or a UNC share.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
     read_only: Optional[bool] = Field(default=None, description="""When true, Debrief offers no action that would write to the store. A courtesy, not access control: filesystem permissions decide that (SEC-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore', 'TmaView']} })
 
@@ -5831,7 +5707,9 @@ class ImageExport(ConfiguredBaseModel):
                        'SharedStateChange',
                        'ImageExport',
                        'RenderedImage',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetViewportMessage',
+                       'ViewportChangedMessage']} })
     time: Optional[TimeState] = Field(default=None, description="""Current time and the time window when it was exported.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
                        'AnnotationProperties',
                        'AnnotationSpec',
@@ -5843,8 +5721,13 @@ class ImageExport(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
-    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compared when it was exported, so the plot traced from the image shows the Tote, and its lines on the map, as the figure did (decision, product owner, 16 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compared when it was exported, so the plot traced from the image shows the Tote, and its lines on the map, as the figure did (decision, product owner, 16 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'ShowToteMessage']} })
 
     @field_validator('id')
     def pattern_id(cls, v):
@@ -5925,7 +5808,9 @@ class RenderedImage(ConfiguredBaseModel):
                        'SharedStateChange',
                        'ImageExport',
                        'RenderedImage',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetViewportMessage',
+                       'ViewportChangedMessage']} })
     notes: Optional[list[str]] = Field(default=None, description="""What the image leaves out that the map shows, for the analyst: reference tiles that could not be read, say.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'RenderedImage']} })
 
 
@@ -6223,7 +6108,12 @@ class TmaCut(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     bearing: float = Field(default=..., description="""The bearing recorded first, degrees true.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties', 'TmaCut']} })
     ambiguous_bearing: Optional[float] = Field(default=None, description="""Its ambiguous twin, degrees true, where it has one.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut']} })
     resolved: Optional[SensorCutKeptEnum] = Field(default=None, description="""Which bearing the analyst kept, if resolved.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut']} })
@@ -6281,7 +6171,7 @@ class TmaResidualRow(TmaCut):
     calculated: Optional[float] = Field(default=None, description="""The bearing from its origin to the solution at its time, along the geodesic.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
     residual: Optional[float] = Field(default=None, description="""measured less calculated, degrees, within (-180, 180]; left out where there is none.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
     other_residual: Optional[float] = Field(default=None, description="""An ambiguous cut not yet resolved: its other bearing (the one not measured) less calculated, degrees, within (-180, 180]. Drawn faint and never counted, so the analyst can pick a side from the plot (product owner, 25 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
-    excluded: Optional[bool] = Field(default=None, description="""Left out of the RMS error by the analyst.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'WebviewMessage']} })
+    excluded: Optional[bool] = Field(default=None, description="""Left out of the RMS error by the analyst.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'TmaExcludeMessage']} })
     leg: Optional[int] = Field(default=None, description="""Which leg of the solution it falls in, from 1.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
     id: str = Field(default=..., description="""The cut's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'TrackFeature',
@@ -6331,7 +6221,12 @@ class TmaResidualRow(TmaCut):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
     bearing: float = Field(default=..., description="""The bearing recorded first, degrees true.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties', 'TmaCut']} })
     ambiguous_bearing: Optional[float] = Field(default=None, description="""Its ambiguous twin, degrees true, where it has one.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut']} })
     resolved: Optional[SensorCutKeptEnum] = Field(default=None, description="""Which bearing the analyst kept, if resolved.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut']} })
@@ -6387,7 +6282,7 @@ class TmaResiduals(ConfiguredBaseModel):
     rows: list[TmaResidualRow] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult', 'TmaResiduals']} })
     rms: Optional[float] = Field(default=None, description="""The root mean square of the residuals counted (degrees): every rooted cut with a residual, less those left out. Left out when none is counted.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
     counted: int = Field(default=..., description="""How many residuals the RMS counts.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
-    excluded: int = Field(default=..., description="""How many cuts the analyst left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'WebviewMessage']} })
+    excluded: int = Field(default=..., description="""How many cuts the analyst left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'TmaExcludeMessage']} })
     without: int = Field(default=..., description="""How many rooted cuts give no residual: outside their host's fixes, or outside the solution's, or no longer in the plot.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
     nearer_side: Optional[int] = Field(default=None, description="""How many ambiguous cuts use the bearing nearer the solution.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals']} })
     derived_origins: Optional[int] = Field(default=None, description="""How many cuts are taken from an origin Debrief worked out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
@@ -6640,7 +6535,7 @@ class TmaView(ConfiguredBaseModel):
                        'ReviewFlag',
                        'FigureSource',
                        'TmaView']} })
-    plot_id: Optional[str] = Field(default=None, description="""Which plot is open, as its host knows it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
+    plot_id: Optional[str] = Field(default=None, description="""Which plot is open, as its host knows it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'ShowTimelineMessage']} })
     read_only: Optional[bool] = Field(default=None, description="""An earlier revision is shown read-only, so nothing can be changed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore', 'TmaView']} })
     sensors: Optional[list[TmaSensorRow]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
     sensor_id: Optional[str] = Field(default=None, description="""The sensor whose cuts are listed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut', 'TmaView']} })
@@ -6648,9 +6543,9 @@ class TmaView(ConfiguredBaseModel):
     solutions: Optional[list[TmaSolutionRow]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
     solution_id: Optional[str] = Field(default=None, description="""The solution shown: the one selected on the map or in the Outline, or chosen in the view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals', 'TmaView']} })
     residuals: Optional[TmaResiduals] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
-    coverage: Optional[list[TmaCut]] = Field(default=None, description="""With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
+    coverage: Optional[list[TmaCut]] = Field(default=None, description="""With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'ShowCoverageMessage']} })
     ownship: Optional[list[TmaOwnship]] = Field(default=None, description="""The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
-    error_cut_off: Optional[float] = Field(default=None, description="""The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
+    error_cut_off: Optional[float] = Field(default=None, description="""The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'TmaCutOffMessage']} })
     focus: Optional[TmaFocus] = Field(default=None, description="""Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
 
 
@@ -6672,7 +6567,7 @@ class TmaFocus(ConfiguredBaseModel):
                        'TmaRequest',
                        'AmbiguityResolution',
                        'TmaFocus',
-                       'WebviewMessage']} })
+                       'TmaExcludeMessage']} })
     largest: Optional[bool] = Field(default=None, description="""Choose the cut counted in the RMS with the largest residual.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaFocus']} })
 
     @field_validator('cut_time')
@@ -6728,7 +6623,7 @@ class TimelineEntry(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'WebviewMessageBase']} })
     start: str = Field(default=..., description="""Its time, or the start of its period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
                        'TrackSupply',
                        'CoverageReport',
@@ -6744,7 +6639,8 @@ class TimelineEntry(ConfiguredBaseModel):
     source: str = Field(default=..., description="""Who wrote a narrative entry; an annotation's name; the track a fix comment is on; the item supplying a period of data.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
                        'NarrativeSpec',
                        'TimelineEntry',
-                       'WebviewMessage']} })
+                       'SourceChosenMessage',
+                       'LinkChangedMessage']} })
     entry_type: Optional[str] = Field(default=None, description="""A narrative entry's type, in its source's words.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
     text: Optional[str] = Field(default=None, description="""Its text.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -6822,8 +6718,14 @@ class TimelineEntry(ConfiguredBaseModel):
         return v
 
 
-class WebviewMessage(ConfiguredBaseModel):
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+class WebviewMessageBase(ConfiguredBaseModel):
+    """
+    What every webview message has: its kind. Each kind's class below is one of these; the generator makes WebviewMessage, their union told apart by kind, in JSON Schema, Pydantic and TypeScript.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'abstract': True,
+         'annotations': {'discriminator': {'tag': 'discriminator', 'value': 'kind'},
+                         'union': {'tag': 'union', 'value': 'WebviewMessage'}},
+         'from_schema': 'https://debrief.info/schemas/debrief'})
 
     kind: WebviewMessageKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -6837,16 +6739,49 @@ class WebviewMessage(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
-    plot: Optional[DebriefFeatureCollection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Selection', 'WebviewMessage']} })
-    plot_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    hidden_count: Optional[int] = Field(default=None, description="""How many of the plot's features are hidden on the map (SUB-22), so the map can say so.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
-    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'WebviewMessageBase']} })
+
+
+class ReadyMessage(WebviewMessageBase):
+    """
+    Webview to host: loaded and listening.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'ready', 'name': 'kind'}}})
+
+    kind: Literal["ready"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'ready'} })
+
+
+class ShowPlotMessage(WebviewMessageBase):
+    """
+    Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_plot', 'name': 'kind'},
+                        'plot': {'name': 'plot', 'required': True},
+                        'plot_title': {'name': 'plot_title', 'required': True},
+                        'selection': {'name': 'selection', 'required': True}}})
+
+    plot: DebriefFeatureCollection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Selection', 'ShowPlotMessage']} })
+    plot_title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ShowPlotMessage']} })
+    selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
                        'SharedStateChange',
-                       'ImageExport',
-                       'RenderedImage',
-                       'WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetSelectionMessage',
+                       'SelectionChangedMessage']} })
     time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
                        'AnnotationProperties',
                        'AnnotationSpec',
@@ -6858,62 +6793,306 @@ class WebviewMessage(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'TmaCut',
-                       'WebviewMessage']} })
-    saved_window: Optional[TimeRange] = Field(default=None, description="""The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
-    minimum_context_contrast: Optional[bool] = Field(default=None, description="""The analyst's setting that shows faint context tracks as visible, so the time controller can say so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'ShowPlotMessage',
+                       'SetViewportMessage',
+                       'ViewportChangedMessage']} })
+    hidden_count: Optional[int] = Field(default=None, description="""How many of the plot's features are hidden on the map (SUB-22), so the map can say so.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['ShowPlotMessage']} })
+    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowPlotMessage',
+                       'ShowTimeMessage',
+                       'ContextChangedMessage',
+                       'SetContextMessage']} })
+    revision_shown: Optional[RevisionShown] = Field(default=None, description="""The plot shown is an earlier revision, read-only (show_plot).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowPlotMessage']} })
+    kind: Literal["show_plot"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_plot'} })
+
+
+class SetSelectionMessage(WebviewMessageBase):
+    """
+    Host to map: the selection changed elsewhere (selection).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'set_selection', 'name': 'kind'},
+                        'selection': {'name': 'selection', 'required': True}}})
+
+    selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ShowPlotMessage',
+                       'SetSelectionMessage',
+                       'SelectionChangedMessage']} })
+    kind: Literal["set_selection"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'set_selection'} })
+
+
+class SelectionChangedMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst changed the selection (selection).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'selection_changed', 'name': 'kind'},
+                        'selection': {'name': 'selection', 'required': True}}})
+
+    selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ShowPlotMessage',
+                       'SetSelectionMessage',
+                       'SelectionChangedMessage']} })
+    kind: Literal["selection_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'selection_changed'} })
+
+
+class SetTimeMessage(WebviewMessageBase):
+    """
+    Host to map: current time changed elsewhere (time).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'set_time', 'name': 'kind'},
+                        'time': {'name': 'time', 'required': True}}})
+
+    time: TimeState = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'NarrativeProperties',
+                       'NarrativeSpec',
+                       'SensorCutProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'ImageExport',
+                       'TmaCut',
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    kind: Literal["set_time"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'set_time'} })
+
+
+class TimeChangedMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst moved current time (time).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'time_changed', 'name': 'kind'},
+                        'time': {'name': 'time', 'required': True}}})
+
+    time: TimeState = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'NarrativeProperties',
+                       'NarrativeSpec',
+                       'SensorCutProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'ImageExport',
+                       'TmaCut',
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    kind: Literal["time_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'time_changed'} })
+
+
+class SetViewportMessage(WebviewMessageBase):
+    """
+    Host to map: show this area (viewport).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'set_viewport', 'name': 'kind'},
+                        'viewport': {'name': 'viewport', 'required': True}}})
+
+    viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'ShowPlotMessage',
+                       'SetViewportMessage',
+                       'ViewportChangedMessage']} })
+    kind: Literal["set_viewport"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'set_viewport'} })
+
+
+class ViewportChangedMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst panned or zoomed (viewport).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'viewport_changed', 'name': 'kind'},
+                        'viewport': {'name': 'viewport', 'required': True}}})
+
+    viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'ShowPlotMessage',
+                       'SetViewportMessage',
+                       'ViewportChangedMessage']} })
+    kind: Literal["viewport_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'viewport_changed'} })
+
+
+class ShowHiddenMessage(WebviewMessageBase):
+    """
+    Map to host: show every feature hidden on the map (no members).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_hidden', 'name': 'kind'}}})
+
+    kind: Literal["show_hidden"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_hidden'} })
+
+
+class ShowFormMessage(WebviewMessageBase):
+    """
+    Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_form', 'name': 'kind'},
+                        'selected_names': {'name': 'selected_names', 'required': True},
+                        'tool': {'name': 'tool', 'required': True}}})
+
+    tool: ToolDeclaration = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ShowFormMessage', 'ShowResultsMessage']} })
+    selected_names: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFormMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
-                       'WebviewMessage']} })
-    current_time: Optional[str] = Field(default=None, description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    tool: Optional[ToolDeclaration] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'WebviewMessage']} })
-    selected_names: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    tool_name: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    parameters: Optional[list[ParameterValue]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'WebviewMessage']} })
-    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    result_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    track_edit: Optional[TrackEdit] = Field(default=None, description="""How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    fix_times: Optional[list[str]] = Field(default=None, description="""The times of the fixes the map rings (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    fix_time: Optional[str] = Field(default=None, description="""The time of the fix the analyst chose on the map (fix_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'WebviewMessage']} })
-    preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
-    tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    timeline_entries: Optional[list[TimelineEntry]] = Field(default=None, description="""The Timeline's rows, in its order (show_timeline).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    timeline_entry: Optional[TimelineEntry] = Field(default=None, description="""The narrative entry current time is at, to show on the map beside its track (set_narrative).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    plot_id: Optional[str] = Field(default=None, description="""Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
-    narrative_on_map: Optional[bool] = Field(default=None, description="""Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
-    playing: Optional[bool] = Field(default=None, description="""Whether current time is playing (playing_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    timeline_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which a narrative entry can belong to (show_timeline).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    narrative: Optional[NarrativeSpec] = Field(default=None, description="""A narrative entry as the Timeline's form describes it (save_narrative).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    tote_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which the analyst can choose from for the Tote (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    coverage: Optional[CoverageReport] = Field(default=None, description="""The open plot's coverage (show_coverage).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
-    source: Optional[SourceTrackRef] = Field(default=None, description="""A track in a catalogue item (source_chosen, link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
-                       'NarrativeSpec',
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
+    current_time: Optional[str] = Field(default=None, description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFormMessage',
+                       'ShowAnnotationFormMessage',
+                       'TmaSplitMessage',
+                       'TmaTimeAskedMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage']} })
+    kind: Literal["show_form"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
                        'TimelineEntry',
-                       'WebviewMessage']} })
-    linked: Optional[bool] = Field(default=None, description="""Whether the source is the track's platform (link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    item_revision: Optional[ItemRevision] = Field(default=None, description="""The item, at the revision the analyst saw (take_asked, dismiss_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    image_request: Optional[ImageRequest] = Field(default=None, description="""What image to draw, and how (export_image).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    image: Optional[RenderedImage] = Field(default=None, description="""The image the map drew (image_rendered).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    revision_shown: Optional[RevisionShown] = Field(default=None, description="""The plot shown is an earlier revision, read-only (show_plot).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    keep: Optional[AmbiguityKeepEnum] = Field(default=None, description="""Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution', 'WebviewMessage']} })
-    tma: Optional[TmaView] = Field(default=None, description="""What the bearing view shows (show_tma).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'WebviewMessage']} })
-    tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    resolution: Optional[AmbiguityResolution] = Field(default=None, description="""The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    cut_ids: Optional[list[str]] = Field(default=None, description="""The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
-                       'TmaRequest',
-                       'AmbiguityResolution',
-                       'TmaFocus',
-                       'WebviewMessage']} })
-    excluded: Optional[bool] = Field(default=None, description="""Whether the cuts are left out (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'WebviewMessage']} })
-    plot_height: Optional[int] = Field(default=None, description="""The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    pane_widths: Optional[list[int]] = Field(default=None, description="""The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    panes_shown: Optional[list[str]] = Field(default=None, description="""The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    error_cut_off: Optional[float] = Field(default=None, description="""The analyst's error cut-off, degrees (tma_cut_off).""", ge=0.01, le=180, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
+                       'WebviewMessageBase'],
+         'equals_string': 'show_form'} })
 
     @field_validator('current_time')
     def pattern_current_time(cls, v):
@@ -6928,6 +7107,651 @@ class WebviewMessage(ConfiguredBaseModel):
             raise ValueError(err_msg)
         return v
 
+
+class RunToolMessage(WebviewMessageBase):
+    """
+    Form to host: run the tool with these values (tool_name, parameters).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'run_tool', 'name': 'kind'},
+                        'parameters': {'name': 'parameters', 'required': True},
+                        'tool_name': {'name': 'tool_name', 'required': True}}})
+
+    tool_name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['RunToolMessage']} })
+    parameters: list[ParameterValue] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'RunToolMessage']} })
+    kind: Literal["run_tool"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'run_tool'} })
+
+
+class CancelMessage(WebviewMessageBase):
+    """
+    Form to host: close without running.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'cancel', 'name': 'kind'}}})
+
+    kind: Literal["cancel"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'cancel'} })
+
+
+class FormBusyMessage(WebviewMessageBase):
+    """
+    Host to form: the tool is running (message).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'form_busy', 'name': 'kind'},
+                        'message': {'name': 'message', 'required': True}}})
+
+    message: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["form_busy"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'form_busy'} })
+
+
+class FormErrorMessage(WebviewMessageBase):
+    """
+    Host to form: the run failed or a value was refused (message).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'form_error', 'name': 'kind'},
+                        'message': {'name': 'message', 'required': True}}})
+
+    message: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["form_error"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'form_error'} })
+
+
+class ShowResultsMessage(WebviewMessageBase):
+    """
+    Host to results: show a tool's result (tool, result_title, result).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_results', 'name': 'kind'},
+                        'result': {'name': 'result', 'required': True},
+                        'result_title': {'name': 'result_title', 'required': True},
+                        'tool': {'name': 'tool', 'required': True}}})
+
+    tool: ToolDeclaration = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ShowFormMessage', 'ShowResultsMessage']} })
+    result_title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ShowResultsMessage']} })
+    result: ToolResult = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ShowResultsMessage']} })
+    kind: Literal["show_results"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_results'} })
+
+
+class ShowTimeMessage(WebviewMessageBase):
+    """
+    Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_time', 'name': 'kind'}}})
+
+    time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'NarrativeProperties',
+                       'NarrativeSpec',
+                       'SensorCutProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'ImageExport',
+                       'TmaCut',
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
+    saved_window: Optional[TimeRange] = Field(default=None, description="""The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowTimeMessage']} })
+    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowPlotMessage',
+                       'ShowTimeMessage',
+                       'ContextChangedMessage',
+                       'SetContextMessage']} })
+    minimum_context_contrast: Optional[bool] = Field(default=None, description="""The analyst's setting that shows faint context tracks as visible, so the time controller can say so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowTimeMessage']} })
+    kind: Literal["show_time"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_time'} })
+
+
+class WindowChangedMessage(WebviewMessageBase):
+    """
+    Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'window_changed', 'name': 'kind'},
+                        'time_range': {'name': 'time_range', 'required': True}}})
+
+    time_range: TimeRange = Field(default=..., description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
+    kind: Literal["window_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'window_changed'} })
+
+
+class ContextChangedMessage(WebviewMessageBase):
+    """
+    Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'context_tracks': {'name': 'context_tracks', 'required': True},
+                        'kind': {'equals_string': 'context_changed', 'name': 'kind'}}})
+
+    context_tracks: ContextTracksEnum = Field(default=..., description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowPlotMessage',
+                       'ShowTimeMessage',
+                       'ContextChangedMessage',
+                       'SetContextMessage']} })
+    kind: Literal["context_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'context_changed'} })
+
+
+class SetContextMessage(WebviewMessageBase):
+    """
+    Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'context_tracks': {'name': 'context_tracks', 'required': True},
+                        'kind': {'equals_string': 'set_context', 'name': 'kind'}}})
+
+    context_tracks: ContextTracksEnum = Field(default=..., description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowPlotMessage',
+                       'ShowTimeMessage',
+                       'ContextChangedMessage',
+                       'SetContextMessage']} })
+    kind: Literal["set_context"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'set_context'} })
+
+
+class ShowAnnotationFormMessage(WebviewMessageBase):
+    """
+    Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_annotation_form',
+                                 'name': 'kind'}}})
+
+    annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'AnnotationDrawnMessage']} })
+    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
+    current_time: Optional[str] = Field(default=None, description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFormMessage',
+                       'ShowAnnotationFormMessage',
+                       'TmaSplitMessage',
+                       'TmaTimeAskedMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage']} })
+    kind: Literal["show_annotation_form"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_annotation_form'} })
+
+    @field_validator('current_time')
+    def pattern_current_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid current_time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid current_time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class SaveAnnotationMessage(WebviewMessageBase):
+    """
+    Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'annotation': {'name': 'annotation', 'required': True},
+                        'kind': {'equals_string': 'save_annotation', 'name': 'kind'}}})
+
+    annotation: AnnotationSpec = Field(default=..., description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'AnnotationDrawnMessage']} })
+    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["save_annotation"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'save_annotation'} })
+
+
+class DeleteAnnotationMessage(WebviewMessageBase):
+    """
+    Annotation form to host: delete this annotation (feature_id).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'delete_annotation', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["delete_annotation"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'delete_annotation'} })
+
+
+class EditAnnotationMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'edit_annotation', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'AnnotationDrawnMessage']} })
+    kind: Literal["edit_annotation"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'edit_annotation'} })
+
+
+class AnnotationDrawnMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'annotation': {'name': 'annotation', 'required': True},
+                        'kind': {'equals_string': 'annotation_drawn', 'name': 'kind'}}})
+
+    annotation: AnnotationSpec = Field(default=..., description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'AnnotationDrawnMessage']} })
+    kind: Literal["annotation_drawn"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'annotation_drawn'} })
+
+
+class EditTrackMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'edit_track', 'name': 'kind'},
+                        'track_edit': {'name': 'track_edit', 'required': True}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    track_edit: TrackEdit = Field(default=..., description="""How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).""", json_schema_extra = { "linkml_meta": {'domain_of': ['EditTrackMessage']} })
+    kind: Literal["edit_track"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'edit_track'} })
+
+
+class ShowFixesMessage(WebviewMessageBase):
+    """
+    Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_fixes', 'name': 'kind'}}})
+
+    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    fix_times: Optional[list[str]] = Field(default=None, description="""The times of the fixes the map rings (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFixesMessage']} })
+    preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFixesMessage', 'TmaPreviewMessage']} })
+    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["show_fixes"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_fixes'} })
+
     @field_validator('fix_times')
     def pattern_fix_times(cls, v):
         pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -6941,6 +7765,542 @@ class WebviewMessage(ConfiguredBaseModel):
             raise ValueError(err_msg)
         return v
 
+
+class ShowToteMessage(WebviewMessageBase):
+    """
+    Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_tote', 'name': 'kind'}}})
+
+    tote_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which the analyst can choose from for the Tote (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowToteMessage']} })
+    tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowToteMessage', 'ToteChangedMessage', 'SetToteMessage']} })
+    tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'ShowToteMessage']} })
+    kind: Literal["show_tote"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_tote'} })
+
+
+class ToteChangedMessage(WebviewMessageBase):
+    """
+    Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tote_changed', 'name': 'kind'},
+                        'tote_view': {'name': 'tote_view', 'required': True}}})
+
+    tote_view: ToteView = Field(default=..., description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowToteMessage', 'ToteChangedMessage', 'SetToteMessage']} })
+    kind: Literal["tote_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tote_changed'} })
+
+
+class SetToteMessage(WebviewMessageBase):
+    """
+    Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'set_tote', 'name': 'kind'}}})
+
+    tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowToteMessage', 'ToteChangedMessage', 'SetToteMessage']} })
+    kind: Literal["set_tote"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'set_tote'} })
+
+
+class ShowTimelineMessage(WebviewMessageBase):
+    """
+    Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_timeline', 'name': 'kind'}}})
+
+    timeline_entries: Optional[list[TimelineEntry]] = Field(default=None, description="""The Timeline's rows, in its order (show_timeline).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowTimelineMessage']} })
+    timeline_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which a narrative entry can belong to (show_timeline).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowTimelineMessage']} })
+    time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'NarrativeProperties',
+                       'NarrativeSpec',
+                       'SensorCutProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'ImageExport',
+                       'TmaCut',
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    plot_id: Optional[str] = Field(default=None, description="""Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'ShowTimelineMessage']} })
+    narrative_on_map: Optional[bool] = Field(default=None, description="""Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowTimelineMessage',
+                       'NarrativeOnMapChangedMessage']} })
+    kind: Literal["show_timeline"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_timeline'} })
+
+
+class NarrativeOnMapChangedMessage(WebviewMessageBase):
+    """
+    Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'narrative_on_map_changed',
+                                 'name': 'kind'},
+                        'narrative_on_map': {'name': 'narrative_on_map',
+                                             'required': True}}})
+
+    narrative_on_map: bool = Field(default=..., description="""Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView',
+                       'ShowTimelineMessage',
+                       'NarrativeOnMapChangedMessage']} })
+    kind: Literal["narrative_on_map_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'narrative_on_map_changed'} })
+
+
+class PlayingChangedMessage(WebviewMessageBase):
+    """
+    Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'playing_changed', 'name': 'kind'},
+                        'playing': {'name': 'playing', 'required': True}}})
+
+    playing: bool = Field(default=..., description="""Whether current time is playing (playing_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlayingChangedMessage']} })
+    kind: Literal["playing_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'playing_changed'} })
+
+
+class TimelineChosenMessage(WebviewMessageBase):
+    """
+    Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'timeline_chosen', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["timeline_chosen"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'timeline_chosen'} })
+
+
+class SaveNarrativeMessage(WebviewMessageBase):
+    """
+    Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'save_narrative', 'name': 'kind'},
+                        'narrative': {'name': 'narrative', 'required': True}}})
+
+    narrative: NarrativeSpec = Field(default=..., description="""A narrative entry as the Timeline's form describes it (save_narrative).""", json_schema_extra = { "linkml_meta": {'domain_of': ['SaveNarrativeMessage']} })
+    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["save_narrative"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'save_narrative'} })
+
+
+class DeleteNarrativeMessage(WebviewMessageBase):
+    """
+    Timeline to host: delete this narrative entry (feature_id), as one recorded step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'delete_narrative', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["delete_narrative"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'delete_narrative'} })
+
+
+class OpenNarrativeFormMessage(WebviewMessageBase):
+    """
+    Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'open_narrative_form',
+                                 'name': 'kind'}}})
+
+    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["open_narrative_form"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'open_narrative_form'} })
+
+
+class NarrativeSavedMessage(WebviewMessageBase):
+    """
+    Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'narrative_saved', 'name': 'kind'}}})
+
+    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["narrative_saved"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'narrative_saved'} })
+
+
+class SetNarrativeMessage(WebviewMessageBase):
+    """
+    Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'set_narrative', 'name': 'kind'}}})
+
+    timeline_entry: Optional[TimelineEntry] = Field(default=None, description="""The narrative entry current time is at, to show on the map beside its track (set_narrative).""", json_schema_extra = { "linkml_meta": {'domain_of': ['SetNarrativeMessage']} })
+    kind: Literal["set_narrative"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'set_narrative'} })
+
+
+class UndoAskedMessage(WebviewMessageBase):
+    """
+    Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'undo_asked', 'name': 'kind'}}})
+
+    kind: Literal["undo_asked"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'undo_asked'} })
+
+
+class RedoAskedMessage(WebviewMessageBase):
+    """
+    Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'redo_asked', 'name': 'kind'}}})
+
+    kind: Literal["redo_asked"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'redo_asked'} })
+
+
+class FixChosenMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'fix_time': {'name': 'fix_time', 'required': True},
+                        'kind': {'equals_string': 'fix_chosen', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    fix_time: str = Field(default=..., description="""The time of the fix the analyst chose on the map (fix_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'FixChosenMessage']} })
+    kind: Literal["fix_chosen"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'fix_chosen'} })
+
     @field_validator('fix_time')
     def pattern_fix_time(cls, v):
         pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -6953,6 +8313,1065 @@ class WebviewMessage(ConfiguredBaseModel):
             err_msg = f"Invalid fix_time format: {v}"
             raise ValueError(err_msg)
         return v
+
+
+class ShowCoverageMessage(WebviewMessageBase):
+    """
+    Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_coverage', 'name': 'kind'}}})
+
+    coverage: Optional[CoverageReport] = Field(default=None, description="""The open plot's coverage (show_coverage).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'ShowCoverageMessage']} })
+    time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'NarrativeProperties',
+                       'NarrativeSpec',
+                       'SensorCutProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'ImageExport',
+                       'TmaCut',
+                       'ShowPlotMessage',
+                       'SetTimeMessage',
+                       'TimeChangedMessage',
+                       'ShowTimeMessage',
+                       'ShowTimelineMessage',
+                       'ShowCoverageMessage']} })
+    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["show_coverage"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_coverage'} })
+
+
+class SourceChosenMessage(WebviewMessageBase):
+    """
+    Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'source_chosen', 'name': 'kind'},
+                        'source': {'name': 'source', 'required': True},
+                        'time_range': {'name': 'time_range', 'required': True}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    time_range: TimeRange = Field(default=..., description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'ShowFormMessage',
+                       'ShowTimeMessage',
+                       'WindowChangedMessage',
+                       'ShowAnnotationFormMessage',
+                       'SourceChosenMessage']} })
+    source: SourceTrackRef = Field(default=..., description="""A track in a catalogue item (source_chosen, link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
+                       'NarrativeSpec',
+                       'TimelineEntry',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage']} })
+    kind: Literal["source_chosen"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'source_chosen'} })
+
+
+class LinkChangedMessage(WebviewMessageBase):
+    """
+    Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'link_changed', 'name': 'kind'},
+                        'linked': {'name': 'linked', 'required': True},
+                        'source': {'name': 'source', 'required': True}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    source: SourceTrackRef = Field(default=..., description="""A track in a catalogue item (source_chosen, link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
+                       'NarrativeSpec',
+                       'TimelineEntry',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage']} })
+    linked: bool = Field(default=..., description="""Whether the source is the track's platform (link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['LinkChangedMessage']} })
+    kind: Literal["link_changed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'link_changed'} })
+
+
+class TakeAskedMessage(WebviewMessageBase):
+    """
+    Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'item_revision': {'name': 'item_revision', 'required': True},
+                        'kind': {'equals_string': 'take_asked', 'name': 'kind'}}})
+
+    item_revision: ItemRevision = Field(default=..., description="""The item, at the revision the analyst saw (take_asked, dismiss_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TakeAskedMessage', 'DismissAskedMessage']} })
+    kind: Literal["take_asked"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'take_asked'} })
+
+
+class DismissAskedMessage(WebviewMessageBase):
+    """
+    Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'item_revision': {'name': 'item_revision', 'required': True},
+                        'kind': {'equals_string': 'dismiss_asked', 'name': 'kind'}}})
+
+    item_revision: ItemRevision = Field(default=..., description="""The item, at the revision the analyst saw (take_asked, dismiss_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TakeAskedMessage', 'DismissAskedMessage']} })
+    kind: Literal["dismiss_asked"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'dismiss_asked'} })
+
+
+class ReviewClearedMessage(WebviewMessageBase):
+    """
+    Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'review_cleared', 'name': 'kind'}}})
+
+    kind: Literal["review_cleared"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'review_cleared'} })
+
+
+class ExportImageMessage(WebviewMessageBase):
+    """
+    Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'image_request': {'name': 'image_request', 'required': True},
+                        'kind': {'equals_string': 'export_image', 'name': 'kind'}}})
+
+    image_request: ImageRequest = Field(default=..., description="""What image to draw, and how (export_image).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ExportImageMessage']} })
+    kind: Literal["export_image"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'export_image'} })
+
+
+class ImageRenderedMessage(WebviewMessageBase):
+    """
+    Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'image_rendered', 'name': 'kind'}}})
+
+    image: Optional[RenderedImage] = Field(default=None, description="""The image the map drew (image_rendered).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ImageRenderedMessage']} })
+    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["image_rendered"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'image_rendered'} })
+
+
+class LatestAskedMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'latest_asked', 'name': 'kind'}}})
+
+    kind: Literal["latest_asked"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'latest_asked'} })
+
+
+class ResolveAskedMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'keep': {'name': 'keep', 'required': True},
+                        'kind': {'equals_string': 'resolve_asked', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    keep: AmbiguityKeepEnum = Field(default=..., description="""Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution', 'ResolveAskedMessage']} })
+    kind: Literal["resolve_asked"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'resolve_asked'} })
+
+
+class CutChosenMessage(WebviewMessageBase):
+    """
+    Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'cut_chosen', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["cut_chosen"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'cut_chosen'} })
+
+
+class ShowTmaMessage(WebviewMessageBase):
+    """
+    Host to bearing view: the plot's sensors and TMA solutions, the cuts of the sensor chosen, and the residuals of the solution shown (tma); none when no plot is open (CAP-21).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'show_tma', 'name': 'kind'}}})
+
+    tma: Optional[TmaView] = Field(default=None, description="""What the bearing view shows (show_tma).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'ShowTmaMessage']} })
+    kind: Literal["show_tma"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'show_tma'} })
+
+
+class TmaChosenMessage(WebviewMessageBase):
+    """
+    Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'tma_chosen', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["tma_chosen"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_chosen'} })
+
+
+class TmaCreateMessage(WebviewMessageBase):
+    """
+    Bearing view to host: make a TMA solution as asked (tma_request: the cuts, and a first guess by form), as one recorded step (CAP-21; product owner, 24 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_create', 'name': 'kind'},
+                        'tma_request': {'name': 'tma_request', 'required': True}}})
+
+    tma_request: TmaRequest = Field(default=..., description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage', 'TmaGuessMessage', 'TmaGuessedMessage']} })
+    kind: Literal["tma_create"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_create'} })
+
+
+class TmaGuessMessage(WebviewMessageBase):
+    """
+    Host to map: the analyst asked to make a TMA solution by two clicks (tma_request: the cuts), one on the first cut's line and one on the last's; with no tma_request, stop asking.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_guess', 'name': 'kind'}}})
+
+    tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage', 'TmaGuessMessage', 'TmaGuessedMessage']} })
+    kind: Literal["tma_guess"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_guess'} })
+
+
+class TmaGuessedMessage(WebviewMessageBase):
+    """
+    Map to host: the two clicks made (tma_request, with first_position and last_position), so the solution is made as one recorded step; with no tma_request, the analyst cancelled.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_guessed', 'name': 'kind'}}})
+
+    tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage', 'TmaGuessMessage', 'TmaGuessedMessage']} })
+    kind: Literal["tma_guessed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_guessed'} })
+
+
+class TmaPreviewMessage(WebviewMessageBase):
+    """
+    Map to host, and host to bearing view: a TMA solution as a drag on the map now leaves it (feature_id, preview: one position per fix), so its residuals are worked out again as it moves; with no preview, the drag ended or was put back.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'tma_preview', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFixesMessage', 'TmaPreviewMessage']} })
+    kind: Literal["tma_preview"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_preview'} })
+
+
+class TmaExcludeMessage(WebviewMessageBase):
+    """
+    Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'cut_ids': {'name': 'cut_ids', 'required': True},
+                        'excluded': {'name': 'excluded', 'required': True},
+                        'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'tma_exclude', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    cut_ids: list[str] = Field(default=..., description="""The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
+                       'TmaRequest',
+                       'AmbiguityResolution',
+                       'TmaFocus',
+                       'TmaExcludeMessage']} })
+    excluded: bool = Field(default=..., description="""Whether the cuts are left out (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'TmaExcludeMessage']} })
+    kind: Literal["tma_exclude"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_exclude'} })
+
+
+class TmaSplitMessage(WebviewMessageBase):
+    """
+    Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'current_time': {'name': 'current_time', 'required': True},
+                        'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'tma_split', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    current_time: str = Field(default=..., description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFormMessage',
+                       'ShowAnnotationFormMessage',
+                       'TmaSplitMessage',
+                       'TmaTimeAskedMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage']} })
+    kind: Literal["tma_split"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_split'} })
+
+    @field_validator('current_time')
+    def pattern_current_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid current_time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid current_time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class TmaTimeAskedMessage(WebviewMessageBase):
+    """
+    Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'current_time': {'name': 'current_time', 'required': True},
+                        'kind': {'equals_string': 'tma_time_asked', 'name': 'kind'}}})
+
+    current_time: str = Field(default=..., description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFormMessage',
+                       'ShowAnnotationFormMessage',
+                       'TmaSplitMessage',
+                       'TmaTimeAskedMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage']} })
+    kind: Literal["tma_time_asked"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_time_asked'} })
+
+    @field_validator('current_time')
+    def pattern_current_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid current_time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid current_time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class TmaSelectMessage(WebviewMessageBase):
+    """
+    Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'current_time': {'name': 'current_time', 'required': True},
+                        'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'tma_select', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    current_time: str = Field(default=..., description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFormMessage',
+                       'ShowAnnotationFormMessage',
+                       'TmaSplitMessage',
+                       'TmaTimeAskedMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage']} })
+    kind: Literal["tma_select"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_select'} })
+
+    @field_validator('current_time')
+    def pattern_current_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid current_time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid current_time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class TmaMenuMessage(WebviewMessageBase):
+    """
+    Bearing view to host: the analyst right-clicked a dot in the Bearings view's plot: the Outline's menu for it (feature_id: the cut, or the solution for one of its fixes; current_time: the dot's time), whose entries include splitting the solution there and selecting it (product owner, 29 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'current_time': {'name': 'current_time', 'required': True},
+                        'feature_id': {'name': 'feature_id', 'required': True},
+                        'kind': {'equals_string': 'tma_menu', 'name': 'kind'}}})
+
+    feature_id: str = Field(default=..., description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    current_time: str = Field(default=..., description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowFormMessage',
+                       'ShowAnnotationFormMessage',
+                       'TmaSplitMessage',
+                       'TmaTimeAskedMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage']} })
+    kind: Literal["tma_menu"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_menu'} })
+
+    @field_validator('current_time')
+    def pattern_current_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid current_time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid current_time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class TmaResolveMessage(WebviewMessageBase):
+    """
+    Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_resolve', 'name': 'kind'},
+                        'resolution': {'name': 'resolution', 'required': True}}})
+
+    resolution: AmbiguityResolution = Field(default=..., description="""The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResolveMessage']} })
+    kind: Literal["tma_resolve"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_resolve'} })
+
+
+class TmaCutOffMessage(WebviewMessageBase):
+    """
+    Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'error_cut_off': {'name': 'error_cut_off', 'required': True},
+                        'kind': {'equals_string': 'tma_cut_off', 'name': 'kind'}}})
+
+    error_cut_off: float = Field(default=..., description="""The analyst's error cut-off, degrees (tma_cut_off).""", ge=0.01, le=180, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'TmaCutOffMessage']} })
+    kind: Literal["tma_cut_off"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_cut_off'} })
+
+
+class TmaPlotDrawnMessage(WebviewMessageBase):
+    """
+    Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_plot_drawn', 'name': 'kind'},
+                        'pane_widths': {'name': 'pane_widths', 'required': True},
+                        'plot_height': {'name': 'plot_height', 'required': True}}})
+
+    plot_height: int = Field(default=..., description="""The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaPlotDrawnMessage']} })
+    pane_widths: list[int] = Field(default=..., description="""The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaPlotDrawnMessage']} })
+    kind: Literal["tma_plot_drawn"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_plot_drawn'} })
+
+
+class TmaPanesMessage(WebviewMessageBase):
+    """
+    Bearing view to host: which of the plot's panes show (panes_shown: bearing, error, course), when the page starts and when the analyst toggles one, so the same panes show wherever Bearings is next opened: in the panel or popped out into an editor tab or window of its own (product owner, 28 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_panes', 'name': 'kind'},
+                        'panes_shown': {'name': 'panes_shown', 'required': True}}})
+
+    panes_shown: list[str] = Field(default=..., description="""The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaPanesMessage']} })
+    kind: Literal["tma_panes"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_panes'} })
+
+
+class TmaMadeMessage(WebviewMessageBase):
+    """
+    Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_made', 'name': 'kind'}}})
+
+    feature_id: Optional[str] = Field(default=None, description="""The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ShowAnnotationFormMessage',
+                       'SaveAnnotationMessage',
+                       'DeleteAnnotationMessage',
+                       'EditAnnotationMessage',
+                       'EditTrackMessage',
+                       'ShowFixesMessage',
+                       'TimelineChosenMessage',
+                       'SaveNarrativeMessage',
+                       'DeleteNarrativeMessage',
+                       'OpenNarrativeFormMessage',
+                       'NarrativeSavedMessage',
+                       'FixChosenMessage',
+                       'SourceChosenMessage',
+                       'LinkChangedMessage',
+                       'ResolveAskedMessage',
+                       'CutChosenMessage',
+                       'TmaChosenMessage',
+                       'TmaPreviewMessage',
+                       'TmaExcludeMessage',
+                       'TmaSplitMessage',
+                       'TmaSelectMessage',
+                       'TmaMenuMessage',
+                       'TmaMadeMessage']} })
+    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaMadeMessage']} })
+    kind: Literal["tma_made"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase'],
+         'equals_string': 'tma_made'} })
 
 
 class PlotHistory(ConfiguredBaseModel):
@@ -7247,7 +9666,75 @@ TmaOwnship.model_rebuild()
 TmaView.model_rebuild()
 TmaFocus.model_rebuild()
 TimelineEntry.model_rebuild()
-WebviewMessage.model_rebuild()
+WebviewMessageBase.model_rebuild()
+ReadyMessage.model_rebuild()
+ShowPlotMessage.model_rebuild()
+SetSelectionMessage.model_rebuild()
+SelectionChangedMessage.model_rebuild()
+SetTimeMessage.model_rebuild()
+TimeChangedMessage.model_rebuild()
+SetViewportMessage.model_rebuild()
+ViewportChangedMessage.model_rebuild()
+ShowHiddenMessage.model_rebuild()
+ShowFormMessage.model_rebuild()
+RunToolMessage.model_rebuild()
+CancelMessage.model_rebuild()
+FormBusyMessage.model_rebuild()
+FormErrorMessage.model_rebuild()
+ShowResultsMessage.model_rebuild()
+ShowTimeMessage.model_rebuild()
+WindowChangedMessage.model_rebuild()
+ContextChangedMessage.model_rebuild()
+SetContextMessage.model_rebuild()
+ShowAnnotationFormMessage.model_rebuild()
+SaveAnnotationMessage.model_rebuild()
+DeleteAnnotationMessage.model_rebuild()
+EditAnnotationMessage.model_rebuild()
+AnnotationDrawnMessage.model_rebuild()
+EditTrackMessage.model_rebuild()
+ShowFixesMessage.model_rebuild()
+ShowToteMessage.model_rebuild()
+ToteChangedMessage.model_rebuild()
+SetToteMessage.model_rebuild()
+ShowTimelineMessage.model_rebuild()
+NarrativeOnMapChangedMessage.model_rebuild()
+PlayingChangedMessage.model_rebuild()
+TimelineChosenMessage.model_rebuild()
+SaveNarrativeMessage.model_rebuild()
+DeleteNarrativeMessage.model_rebuild()
+OpenNarrativeFormMessage.model_rebuild()
+NarrativeSavedMessage.model_rebuild()
+SetNarrativeMessage.model_rebuild()
+UndoAskedMessage.model_rebuild()
+RedoAskedMessage.model_rebuild()
+FixChosenMessage.model_rebuild()
+ShowCoverageMessage.model_rebuild()
+SourceChosenMessage.model_rebuild()
+LinkChangedMessage.model_rebuild()
+TakeAskedMessage.model_rebuild()
+DismissAskedMessage.model_rebuild()
+ReviewClearedMessage.model_rebuild()
+ExportImageMessage.model_rebuild()
+ImageRenderedMessage.model_rebuild()
+LatestAskedMessage.model_rebuild()
+ResolveAskedMessage.model_rebuild()
+CutChosenMessage.model_rebuild()
+ShowTmaMessage.model_rebuild()
+TmaChosenMessage.model_rebuild()
+TmaCreateMessage.model_rebuild()
+TmaGuessMessage.model_rebuild()
+TmaGuessedMessage.model_rebuild()
+TmaPreviewMessage.model_rebuild()
+TmaExcludeMessage.model_rebuild()
+TmaSplitMessage.model_rebuild()
+TmaTimeAskedMessage.model_rebuild()
+TmaSelectMessage.model_rebuild()
+TmaMenuMessage.model_rebuild()
+TmaResolveMessage.model_rebuild()
+TmaCutOffMessage.model_rebuild()
+TmaPlotDrawnMessage.model_rebuild()
+TmaPanesMessage.model_rebuild()
+TmaMadeMessage.model_rebuild()
 PlotHistory.model_rebuild()
 HistoryStep.model_rebuild()
 Delta.model_rebuild()
@@ -7259,3 +9746,86 @@ StacItemProperties.model_config["extra"] = "allow"
 StacAsset.model_rebuild(force=True)
 StacItemProperties.model_rebuild(force=True)
 StacItem.model_rebuild(force=True)
+
+from typing import Annotated as _Annotated  # noqa: E402
+
+
+# Any of WebviewMessageBase's classes, told apart by kind; added by the generator.
+class WebviewMessage(
+    RootModel[
+        _Annotated[
+            Union[
+                ReadyMessage,
+                ShowPlotMessage,
+                SetSelectionMessage,
+                SelectionChangedMessage,
+                SetTimeMessage,
+                TimeChangedMessage,
+                SetViewportMessage,
+                ViewportChangedMessage,
+                ShowHiddenMessage,
+                ShowFormMessage,
+                RunToolMessage,
+                CancelMessage,
+                FormBusyMessage,
+                FormErrorMessage,
+                ShowResultsMessage,
+                ShowTimeMessage,
+                WindowChangedMessage,
+                ContextChangedMessage,
+                SetContextMessage,
+                ShowAnnotationFormMessage,
+                SaveAnnotationMessage,
+                DeleteAnnotationMessage,
+                EditAnnotationMessage,
+                AnnotationDrawnMessage,
+                EditTrackMessage,
+                ShowFixesMessage,
+                ShowToteMessage,
+                ToteChangedMessage,
+                SetToteMessage,
+                ShowTimelineMessage,
+                NarrativeOnMapChangedMessage,
+                PlayingChangedMessage,
+                TimelineChosenMessage,
+                SaveNarrativeMessage,
+                DeleteNarrativeMessage,
+                OpenNarrativeFormMessage,
+                NarrativeSavedMessage,
+                SetNarrativeMessage,
+                UndoAskedMessage,
+                RedoAskedMessage,
+                FixChosenMessage,
+                ShowCoverageMessage,
+                SourceChosenMessage,
+                LinkChangedMessage,
+                TakeAskedMessage,
+                DismissAskedMessage,
+                ReviewClearedMessage,
+                ExportImageMessage,
+                ImageRenderedMessage,
+                LatestAskedMessage,
+                ResolveAskedMessage,
+                CutChosenMessage,
+                ShowTmaMessage,
+                TmaChosenMessage,
+                TmaCreateMessage,
+                TmaGuessMessage,
+                TmaGuessedMessage,
+                TmaPreviewMessage,
+                TmaExcludeMessage,
+                TmaSplitMessage,
+                TmaTimeAskedMessage,
+                TmaSelectMessage,
+                TmaMenuMessage,
+                TmaResolveMessage,
+                TmaCutOffMessage,
+                TmaPlotDrawnMessage,
+                TmaPanesMessage,
+                TmaMadeMessage,
+            ],
+            Field(discriminator="kind"),
+        ]
+    ]
+):
+    """Any of WebviewMessageBase's classes, told apart by kind."""

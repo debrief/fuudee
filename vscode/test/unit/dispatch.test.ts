@@ -24,7 +24,7 @@ import {
   toteEvents,
   type Component,
 } from "../../webview/dispatch.js";
-import table from "../../../schemas/vectors/webview-messages.json";
+import { MESSAGE_KINDS } from "@debrief/schemas";
 
 /** A handler table that records each call, by its name and arguments. */
 function recorder<H extends object>(): { handlers: H; calls: [string, ...unknown[]][] } {
@@ -37,7 +37,7 @@ const SOURCE = { catalogue: "c", item: "i", track: "t", name: "BLUE ONE" };
 
 describe("the shared message glue (PAR-13)", () => {
   it("lists only message kinds the schema has", () => {
-    const kinds = Object.keys(table.members);
+    const kinds: string[] = MESSAGE_KINDS;
     for (const sent of Object.values(SENT)) for (const kind of sent) expect(kinds, kind).toContain(kind);
   });
 

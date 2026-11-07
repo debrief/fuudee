@@ -1,48 +1,77 @@
 /**
- * Messages to and from webviews are boundary types (CON-08): every message is validated
- * against the schema, and against the members its kind must carry, before it is acted on, in
- * both hosts (PAR-13). Free of VS Code, of Node and of the DOM: the schema's validator is
- * given, as VS Code's extension host compiles it (src/messages.ts) and the playground has it
- * compiled when it is built (its page may not compile code, play/messagecheck.ts).
+ * Messages to and from webviews are boundary types (CON-08): every message is validated against
+ * the schema, where each kind is a class of its own naming the members it carries and needs, and
+ * against the rules the schema cannot express, before it is acted on, in both hosts (PAR-13).
+ * Free of VS Code, of Node and of the DOM: the schema's validator is given, as VS Code's extension
+ * host compiles it (src/messages.ts) and the playground has it compiled when it is built (its page
+ * may not compile code, play/messagecheck.ts).
+ *
+ * The rules are Python's (debrief_schemas.documents._webview_message_problems), in the same words;
+ * a test runs both over the schema's invalid/semantic message fixtures and asserts they refuse the
+ * same ones. Python's alone also checks a plot or a tool result a message carries in full.
  */
-import type { ToteView, TrackEdit, WebviewMessage } from "@debrief/schemas";
-import table from "../../schemas/vectors/webview-messages.json";
+import type { TmaRequest, ToteView, TrackEdit, WebviewMessage } from "@debrief/schemas";
 import { timeProblem, viewportProblem } from "./stateproblems.js";
 
-const MEMBERS = table.members as Record<string, string[]>;
+/** The type of a member of whichever kinds carry it. */
+type Member<N extends string> = WebviewMessage extends infer T ? (T extends unknown ? (N extends keyof T ? T[N] : never) : never) : never;
+/** A member of a message, of whichever kind; undefined (or null) for a kind that does not carry it. */
+const member = <N extends string>(message: WebviewMessage, name: N) => (message as unknown as Partial<Record<N, Member<N>>>)[name];
 
 /**
- * Check a message with the schema's validator given (which throws if it is not one), then against
- * the members its kind carries and the rules on shared state; refuse throws with the problems.
+ * Check a message with the schema's validator given (which throws if it is not one, its kind's
+ * members included), then against the rules the schema cannot express; refuse throws with the problems.
  */
 export function checkMessageWith(validate: (raw: unknown) => WebviewMessage, raw: unknown, refuse: (problems: string[]) => never): WebviewMessage {
   const message = validate(raw);
-  const members = MEMBERS[message.kind] ?? [];
-  const needed = members.filter((m) => !m.endsWith("?"));
-  const allowed = members.map((m) => m.replace(/\?$/, ""));
-  const present = Object.keys(message).filter((k) => k !== "kind");
-  const problems = [
-    ...needed.filter((m) => !(m in message)).map((m) => `${message.kind} needs ${m}`),
-    ...present.filter((m) => !allowed.includes(m)).map((m) => `${message.kind} does not carry ${m}`),
-  ];
+  const problems: string[] = [];
   // The rules on shared state Python's validation applies too.
-  const time = message.time && timeProblem(message.time);
-  if (time) problems.push(`time: ${time}`);
-  const viewport = message.viewport && viewportProblem(message.viewport);
-  if (viewport) problems.push(`viewport: ${viewport}`);
-  const range = message.time_range;
+  const time = member(message, "time");
+  const timeWrong = time && timeProblem(time);
+  if (timeWrong) problems.push(`time: ${timeWrong}`);
+  const viewport = member(message, "viewport");
+  const viewportWrong = viewport && viewportProblem(viewport);
+  if (viewportWrong) problems.push(`viewport: ${viewportWrong}`);
+  const range = member(message, "time_range");
   if (range && !(Date.parse(range.start) <= Date.parse(range.end))) problems.push("time_range: time range starts after it ends");
-  const saved = message.saved_window;
+  const saved = member(message, "saved_window");
   if (saved && !(Date.parse(saved.start) <= Date.parse(saved.end))) problems.push("saved_window: time range starts after it ends");
-  if (message.track_edit) problems.push(...trackEditProblems(message.track_edit));
-  if (message.tote_view) problems.push(...toteViewProblems(message.tote_view));
-  // The rules Python's validation applies to an image drawn (debrief_schemas.documents).
+  const edit = member(message, "track_edit");
+  if (edit) problems.push(...trackEditProblems(edit));
+  const tote = member(message, "tote_view");
+  if (tote) problems.push(...toteViewProblems(tote));
+  if (message.kind === "resolve_asked" && message.keep !== "bearing" && message.keep !== "ambiguous_bearing") problems.push("resolve_asked keeps the bearing clicked: bearing or ambiguous_bearing");
+  const request = member(message, "tma_request");
+  if (request) problems.push(...tmaRequestProblems(request));
+  if (message.kind === "tma_exclude" && !message.cut_ids.length) problems.push("tma_exclude names the cuts to leave out or count again");
+  if (message.kind === "tma_guessed" && message.tma_request && (!message.tma_request.first_position || !message.tma_request.last_position)) problems.push("tma_guessed carries both positions clicked");
+  if (message.kind === "tma_panes") problems.push(...panesProblems(message.panes_shown));
+  // The rules Python's validation applies to an image drawn.
   if (message.kind === "image_rendered" && !message.image === !message.message) problems.push("image_rendered carries either the image or why there is none (message)");
-  const imageBox = message.image?.viewport && viewportProblem(message.image.viewport);
+  const imageBox = message.kind === "image_rendered" && message.image?.viewport && viewportProblem(message.image.viewport);
   if (imageBox) problems.push(`image viewport: ${imageBox}`);
-  if (message.kind === "tma_panes") problems.push(...panesProblems(message.panes_shown ?? []));
   if (problems.length) refuse(problems);
   return message;
+}
+
+/** The rules on a TMA solution asked for that Python's validation applies too (debrief_schemas.documents.tma_request_problems). */
+export function tmaRequestProblems(request: TmaRequest, where = "tma_request"): string[] {
+  const problems: string[] = [];
+  const given = (v: unknown) => v !== undefined && v !== null;
+  if (request.cut_ids?.length && (request.sensor_ids?.length || request.period)) problems.push(`${where}: name the cuts, or the sensors and a period, not both`);
+  const period = request.period;
+  if (period && !(Date.parse(period.start) <= Date.parse(period.end))) problems.push(`${where} period: time range starts after it ends`);
+  const form = [request.range, request.course, request.speed];
+  const clicks = [request.first_position, request.last_position];
+  if (form.some(given) && clicks.some(given)) problems.push(`${where}: a first guess is by form or by two positions, not both`);
+  if (form.some(given) && !form.every(given)) problems.push(`${where}: a first guess by form gives a range, a course and a speed`);
+  if (clicks.some(given) && !clicks.every(given)) problems.push(`${where}: a first guess by two clicks gives both positions`);
+  for (const [name, position] of [["first_position", request.first_position], ["last_position", request.last_position]] as const) {
+    if (position && !(Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90)) problems.push(`${where}: ${name} is not on the globe`);
+  }
+  if (request.range && !(Number.isFinite(request.range.value) && request.range.value > 0)) problems.push(`${where}: the range is more than nothing`);
+  if (request.speed && !(Number.isFinite(request.speed.value) && request.speed.value >= 0)) problems.push(`${where}: the speed is 0 or more`);
+  return problems;
 }
 
 /** The Bearings view's panes shown (tma_panes), as Python's validation has them: known panes, each once, one at least. */

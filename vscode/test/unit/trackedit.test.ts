@@ -194,9 +194,9 @@ describe("what the map says, and what it sends", () => {
     for (const edit of [moveEdit(2222.4, 45), rotateEdit(10, BLUE[0])]) {
       expect(() => checkMessage({ kind: "edit_track", feature_id: "track-blue", track_edit: edit })).not.toThrow();
     }
-    expect(() => checkMessage({ kind: "edit_track", feature_id: "track-blue" })).toThrow(/edit_track needs track_edit/);
+    expect(() => checkMessage({ kind: "edit_track", feature_id: "track-blue" })).toThrow(/required property 'track_edit'/);
     const fixtures = path.resolve(__dirname, "../../../schemas/fixtures/webview_message");
-    for (const name of ["edit-track-move-without-bearing", "edit-track-rotate-with-distance", "edit-track-period-reversed", "edit-track-without-track-edit"]) {
+    for (const name of ["edit-track-move-without-bearing", "edit-track-rotate-with-distance", "edit-track-period-reversed"]) {
       const raw = JSON.parse(readFileSync(path.join(fixtures, "invalid", "semantic", `${name}.json`), "utf8"));
       expect(() => checkMessage(raw), name).toThrow();
     }
