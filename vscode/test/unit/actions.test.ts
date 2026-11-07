@@ -12,6 +12,7 @@ import { ACTIONS, contribution, entryOf, holds, matches, placementWhen, rowActio
 import { withContribution } from "../../scripts/menutext.mjs";
 import { toteMenu } from "../../webview/totelogic.js";
 import { undoRedo } from "../../src/views/historyrows.js";
+import { FEATURE_COMMANDS } from "../../webview/panels/flows/features.js";
 
 const vscodeDir = path.resolve(__dirname, "..", "..");
 const read = (file: string) => readFileSync(path.join(vscodeDir, file), "utf8");
@@ -25,16 +26,17 @@ describe("the action catalogue", () => {
   it("declares each action once, each a command the extension registers", () => {
     const ids = ACTIONS.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
-    // The Outline entries' commands are registered from the Tools panel model's OPERATION_COMMANDS.
+    // The Outline entries' commands are registered from the Tools panel model's OPERATION_COMMANDS; the
+    // shared features' through webview/panels/flows/features.ts, by both hosts (test/unit/registration.test.ts).
     const source = read("src/extension.ts") + read("webview/panels/tools.ts");
-    const registered = (id: string) => source.includes(`"${id}"`) || (id.startsWith("debrief.contextTracks.") && source.includes("command(`debrief.contextTracks.${choice}`"));
+    const registered = (id: string) => source.includes(`"${id}"`) || FEATURE_COMMANDS.includes(id) || (id.startsWith("debrief.contextTracks.") && source.includes("command(`debrief.contextTracks.${choice}`"));
     expect(ids.filter((id) => !registered(id))).toEqual([]);
   });
 
   it("offers in the playground every action on the Outline's rows and title bar (PAR-07)", () => {
     const host = read("play/host.ts");
     const outline = ACTIONS.filter((a) => a.placements?.some((p) => (p.menu === "row" || p.menu === "title") && p.view === "debrief.outline"));
-    const missing = outline.filter((a) => !a.operation && !host.includes(`  "${a.id}": `)).map((a) => a.id);
+    const missing = outline.filter((a) => !a.operation && !FEATURE_COMMANDS.includes(a.id) && !host.includes(`  "${a.id}": `)).map((a) => a.id);
     expect(missing).toEqual([]);
   });
 

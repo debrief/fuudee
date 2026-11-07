@@ -85,6 +85,8 @@ import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportR
 import { importNarrative, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
 import { importSensor, type SensorHost, type SensorRead } from "../webview/panels/flows/sensor.js";
 import { exportImage, type ExportHost, type FindHost, findImageSource, type Traced } from "../webview/panels/flows/exportimage.js";
+import { registerBearings, type Made } from "../webview/panels/flows/bearings.js";
+import type { Host, Target } from "../webview/panels/flows/register.js";
 import { operationContext as sharedOperationContext, operationsFor, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import type { TreeNode } from "../webview/outlinetree.js";
 import {
@@ -2379,10 +2381,11 @@ async function changeTma(change: Record<string, unknown>): Promise<{ error?: str
   if (outcome.notes?.length) toast(outcome.notes.join(" "));
   return outcome;
 }
-async function createTma(request: TmaRequest): Promise<void> {
+async function createTma(request: TmaRequest): Promise<Made> {
   const outcome = await changeTma({ kind: "create", request });
   bearingsView.made(outcome.error);
   if (!outcome.error) showPanel("panel-bearings");
+  return { problem: outcome.error, feature: outcome.feature, notes: outcome.notes };
 }
 // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ---------------
 /** What the Tools' entries act on, as things stand: the Outline's rows chosen, the solution Bearings shows, the time window. */
@@ -2526,15 +2529,6 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
     ),
   "debrief.currentCut": (keys) => currentCutMenu(keys[0]),
   "debrief.setArrayOffset": (keys) => arrayOffsetForm(keys[0]),
-  "debrief.showBearings": () => showPanel("panel-bearings"),
-  "debrief.popOutBearings": () => popOutBearings(),
-  "debrief.bringBackBearings": () => bringBackBearings(),
-  "debrief.focusBearingsWindow": () => bearingsWindow?.focus(),
-  "debrief.tmaSplitLeg": async (keys) => {
-    if (!time) return toast("Set current time first: the solution is split into legs there.", "warning");
-    const outcome = await changeTma({ kind: "split", feature: keys[0], at: time.current });
-    if (outcome.error) toast(outcome.error, "warning");
-  },
   // The Outline's toolbar and its overflow menu.
   "debrief.selectionHide": () => hideOrShowSelected(),
   "debrief.selectionShow": () => hideOrShowSelected(),
@@ -2551,6 +2545,38 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   "debrief.findImageSource": () => findImageSource(findHost),
   "debrief.takeNewData": () => takeNewData(collationHost),
 };
+/**
+ * What the shared features register their commands with (webview/panels/flows/register.ts): this
+ * action table. Run from a menu or a toolbar, a command is given its rows as its Target.
+ */
+const playHost: Host = {
+  command: (id, run) => void (PLAY_ACTIONS[id] = (keys) => (run as (target: Target) => unknown)({ ids: keys })),
+};
+/** The first of a command's rows. */
+const firstOf = (target?: string | Target) => (typeof target === "string" ? target : (target?.ids?.[0] ?? target?.feature?.id));
+// Bearings and TMA solutions (webview/panels/flows/bearings.ts): this says how the playground shows
+// Bearings and how Python makes each change. Run from a row's menu, the row is selected first, and
+// Bearings follows the selection.
+registerBearings(playHost, {
+  message: flowHost.message,
+  show: () => showPanel("panel-bearings"),
+  popOut: () => popOutBearings(),
+  bringBack: () => bringBackBearings(),
+  focusWindow: () => bearingsWindow?.focus(),
+  idOf: firstOf,
+  solutionOf: firstOf,
+  currentTime: () => time?.current,
+  runOperation: (id) => runOperation(id),
+  create: (request) => createTma(request),
+  splitLeg: async (solution, at, join) => {
+    const outcome = await changeTma({ kind: "split", feature: solution, at, ...(join && { join: true }) });
+    return { problem: outcome.error, notes: outcome.notes };
+  },
+  exclude: async (solution, cutIds, excluded) => {
+    const outcome = await changeTma({ kind: "exclude", feature: solution, cut_ids: cutIds, excluded });
+    return { problem: outcome.error, notes: outcome.notes };
+  },
+});
 
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
