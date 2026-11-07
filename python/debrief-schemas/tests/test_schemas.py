@@ -100,6 +100,15 @@ def test_schema_version_matches_linkml_source() -> None:
     assert source["version"] == SCHEMA_VERSION
 
 
+def test_changelog_has_an_entry_for_the_current_version() -> None:
+    changelog = (ROOT / "schemas" / "CHANGELOG.md").read_text()
+    headings = [line for line in changelog.splitlines() if line.startswith("## ")]
+    assert headings, "CHANGELOG.md has no version headings"
+    assert headings[0].startswith(f"## {SCHEMA_VERSION} "), (
+        f"the latest CHANGELOG.md entry is {headings[0]!r}, not {SCHEMA_VERSION}"
+    )
+
+
 def test_fixtures_use_current_schema_version() -> None:
     for kind in (DocumentKind.PLOT, DocumentKind.STAC_ITEM, DocumentKind.STAC_CATALOG):
         for path in (FIXTURES / kind.value / "valid").glob("*.json"):

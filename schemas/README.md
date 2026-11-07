@@ -36,7 +36,10 @@ Every type that crosses a process or language boundary is defined here in LinkML
 - **Times** are UTC with exactly three decimal places: `2026-10-11T09:30:00.000Z`.
 - **Feature kinds** form the taxonomy that tools declare against (TL-06): `track`, `annotation`, `sensor`, `sensor_cut`, `sensor_observations`.
 - **Strict by default.** Undeclared properties are rejected except where STAC expects extension fields.
-- **Schema version.** Plots record `schema_version`; STAC items and catalogues record `debrief:schema_version`. Change the version in `debrief.yaml` and note it in `CHANGELOG.md` whenever the schema changes.
+- **Schema version.** Plots record `schema_version`; STAC items and catalogues record `debrief:schema_version`. The version is the files' version, so the rule for bumping it is about files:
+  - A change to a **file type** bumps the version: anything that can be written in a plot, a STAC item or catalogue, or the earlier history layout (`Delta`, `HistoryHead`), down to a feature's properties, a provenance record or the island. Bump with `scripts/bump_schema.py` (see Workflow) and describe the change under the new version in `CHANGELOG.md`.
+  - A change to a **message or request type** does not bump it: webview messages, tool declarations and results, shared state, format settings, view and request types such as `TmaView` or `TmaRequest`. None is a file Debrief opens by version. Note it in `CHANGELOG.md` under the current version, saying it changes no data file. The per-user configuration has its own version (`CONFIG_VERSION`).
+  - A test holds that `CHANGELOG.md` has an entry for the current version.
 
 ## Validation layers
 
