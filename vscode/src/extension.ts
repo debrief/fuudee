@@ -32,7 +32,7 @@ import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView } from "./panels/coverageview.js";
 import { registerView } from "./panels/webviewhost.js";
 import { startup, type StartupSnapshot } from "./startup.js";
-import { toteMenu, withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
+import { toteMenu, withMapLines, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
@@ -55,6 +55,7 @@ import { move as moveFlow, registerHistory, type How } from "../webview/panels/f
 import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
 import { registerPresentation } from "../webview/panels/flows/presentation.js";
 import { registerAnnotations } from "../webview/panels/flows/annotations.js";
+import { registerTote } from "../webview/panels/flows/tote.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
 import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
@@ -2926,21 +2927,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   }
   session.onSelection(() => updateToteKeys());
   session.onPlot(() => updateToteKeys());
-  command("debrief.tote.setPrimary", async (target?: string | Target, others?: unknown) => {
-    const ids = toteTargets(target, others);
-    if (ids.length !== 1) return report("Select one track to be the Tote's primary.");
-    return chooseTote((tote) => withPrimary(tote, ids[0]));
-  });
-  command("debrief.tote.add", async (target?: string | string[] | Target, others?: unknown) => {
-    const ids = toteTargets(target, others);
-    if (!ids.length) return report("Select the tracks to add to the Tote.");
-    return chooseTote((tote) => withSecondaries(tote, ids));
-  });
-  command("debrief.tote.remove", async (target?: string | string[] | Target, others?: unknown) => {
-    const ids = toteTargets(target, others);
-    if (!ids.length) return report("Select the tracks to remove from the Tote.");
-    return chooseTote((tote) => ids.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote));
-  });
+  // Set as primary, add and remove: the shared registration (webview/panels/flows/tote.ts).
+  registerTote(host, { message: flowHost.message, tracksOf: toteTargets, change: chooseTote });
   // The whole choice at once, for agents, keyboard macros and tests: saved as from the Tote view.
   command("debrief.setTote", async (tote?: ToteChoice) => {
     if (!tote || typeof tote !== "object") return report("Give the Tote's primary and secondaries.");

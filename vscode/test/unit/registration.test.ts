@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { TmaRequest } from "@debrief/schemas";
+import type { TmaRequest, ToteView } from "@debrief/schemas";
 import { FEATURE_COMMANDS, FEATURES, type Feature } from "../../webview/panels/flows/features.js";
 import { BEARINGS_COMMANDS, CHOOSE_CUTS, registerBearings, SELECT_SOLUTION, SET_TIME, type TmaHost } from "../../webview/panels/flows/bearings.js";
 import { commandsOf, type Host, type Run } from "../../webview/panels/flows/register.js";
@@ -18,6 +18,7 @@ import { registerNarrativeImport } from "../../webview/panels/flows/narrative.js
 import { FIND_NO_SERVICE, registerExport } from "../../webview/panels/flows/exportimage.js";
 import { OPEN_PLOT, registerCollation } from "../../webview/panels/flows/collation.js";
 import { registerHistory } from "../../webview/panels/flows/move.js";
+import { ONE_PRIMARY, registerTote, TRACKS_TO_ADD, TRACKS_TO_REMOVE } from "../../webview/panels/flows/tote.js";
 
 const vscodeDir = path.resolve(__dirname, "..", "..");
 const read = (file: string) => readFileSync(path.join(vscodeDir, file), "utf8");
@@ -256,5 +257,25 @@ describe("the shared features' commands", () => {
     expect(await runOf(registerHistory, history, "debrief.goToStep")).toBeUndefined();
     await runOf(registerHistory, history, "debrief.openLatestRevision");
     expect(calls).toEqual([["move", "undo"], ["move", "redo"], ["move", "goto", 3], ["move", "goto", 4], ["move", "goto", 5], ["latest"]]);
+  });
+
+  it("change the Tote's choice for the tracks among the rows, the same in both hosts; refusing without them", async () => {
+    let choice = { measure_group: "default", primary: "a", secondaries: ["b"] } as never as ToteView;
+    const said: string[] = [];
+    const tote = {
+      message: async (_: string, text: string) => void said.push(text),
+      tracksOf: (target?: unknown) => ((target as { ids?: string[] } | undefined)?.ids ?? []).filter((id) => id !== "annotation"),
+      change: (change: (t: ToteView) => ToteView) => void (choice = change(choice)),
+    } as never;
+    await runOf(registerTote, tote, "debrief.tote.add", { ids: ["c", "annotation"] });
+    expect(choice.secondaries).toEqual(["b", "c"]);
+    await runOf(registerTote, tote, "debrief.tote.remove", { ids: ["a"] });
+    expect(choice.primary ?? undefined).toBeUndefined();
+    await runOf(registerTote, tote, "debrief.tote.setPrimary", { ids: ["c"] });
+    expect(choice.primary).toBe("c");
+    expect(await runOf(registerTote, tote, "debrief.tote.setPrimary", { ids: ["b", "c"] })).toBe(ONE_PRIMARY);
+    expect(await runOf(registerTote, tote, "debrief.tote.add", { ids: ["annotation"] })).toBe(TRACKS_TO_ADD);
+    expect(await runOf(registerTote, tote, "debrief.tote.remove")).toBe(TRACKS_TO_REMOVE);
+    expect(said).toEqual([ONE_PRIMARY, TRACKS_TO_ADD, TRACKS_TO_REMOVE]);
   });
 });

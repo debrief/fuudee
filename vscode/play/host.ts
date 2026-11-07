@@ -45,7 +45,7 @@ import { ToteControl } from "../webview/totecontrol.js";
 import { TmaControl } from "../webview/tmacontrol.js";
 import { poppedOutSaid } from "../webview/bearingspopout.js";
 import { coverageOf, cutColours, cutRowsOf, FocusOnce, legExtent, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
-import { latencySummary, sameTote, toteMenu, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
+import { latencySummary, sameTote, toteMenu, toteOf, ToteRequests, toteTracks } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
 import { Folds } from "./fold.js";
 import { Dock, MAP_ID, type LayoutStorage } from "./dock.js";
@@ -83,6 +83,7 @@ import { move as moveFlow, registerHistory, type How } from "../webview/panels/f
 import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
 import { registerPresentation } from "../webview/panels/flows/presentation.js";
 import { registerAnnotations } from "../webview/panels/flows/annotations.js";
+import { registerTote } from "../webview/panels/flows/tote.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -2508,21 +2509,12 @@ function playContext(keys: readonly string[] = outlinePicks): { context: Context
 }
 
 type Where = { x: number; y: number; from?: HTMLElement };
-/** The Tote changed for the tracks among these rows, the Tote brought into view. */
-function changeTote(keys: readonly string[], change: (tote: ToteView, tracks: string[]) => ToteView): void {
-  const tracks = keys.filter((k) => !!trackOf(k));
-  showPanel(totePanel.id);
-  void chooseTote(change(toteChoice(), tracks));
-}
 /**
  * What each catalogued action does in the playground, on the rows it was chosen on: those rows are
  * the selection by then. An action that runs an Outline operation (a cut's or a position's) needs no
  * entry here: it runs that operation on its rows.
  */
 const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
-  "debrief.tote.setPrimary": (keys) => changeTote(keys, (tote, tracks) => withPrimary(tote, tracks[0])),
-  "debrief.tote.add": (keys) => changeTote(keys, (tote, tracks) => withSecondaries(tote, tracks)),
-  "debrief.tote.remove": (keys) => changeTote(keys, (tote, tracks) => tracks.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote)),
   // Which side to keep, then which cuts (the cut at current time, the window, those selected, or all).
   "debrief.resolveAmbiguity": (keys, at) =>
     openMenu(
@@ -2599,6 +2591,15 @@ registerAnnotations(playHost, {
   edit: onRows((keys) => editAnnotation(keys[0])),
   delete: () => deleteAnnotations(),
   northArrow: () => toggleNorthArrow(),
+});
+// The Tote's entries (webview/panels/flows/tote.ts): the tracks among the rows, the Tote brought into view and the choice made.
+registerTote(playHost, {
+  message: flowHost.message,
+  tracksOf: (target) => ((target as Target | undefined)?.ids ?? []).filter((k) => !!trackOf(k)),
+  change: (change) => {
+    showPanel(totePanel.id);
+    void chooseTote(change(toteChoice()));
+  },
 });
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
