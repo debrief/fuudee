@@ -56,4 +56,13 @@ npm run --prefix ts/schemas generate           # JSON Schema -> TypeScript
 uv run pytest && npm test --prefix ts/schemas && scripts/cross_language_roundtrip.sh
 ```
 
+To bump the version, never by hand:
+
+```bash
+uv run python scripts/bump_schema.py X.Y.Z --dry-run   # list what would change
+uv run python scripts/bump_schema.py X.Y.Z             # rewrite, then regenerate
+```
+
+It rewrites the version in every fixture and every test that writes it as a `schema_version` member, seals plot fixtures' histories again (the version is part of the content hash), adds a stub to `CHANGELOG.md` for you to fill in, changes `debrief.yaml` last, and runs both generators. Run again, it changes nothing. `bump_schema.py --check`, run by a test, fails if any committed file names the current version in a form a bump would miss.
+
 The generators work around several LinkML defects; see `docs/spikes/linkml.md`.
