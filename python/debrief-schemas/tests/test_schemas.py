@@ -7,6 +7,7 @@ valid, rejected by the Python rules only).
 
 import json
 from pathlib import Path
+from typing import Literal, get_args
 
 import pytest
 import yaml
@@ -118,12 +119,41 @@ def test_pydantic_and_json_schema_declare_same_fields() -> None:
         assert required == set(definition.get("required", [])), name
 
 
-def test_webview_message_members_match_shared_table() -> None:
-    from debrief_schemas.documents import MESSAGE_MEMBERS
+def test_webview_message_is_a_union_told_apart_by_kind() -> None:
+    """One class per message kind (CON-08): JSON Schema's union and Pydantic's name the
+    same classes, each fixing kind to its own, and every kind has exactly one."""
+    defs = json.loads(JSON_SCHEMA.read_text())["$defs"]
+    union = defs["WebviewMessage"]
+    assert union["discriminator"] == {"propertyName": "kind"}
+    members = [option["$ref"].removeprefix("#/$defs/") for option in union["oneOf"]]
+    kinds = [defs[name]["properties"]["kind"]["const"] for name in members]
+    assert kinds == [k.value for k in generated.WebviewMessageKindEnum]
+    union_type = generated.WebviewMessage.model_fields["root"].annotation
+    assert [c.__name__ for c in get_args(union_type)] == members
+    for name, kind in zip(members, kinds, strict=True):
+        assert getattr(generated, name).model_fields["kind"].annotation == Literal[kind]
+    ready = generated.WebviewMessage.model_validate({"kind": "ready"})
+    assert type(ready.root) is generated.ReadyMessage
 
-    table = json.loads((ROOT / "schemas" / "vectors" / "webview-messages.json").read_text())
-    assert table["members"] == {k: list(v) for k, v in MESSAGE_MEMBERS.items()}
-    assert set(table["members"]) == {k.value for k in generated.WebviewMessageKindEnum}
+
+@pytest.mark.parametrize(
+    ("message", "problem"),
+    [
+        ({"kind": "edit_track", "feature_id": "t"}, "<root>: 'track_edit' is a required property"),
+        (
+            {"kind": "ready", "plot_title": "x"},
+            "<root>: Additional properties are not allowed ('plot_title' was unexpected)",
+        ),
+        ({"kind": "explode"}, "kind: 'explode' is not a known kind"),
+        ({"feature_id": "t"}, "<root>: 'kind' is a required property"),
+    ],
+)
+def test_a_message_has_its_own_kinds_problems_only(message: dict, problem: str) -> None:
+    """The union is told apart by kind, as Ajv's discriminator does it: the problems are
+    those of the message's own class, not that no class matched."""
+    with pytest.raises(DocumentValidationError) as refused:
+        load_document(DocumentKind.WEBVIEW_MESSAGE, message)
+    assert refused.value.problems == [problem]
 
 
 def test_text_that_passed_is_not_checked_again(monkeypatch) -> None:

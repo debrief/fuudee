@@ -146,10 +146,10 @@ describe("the export's messages are boundary types (CON-08)", () => {
     const raw = fixture(`valid/${name}.json`);
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["image-rendered-without-image", "export-image-without-request", "latest-asked-carrying-plot-title"])("refuses %s, which Python refuses too", (name) => {
+  it.each(["image-rendered-without-image"])("refuses %s, which Python refuses too", (name) => {
     expect(() => checkMessage(fixture(`invalid/semantic/${name}.json`))).toThrow();
   });
-  it.each(["export-image-footer-not-short-id", "export-image-unknown-preset"])("refuses %s by its schema", (name) => {
+  it.each(["export-image-footer-not-short-id", "export-image-unknown-preset", "export-image-without-request", "latest-asked-carrying-plot-title"])("refuses %s by its schema", (name) => {
     expect(() => checkMessage(fixture(`invalid/schema/${name}.json`))).toThrow();
   });
 });

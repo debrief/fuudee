@@ -26,6 +26,13 @@ import { SCHEMA_VERSION } from "./generated/schemaVersion.js";
 export * from "./generated/debrief.js";
 export { SCHEMA_VERSION };
 
+/** A webview message's kind (CON-08). */
+export type MessageKind = WebviewMessage["kind"];
+/** The webview message of one kind, or of several: the union narrowed to them. */
+export type MessageOf<K extends MessageKind> = Extract<WebviewMessage, { kind: K }>;
+/** Every webview message kind, in the schema's order. */
+export const MESSAGE_KINDS = schema.$defs.WebviewMessageKindEnum.enum as MessageKind[];
+
 /** The documents Debrief reads and writes, and the type each one validates to. */
 export interface DocumentTypes {
   plot: DebriefFeatureCollection;
@@ -125,7 +132,9 @@ function checkVersion(kind: DocumentKind, document: unknown): void {
   if (compareVersions(found, SCHEMA_VERSION) !== 0) throw new SchemaVersionError(found);
 }
 
-const ajv = new Ajv2019.default({ allErrors: true, strict: false });
+// discriminator: a union told apart by a member (WebviewMessage, by kind) is checked against the
+// one class its value names, so the problems are that class's; Python's validation does the same.
+const ajv = new Ajv2019.default({ allErrors: true, strict: false, discriminator: true });
 ajv.addSchema(schema, "debrief");
 const validators = new Map<DocumentKind, ValidateFunction>();
 

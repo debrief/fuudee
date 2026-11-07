@@ -124,7 +124,7 @@ describe("the map's messages for cleaning tracks are boundary types (CON-08)", (
     expect(checkMessage(raw)).toEqual(raw);
   });
   it.each(["fix-chosen-without-time", "show-fixes-with-selection"])("refuses %s", (name) => {
-    expect(() => checkMessage(fixture(`webview_message/invalid/semantic/${name}.json`))).toThrow();
+    expect(() => checkMessage(fixture(`webview_message/invalid/schema/${name}.json`))).toThrow();
   });
   it.each(["fix-chosen-time-not-utc", "show-fixes-preview-one-position"])("refuses %s", (name) => {
     expect(() => checkMessage(fixture(`webview_message/invalid/schema/${name}.json`))).toThrow();

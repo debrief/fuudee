@@ -18,6 +18,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | `figures.yaml` | Exported images: an image's ID and its short form, the plot's export log (`ImageExport`, in its island), what the map is asked to draw and draws, an earlier revision shown read-only, a plot an image came from | SUB-25, EXT-05, OUT-04 |
 | `tma.yaml` | What the Bearings view shows: a sensor's cuts listed, TMA solutions, a solution's residuals and RMS | CAP-21 |
 | `history.yaml` | A plot's history, kept in its plot file (`PlotHistory`, `HistoryStep`), and the earlier history-folder layout (`Delta`, `HistoryHead`) | SUB-19 to SUB-21, NFR-10, NFR-11 |
+| `messages.yaml` | Messages between the extension host and its webviews: one class per kind (`ShowPlotMessage`, `TmaPanesMessage`, ...), each naming the members it carries and needs; `WebviewMessage` is their union, told apart by `kind` | CON-08, PAR-13 |
 | `debrief.yaml` | Root: imports the modules and holds the schema version | SUB-12 |
 
 ## External standards (CON-04)
@@ -40,8 +41,8 @@ Every type that crosses a process or language boundary is defined here in LinkML
 ## Validation layers
 
 1. **Schema version** (files only): a file with a different version is refused before it is read (SUB-14). Before 1.0.0 there is no migration, so only an exact match opens.
-2. **Structure**: the generated JSON Schema, run identically in Python and TypeScript.
-3. **Rules** LinkML cannot express, in Python only (PRN-03). Examples: parallel arrays match the geometry, track times are in order, polygon rings are closed, a time-only annotation has a time, an annotation's shape has its geometry, a circle's polygon matches its centre and radius, a parameter's default matches its kind, a plot's history is an unbroken hash chain whose current step matches its content.
+2. **Structure**: the generated JSON Schema, run identically in Python and TypeScript. A union told apart by a member (`WebviewMessage`, by `kind`) carries OpenAPI's `discriminator`: both languages check a message against the one class its kind names, so its problems are that class's.
+3. **Rules** LinkML cannot express, in Python only (PRN-03). Examples: parallel arrays match the geometry, track times are in order, polygon rings are closed, a time-only annotation has a time, an annotation's shape has its geometry, a circle's polygon matches its centre and radius, a parameter's default matches its kind, a plot's history is an unbroken hash chain whose current step matches its content. The webview message rules are the one exception: the hosts check them on receipt too (`vscode/webview/messagecheck.ts`), and a test asserts both languages refuse every `webview_message/invalid/semantic` fixture.
 
 ## Fixtures
 

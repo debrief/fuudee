@@ -35,13 +35,25 @@ describe("what a tool needs, in the analyst's words", () => {
 });
 
 describe("webview messages are boundary types (CON-08)", () => {
-  it.each(["show-plot", "selection-changed", "run-tool", "ready", "time-changed", "set-viewport-across-antimeridian", "show-time", "show-time-no-plot", "window-changed"])("accepts %s", (name) => {
-    const raw = JSON.parse(readFileSync(path.join(fixtures, "valid", `${name}.json`), "utf8"));
-    expect(checkMessage(raw)).toEqual(raw);
-  });
-  it.each(["run-tool-without-name", "ready-with-plot", "time-outside-range", "set-time-without-time", "window-changed-ends-before-it-starts", "window-changed-without-window"])("refuses %s, which Python refuses too", (name) => {
-    const raw = JSON.parse(readFileSync(path.join(fixtures, "invalid", "semantic", `${name}.json`), "utf8"));
-    expect(() => checkMessage(raw)).toThrow();
+  // Every fixture the schema's tests give Python: the checker accepts the valid ones and refuses
+  // every invalid one, those JSON Schema refuses and those only the rules do (invalid/semantic,
+  // which Python's tests assert it refuses), so the two languages refuse the same messages.
+  const each = (folder: string) => readdirSync(path.join(fixtures, folder)).filter((n) => n.endsWith(".json")).sort().map((n) => [n.slice(0, -5), path.join(fixtures, folder, n)]);
+  const problems = (file: string) => {
+    try {
+      checkMessage(JSON.parse(readFileSync(file, "utf8")));
+      return [];
+    } catch (e) {
+      return (e as { problems: string[] }).problems;
+    }
+  };
+  it.each(each("valid"))("accepts %s", (_name, file) => expect(problems(file)).toEqual([]));
+  it.each(each("invalid/schema"))("refuses %s, by its kind's class", (_name, file) => expect(problems(file)).not.toEqual([]));
+  it.each(each("invalid/semantic"))("refuses %s, by the rules, as Python does", (_name, file) => {
+    const found = problems(file);
+    expect(found).not.toEqual([]);
+    // Refused by a rule, in Python's words, not by JSON Schema (whose problems name a path).
+    expect(found.every((p) => !p.startsWith("<root>") && !p.startsWith("/"))).toBe(true);
   });
   it("refuses an unknown kind", () => expect(() => checkMessage({ kind: "explode" })).toThrow());
 });

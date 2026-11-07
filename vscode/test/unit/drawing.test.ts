@@ -282,7 +282,7 @@ describe("messages", () => {
     const moved = dragTo(CIRCLE, handlesOf(CIRCLE)[0], at(0, 1));
     expect(() => checkMessage({ kind: "edit_annotation", feature_id: "annotation-exclusion-zone", annotation: moved })).not.toThrow();
     expect(() => checkMessage({ kind: "edit_annotation", feature_id: "annotation-exclusion-zone" })).not.toThrow();
-    expect(() => checkMessage({ kind: "annotation_drawn" })).toThrow(/annotation_drawn needs annotation/);
+    expect(() => checkMessage({ kind: "annotation_drawn" })).toThrow(/required property 'annotation'/);
   });
 });
 

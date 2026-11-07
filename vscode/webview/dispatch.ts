@@ -29,6 +29,8 @@ import type {
   ToteView,
   TrackEdit,
   Viewport,
+  MessageKind,
+  MessageOf,
   WebviewMessage,
 } from "@debrief/schemas";
 import type { CoverageControlHost } from "./coveragecontrol.js";
@@ -46,10 +48,11 @@ export type Check = (raw: unknown) => WebviewMessage;
 export type Refused = (component: Component) => void;
 
 export type Component = "time" | "tote" | "coverage" | "timeline" | "bearings" | "map" | "form" | "annotation" | "results";
-type Table = Partial<Record<WebviewMessage["kind"], (message: WebviewMessage) => unknown>>;
+/** Each kind's handler, given the message of that kind (the schema's union, narrowed). */
+type Table = { [K in MessageKind]?: (message: MessageOf<K>) => unknown };
 
 /** The message kinds each component's page sends, for tests. */
-export const SENT: Record<Component, readonly string[]> = {
+export const SENT: Record<Component, readonly MessageKind[]> = {
   time: ["ready", "time_changed", "window_changed", "playing_changed"],
   tote: ["ready", "tote_changed"],
   coverage: ["ready", "source_chosen", "link_changed", "take_asked", "dismiss_asked", "review_cleared"],
@@ -70,7 +73,8 @@ function receiver(component: Component, table: Table, check: Check, refused: Ref
     } catch {
       return refused(component);
     }
-    const handle = SENT[component].includes(message.kind) ? table[message.kind] : undefined;
+    // The table holds each kind's handler, so the handler found takes this message.
+    const handle = (SENT[component].includes(message.kind) ? table[message.kind] : undefined) as ((m: WebviewMessage) => unknown) | undefined;
     if (!handle) return refused(component);
     await handle(message);
   };

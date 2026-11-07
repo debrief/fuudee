@@ -40,6 +40,20 @@ export type LabelPositionEnum = "above" | "below" | "left" | "right" | "centre" 
  */
 export type LineStyleEnum = "solid" | "dashed" | "dotted";
 /**
+ * Units a length may be stored in (UCUM codes).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LengthUnitEnum".
+ */
+export type LengthUnitEnum = "m" | "km" | "[nmi_i]" | "[yd_i]" | "[ft_i]";
+/**
+ * How an annotation is drawn (CAP-03). Left out, it follows from the geometry: a line string is a line, a polygon an area, a point a label (style label) or a marker, and no geometry a note. Circles and ellipses must say so, since GeoJSON has no curves: their geometry is a polygon that approximates them, for other tools, and their own properties (centre, radius or semi-axes and orientation) say exactly what they are.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationShapeEnum".
+ */
+export type AnnotationShapeEnum = "line" | "area" | "circle" | "ellipse" | "label" | "marker" | "note";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PointTypeEnum".
  */
@@ -72,13 +86,6 @@ export type AnnotationKindEnum = "annotation";
  */
 export type ProvActivityKindEnum = "import" | "tool" | "edit" | "delete" | "migration";
 /**
- * Units a length may be stored in (UCUM codes).
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "LengthUnitEnum".
- */
-export type LengthUnitEnum = "m" | "km" | "[nmi_i]" | "[yd_i]" | "[ft_i]";
-/**
  * Units a speed may be stored in (UCUM codes).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -92,13 +99,6 @@ export type SpeedUnitEnum = "m/s" | "[kn_i]" | "km/h";
  * via the `definition` "DurationUnitEnum".
  */
 export type DurationUnitEnum = "ms" | "s" | "min" | "h";
-/**
- * How an annotation is drawn (CAP-03). Left out, it follows from the geometry: a line string is a line, a polygon an area, a point a label (style label) or a marker, and no geometry a note. Circles and ellipses must say so, since GeoJSON has no curves: their geometry is a polygon that approximates them, for other tools, and their own properties (centre, radius or semi-axes and orientation) say exactly what they are.
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "AnnotationShapeEnum".
- */
-export type AnnotationShapeEnum = "line" | "area" | "circle" | "ellipse" | "label" | "marker" | "note";
 /**
  * What an annotation depicts (CAP-03, CAP-04).
  *
@@ -261,6 +261,20 @@ export type StepStateEnum = "applied" | "undone" | "abandoned";
  */
 export type FeatureCollectionTypeEnum = "FeatureCollection";
 /**
+ * What a track edit does (CAP-01).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackEditActionEnum".
+ */
+export type TrackEditActionEnum = "move" | "rotate" | "shear" | "stretch" | "move_fix" | "set_plotting_mode";
+/**
+ * Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackEditAnchorEnum".
+ */
+export type TrackEditAnchorEnum = "start" | "end";
+/**
  * The feature taxonomy (TL-06).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -317,20 +331,6 @@ export type ResultPresentationEnum = "number" | "table" | "graph";
  */
 export type ParameterKindEnum = "number" | "integer" | "string" | "boolean" | "choice" | "quantity" | "time";
 /**
- * Which side of the host's course a bearing is on (CAP-22).
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "SideEnum".
- */
-export type SideEnum = "port" | "starboard";
-/**
- * Where a step stands, as the after links and the current step say.
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "StepStateEnum".
- */
-export type StepStateEnum1 = "applied" | "undone" | "abandoned";
-/**
  * What a Timeline row is.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -346,6 +346,13 @@ export type TimelineEntryKindEnum = "narrative" | "annotation" | "fix_comment" |
 export type ToolOutputKindEnum =
   "new_features" | "modified_features" | "deleted_features" | "non_spatial" | "named_sets" | "state_change";
 /**
+ * Which side of the host's course a bearing is on (CAP-22).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SideEnum".
+ */
+export type SideEnum = "port" | "starboard";
+/**
  * Whether a track in the Tote has values at current time.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -353,19 +360,12 @@ export type ToolOutputKindEnum =
  */
 export type ToteRowStatusEnum = "ok" | "no_data" | "missing";
 /**
- * What a track edit does (CAP-01).
+ * Where a step stands, as the after links and the current step say.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TrackEditActionEnum".
+ * via the `definition` "StepStateEnum".
  */
-export type TrackEditActionEnum = "move" | "rotate" | "shear" | "stretch" | "move_fix" | "set_plotting_mode";
-/**
- * Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TrackEditAnchorEnum".
- */
-export type TrackEditAnchorEnum = "start" | "end";
+export type StepStateEnum1 = "applied" | "undone" | "abandoned";
 /**
  * How tracks imported are plotted: ask for each track (the default), or one choice the analyst said to use for future imports. User state, kept here and never in a catalogue or a plot file.
  *
@@ -374,6 +374,83 @@ export type TrackEditAnchorEnum = "start" | "end";
  */
 export type TrackImportModeEnum = "ask" | "otg" | "dr";
 /**
+ * Any of WebviewMessageBase's classes, told apart by kind.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "WebviewMessage".
+ */
+export type WebviewMessage =
+  | ReadyMessage
+  | ShowPlotMessage
+  | SetSelectionMessage
+  | SelectionChangedMessage
+  | SetTimeMessage
+  | TimeChangedMessage
+  | SetViewportMessage
+  | ViewportChangedMessage
+  | ShowHiddenMessage
+  | ShowFormMessage
+  | RunToolMessage
+  | CancelMessage
+  | FormBusyMessage
+  | FormErrorMessage
+  | ShowResultsMessage
+  | ShowTimeMessage
+  | WindowChangedMessage
+  | ContextChangedMessage
+  | SetContextMessage
+  | ShowAnnotationFormMessage
+  | SaveAnnotationMessage
+  | DeleteAnnotationMessage
+  | EditAnnotationMessage
+  | AnnotationDrawnMessage
+  | EditTrackMessage
+  | ShowFixesMessage
+  | ShowToteMessage
+  | ToteChangedMessage
+  | SetToteMessage
+  | ShowTimelineMessage
+  | NarrativeOnMapChangedMessage
+  | PlayingChangedMessage
+  | TimelineChosenMessage
+  | SaveNarrativeMessage
+  | DeleteNarrativeMessage
+  | OpenNarrativeFormMessage
+  | NarrativeSavedMessage
+  | SetNarrativeMessage
+  | UndoAskedMessage
+  | RedoAskedMessage
+  | FixChosenMessage
+  | ShowCoverageMessage
+  | SourceChosenMessage
+  | LinkChangedMessage
+  | TakeAskedMessage
+  | DismissAskedMessage
+  | ReviewClearedMessage
+  | ExportImageMessage
+  | ImageRenderedMessage
+  | LatestAskedMessage
+  | ResolveAskedMessage
+  | CutChosenMessage
+  | ShowTmaMessage
+  | TmaChosenMessage
+  | TmaCreateMessage
+  | TmaGuessMessage
+  | TmaGuessedMessage
+  | TmaPreviewMessage
+  | TmaExcludeMessage
+  | TmaSplitMessage
+  | TmaTimeAskedMessage
+  | TmaSelectMessage
+  | TmaMenuMessage
+  | TmaResolveMessage
+  | TmaCutOffMessage
+  | TmaPlotDrawnMessage
+  | TmaPanesMessage
+  | TmaMadeMessage;
+/**
+ * Every webview message's kind. Each has one class below, which says what the message is for and which members it carries.
+ *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "WebviewMessageKindEnum".
  */
@@ -553,6 +630,49 @@ export interface AnnotationAppearance {
   line_width?: number | null;
 }
 /**
+ * Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationDrawnMessage".
+ */
+export interface AnnotationDrawnMessage {
+  /**
+   * An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).
+   */
+  annotation: AnnotationSpec;
+  kind: "annotation_drawn";
+}
+/**
+ * An annotation as the analyst describes it in a form, or an agent in a request: what is made into an annotation feature, recorded as one step in the plot's history (CAP-03, SUB-19). Positions are numbers here; forms read them in the analyst's notation and say what they mean.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationSpec".
+ */
+export interface AnnotationSpec {
+  appearance?: AnnotationAppearance | null;
+  name: string;
+  orientation?: Angle | null;
+  /**
+   * @minItems 1
+   */
+  positions?: [[number, number], ...[number, number][]];
+  radius?: Length | null;
+  semi_major?: Length | null;
+  semi_minor?: Length | null;
+  shape: AnnotationShapeEnum;
+  text?: string | null;
+  time?: string | null;
+  time_range?: TimeRange | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Length".
+ */
+export interface Length {
+  unit: LengthUnitEnum;
+  value: number;
+}
+/**
  * Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04); chart furniture has null geometry and needs neither. A circle or an ellipse is a polygon approximating it, for other tools, with its centre and size as properties, which Debrief draws from.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -724,14 +844,6 @@ export interface ParameterValue {
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "Length".
- */
-export interface Length {
-  unit: LengthUnitEnum;
-  value: number;
-}
-/**
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "Speed".
  */
 export interface Speed {
@@ -767,26 +879,13 @@ export interface SourceRef {
   href: string;
 }
 /**
- * An annotation as the analyst describes it in a form, or an agent in a request: what is made into an annotation feature, recorded as one step in the plot's history (CAP-03, SUB-19). Positions are numbers here; forms read them in the analyst's notation and say what they mean.
+ * Form to host: close without running.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "AnnotationSpec".
+ * via the `definition` "CancelMessage".
  */
-export interface AnnotationSpec {
-  appearance?: AnnotationAppearance | null;
-  name: string;
-  orientation?: Angle | null;
-  /**
-   * @minItems 1
-   */
-  positions?: [[number, number], ...[number, number][]];
-  radius?: Length | null;
-  semi_major?: Length | null;
-  semi_minor?: Length | null;
-  shape: AnnotationShapeEnum;
-  text?: string | null;
-  time?: string | null;
-  time_range?: TimeRange | null;
+export interface CancelMessage {
+  kind: "cancel";
 }
 /**
  * The analyst's answers to collation's marks, each for one revision of an item, so a later revision is marked again.
@@ -822,6 +921,19 @@ export interface ItemRevision {
   catalogue: string;
   item: string;
   revision: string;
+}
+/**
+ * Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ContextChangedMessage".
+ */
+export interface ContextChangedMessage {
+  /**
+   * How tracks outside the time window are drawn (CAP-29).
+   */
+  context_tracks: ContextTracksEnum;
+  kind: "context_changed";
 }
 /**
  * A catalogue item in the folder tree the plot draws from.
@@ -1003,6 +1115,19 @@ export interface ReviewFlag {
    */
   revised: ItemRef[];
   title: string;
+}
+/**
+ * Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CutChosenMessage".
+ */
+export interface CutChosenMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  kind: "cut_chosen";
 }
 /**
  * The unit of analysis (SUB-05), stored as an asset of a STAC item.
@@ -1785,6 +1910,32 @@ export interface NamedSet {
   name: string;
 }
 /**
+ * Annotation form to host: delete this annotation (feature_id).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DeleteAnnotationMessage".
+ */
+export interface DeleteAnnotationMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  kind: "delete_annotation";
+}
+/**
+ * Timeline to host: delete this narrative entry (feature_id), as one recorded step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DeleteNarrativeMessage".
+ */
+export interface DeleteNarrativeMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  kind: "delete_narrative";
+}
+/**
  * One recorded change, in the earlier layout: a file of its own in the plot's history folder. Read only to move a history into its plot file.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1850,6 +2001,144 @@ export interface Delta {
   seq: number;
 }
 /**
+ * Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DismissAskedMessage".
+ */
+export interface DismissAskedMessage {
+  /**
+   * The item, at the revision the analyst saw (take_asked, dismiss_asked).
+   */
+  item_revision: ItemRevision;
+  kind: "dismiss_asked";
+}
+/**
+ * Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "EditAnnotationMessage".
+ */
+export interface EditAnnotationMessage {
+  /**
+   * An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).
+   */
+  annotation?: AnnotationSpec | null;
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  kind: "edit_annotation";
+}
+/**
+ * Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "EditTrackMessage".
+ */
+export interface EditTrackMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  kind: "edit_track";
+  /**
+   * How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).
+   */
+  track_edit: TrackEdit;
+}
+/**
+ * A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. set_plotting_mode with plotting_mode dr plots the whole track by dead reckoning, each fix placed from the one before by that fix's recorded course and speed, from the track's first fix; with otg it puts the fixes back where they were logged, after the analyst confirms losing any change made while plotted by dead reckoning (discard_dr_changes).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackEdit".
+ */
+export interface TrackEdit {
+  action: TrackEditActionEnum;
+  /**
+   * The end of the period a shear or a stretch holds fixed.
+   */
+  anchor?: TrackEditAnchorEnum | null;
+  /**
+   * How far a rotation turns the fixes about the pivot; positive is clockwise.
+   */
+  angle?: Angle | null;
+  /**
+   * Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north.
+   */
+  bearing?: Angle | null;
+  /**
+   * The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.
+   */
+  course?: Angle | null;
+  /**
+   * set_plotting_mode to otg only: plot the track over the ground although it was changed while plotted by dead reckoning, losing those changes, as the analyst confirmed (decision, product owner, 14 Oct 2026). Without it such a change is refused, saying why.
+   */
+  discard_dr_changes?: boolean | null;
+  /**
+   * How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved.
+   */
+  distance?: Length | null;
+  /**
+   * The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).
+   */
+  fix_time?: string | null;
+  /**
+   * The fixes to change: those whose times fall in it, ends included. Left out, the whole track.
+   */
+  period?: TimeRange | null;
+  /**
+   * [longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  pivot?: [number, number] | null;
+  /**
+   * How set_plotting_mode plots the track, over the ground or by dead reckoning.
+   */
+  plotting_mode?: PlottingModeEnum | null;
+  /**
+   * [longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  position?: [number, number] | null;
+  /**
+   * The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.
+   */
+  speed?: Speed | null;
+}
+/**
+ * Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ExportImageMessage".
+ */
+export interface ExportImageMessage {
+  /**
+   * What image to draw, and how (export_image).
+   */
+  image_request: ImageRequest;
+  kind: "export_image";
+}
+/**
+ * What the host asks the map to draw for an export (export_image).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImageRequest".
+ */
+export interface ImageRequest {
+  /**
+   * The image's ID in its short form, to draw in a corner; left out for no footer.
+   */
+  footer_text?: string | null;
+  format: ImageFormatEnum;
+  preset: ImagePresetEnum;
+  theme: ImageThemeEnum;
+}
+/**
  * The analyst's own export log, exports.json beside their Debrief configuration: the newest 2,000 exports their plots could not keep.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1909,6 +2198,43 @@ export interface FigureSource {
   title: string;
 }
 /**
+ * Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FixChosenMessage".
+ */
+export interface FixChosenMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  /**
+   * The time of the fix the analyst chose on the map (fix_chosen).
+   */
+  fix_time: string;
+  kind: "fix_chosen";
+}
+/**
+ * Host to form: the tool is running (message).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FormBusyMessage".
+ */
+export interface FormBusyMessage {
+  kind: "form_busy";
+  message: string;
+}
+/**
+ * Host to form: the run failed or a value was refused (message).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FormErrorMessage".
+ */
+export interface FormErrorMessage {
+  kind: "form_error";
+  message: string;
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FormatSettings".
  */
@@ -1955,19 +2281,41 @@ export interface HistoryHead {
   schema_version: string;
 }
 /**
- * What the host asks the map to draw for an export (export_image).
+ * Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "ImageRequest".
+ * via the `definition` "ImageRenderedMessage".
  */
-export interface ImageRequest {
+export interface ImageRenderedMessage {
   /**
-   * The image's ID in its short form, to draw in a corner; left out for no footer.
+   * The image the map drew (image_rendered).
    */
-  footer_text?: string | null;
+  image?: RenderedImage | null;
+  kind: "image_rendered";
+  message?: string | null;
+}
+/**
+ * The image the map drew (image_rendered), before its ID goes into its metadata.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RenderedImage".
+ */
+export interface RenderedImage {
+  /**
+   * A PNG as base 64, or an SVG as its text.
+   */
+  data: string;
   format: ImageFormatEnum;
-  preset: ImagePresetEnum;
-  theme: ImageThemeEnum;
+  height: number;
+  /**
+   * What the image leaves out that the map shows, for the analyst: reference tiles that could not be read, say.
+   */
+  notes?: string[] | null;
+  /**
+   * The area of the map drawn.
+   */
+  viewport?: Viewport | null;
+  width: number;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1991,6 +2339,36 @@ export interface KnownStore {
    * The name the analyst sees.
    */
   title: string;
+}
+/**
+ * Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LatestAskedMessage".
+ */
+export interface LatestAskedMessage {
+  kind: "latest_asked";
+}
+/**
+ * Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LinkChangedMessage".
+ */
+export interface LinkChangedMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  kind: "link_changed";
+  /**
+   * Whether the source is the track's platform (link_changed).
+   */
+  linked: boolean;
+  /**
+   * A track in a catalogue item (source_chosen, link_changed).
+   */
+  source: SourceTrackRef;
 }
 /**
  * One measure the Tote can show. The core measures are Debrief's own; a study may add more (CAP-07), each worked out in Python.
@@ -2090,6 +2468,33 @@ export interface PlatformTrack {
   track?: string | null;
 }
 /**
+ * Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeOnMapChangedMessage".
+ */
+export interface NarrativeOnMapChangedMessage {
+  kind: "narrative_on_map_changed";
+  /**
+   * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
+   */
+  narrative_on_map: boolean;
+}
+/**
+ * Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeSavedMessage".
+ */
+export interface NarrativeSavedMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id?: string | null;
+  kind: "narrative_saved";
+  message?: string | null;
+}
+/**
  * A narrative entry as the analyst describes it in a form, or an agent in a request (debrief/add_narrative, debrief/edit_narrative): made into a narrative feature as one recorded step (CAP-20).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2130,6 +2535,19 @@ export interface ResultColumn {
   unit?: string | null;
 }
 /**
+ * Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "OpenNarrativeFormMessage".
+ */
+export interface OpenNarrativeFormMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id?: string | null;
+  kind: "open_narrative_form";
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ParameterDeclaration".
  */
@@ -2161,27 +2579,61 @@ export interface ParameterDeclaration {
   title: string;
 }
 /**
- * The image the map drew (image_rendered), before its ID goes into its metadata.
+ * Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "RenderedImage".
+ * via the `definition` "PlayingChangedMessage".
  */
-export interface RenderedImage {
+export interface PlayingChangedMessage {
+  kind: "playing_changed";
   /**
-   * A PNG as base 64, or an SVG as its text.
+   * Whether current time is playing (playing_changed).
    */
-  data: string;
-  format: ImageFormatEnum;
-  height: number;
+  playing: boolean;
+}
+/**
+ * Webview to host: loaded and listening.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ReadyMessage".
+ */
+export interface ReadyMessage {
+  kind: "ready";
+}
+/**
+ * Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RedoAskedMessage".
+ */
+export interface RedoAskedMessage {
+  kind: "redo_asked";
+}
+/**
+ * Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ResolveAskedMessage".
+ */
+export interface ResolveAskedMessage {
   /**
-   * What the image leaves out that the map shows, for the analyst: reference tiles that could not be read, say.
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  notes?: string[] | null;
+  feature_id: string;
   /**
-   * The area of the map drawn.
+   * Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
    */
-  viewport?: Viewport | null;
-  width: number;
+  keep: AmbiguityKeepEnum;
+  kind: "resolve_asked";
+}
+/**
+ * Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ReviewClearedMessage".
+ */
+export interface ReviewClearedMessage {
+  kind: "review_cleared";
 }
 /**
  * The plot is shown as it was at an earlier revision, read-only: the one an image was exported at (show_plot).
@@ -2205,6 +2657,51 @@ export interface RevisionShown {
   step: number;
 }
 /**
+ * Form to host: run the tool with these values (tool_name, parameters).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RunToolMessage".
+ */
+export interface RunToolMessage {
+  kind: "run_tool";
+  parameters: ParameterValue[];
+  tool_name: string;
+}
+/**
+ * Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SaveAnnotationMessage".
+ */
+export interface SaveAnnotationMessage {
+  /**
+   * An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).
+   */
+  annotation: AnnotationSpec;
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id?: string | null;
+  kind: "save_annotation";
+}
+/**
+ * Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SaveNarrativeMessage".
+ */
+export interface SaveNarrativeMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id?: string | null;
+  kind: "save_narrative";
+  /**
+   * A narrative entry as the Timeline's form describes it (save_narrative).
+   */
+  narrative: NarrativeSpec;
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "Selection".
  */
@@ -2214,6 +2711,130 @@ export interface Selection {
    * Href of the plot the selection belongs to.
    */
   plot: string;
+}
+/**
+ * Map to host: the analyst changed the selection (selection).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SelectionChangedMessage".
+ */
+export interface SelectionChangedMessage {
+  kind: "selection_changed";
+  selection: Selection;
+}
+/**
+ * Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetContextMessage".
+ */
+export interface SetContextMessage {
+  /**
+   * How tracks outside the time window are drawn (CAP-29).
+   */
+  context_tracks: ContextTracksEnum;
+  kind: "set_context";
+}
+/**
+ * Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetNarrativeMessage".
+ */
+export interface SetNarrativeMessage {
+  kind: "set_narrative";
+  /**
+   * The narrative entry current time is at, to show on the map beside its track (set_narrative).
+   */
+  timeline_entry?: TimelineEntry | null;
+}
+/**
+ * One row of the Timeline (CAP-05, CAP-20): a narrative entry, a time-only annotation (a note or a period) or a comment on a track's fix, as the Timeline lists them, in one time order.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimelineEntry".
+ */
+export interface TimelineEntry {
+  /**
+   * That track's colour, lower-case hex RGB.
+   */
+  colour?: string | null;
+  /**
+   * The end of its period; left out for a single time.
+   */
+  end?: string | null;
+  /**
+   * A narrative entry's type, in its source's words.
+   */
+  entry_type?: string | null;
+  /**
+   * An annotation or track hidden on the map.
+   */
+  hidden?: boolean | null;
+  /**
+   * The narrative entry's or annotation's feature id, or fix:<track>:<time> for a fix's comment.
+   */
+  id: string;
+  kind: TimelineEntryKindEnum;
+  /**
+   * Who wrote a narrative entry; an annotation's name; the track a fix comment is on; the item supplying a period of data.
+   */
+  source: string;
+  /**
+   * Its time, or the start of its period.
+   */
+  start: string;
+  /**
+   * Its text.
+   */
+  text?: string | null;
+  /**
+   * The track it belongs to: a narrative entry's track, or a fix's.
+   */
+  track?: string | null;
+}
+/**
+ * Host to map: the selection changed elsewhere (selection).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetSelectionMessage".
+ */
+export interface SetSelectionMessage {
+  kind: "set_selection";
+  selection: Selection;
+}
+/**
+ * Host to map: current time changed elsewhere (time).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetTimeMessage".
+ */
+export interface SetTimeMessage {
+  kind: "set_time";
+  time: TimeState;
+}
+/**
+ * Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetToteMessage".
+ */
+export interface SetToteMessage {
+  kind: "set_tote";
+  /**
+   * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
+   */
+  tote_view?: ToteView | null;
+}
+/**
+ * Host to map: show this area (viewport).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetViewportMessage".
+ */
+export interface SetViewportMessage {
+  kind: "set_viewport";
+  viewport: Viewport;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2238,6 +2859,687 @@ export interface SharedStateChange {
   selection?: Selection | null;
   time?: TimeState | null;
   viewport?: Viewport | null;
+}
+/**
+ * Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowAnnotationFormMessage".
+ */
+export interface ShowAnnotationFormMessage {
+  /**
+   * An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).
+   */
+  annotation?: AnnotationSpec | null;
+  /**
+   * Current time from shared state, which a tool form offers for its time fields.
+   */
+  current_time?: string | null;
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id?: string | null;
+  kind: "show_annotation_form";
+  /**
+   * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).
+   */
+  time_range?: TimeRange | null;
+}
+/**
+ * Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowCoverageMessage".
+ */
+export interface ShowCoverageMessage {
+  /**
+   * The open plot's coverage (show_coverage).
+   */
+  coverage?: CoverageReport | null;
+  kind: "show_coverage";
+  message?: string | null;
+  time?: TimeState | null;
+}
+/**
+ * Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowFixesMessage".
+ */
+export interface ShowFixesMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id?: string | null;
+  /**
+   * The times of the fixes the map rings (show_fixes).
+   */
+  fix_times?: string[] | null;
+  kind: "show_fixes";
+  message?: string | null;
+  /**
+   * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
+   */
+  preview?: LineStringGeometry | null;
+}
+/**
+ * Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowFormMessage".
+ */
+export interface ShowFormMessage {
+  /**
+   * Current time from shared state, which a tool form offers for its time fields.
+   */
+  current_time?: string | null;
+  kind: "show_form";
+  selected_names: string[];
+  /**
+   * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).
+   */
+  time_range?: TimeRange | null;
+  tool: ToolDeclaration;
+}
+/**
+ * How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToolDeclaration".
+ */
+export interface ToolDeclaration {
+  /**
+   * Feature kinds from the taxonomy, or "*" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).
+   */
+  applies_to: string[];
+  /**
+   * Short user-facing explanation of what the tool does (CAP-24).
+   */
+  explanation: string;
+  /**
+   * Any judgement the tool involves, shown on its form (CAP-24).
+   */
+  judgement?: string | null;
+  max_selected?: number | null;
+  min_selected?: number | null;
+  /**
+   * Dotted, unique across loaded libraries, for example core.smooth_track.
+   */
+  name: string;
+  outputs: ToolOutputKindEnum[];
+  parameters?: ParameterDeclaration[] | null;
+  title: string;
+  /**
+   * When true, Debrief records the seed (SUB-20).
+   */
+  uses_randomness?: boolean | null;
+  version: string;
+}
+/**
+ * Map to host: show every feature hidden on the map (no members).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowHiddenMessage".
+ */
+export interface ShowHiddenMessage {
+  kind: "show_hidden";
+}
+/**
+ * Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowPlotMessage".
+ */
+export interface ShowPlotMessage {
+  /**
+   * How tracks outside the time window are drawn (CAP-29).
+   */
+  context_tracks?: ContextTracksEnum | null;
+  /**
+   * How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
+   */
+  hidden_count?: number | null;
+  kind: "show_plot";
+  plot: DebriefFeatureCollection;
+  plot_title: string;
+  /**
+   * The plot shown is an earlier revision, read-only (show_plot).
+   */
+  revision_shown?: RevisionShown | null;
+  selection: Selection;
+  time?: TimeState | null;
+  viewport?: Viewport | null;
+}
+/**
+ * Host to results: show a tool's result (tool, result_title, result).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowResultsMessage".
+ */
+export interface ShowResultsMessage {
+  kind: "show_results";
+  result: ToolResult;
+  result_title: string;
+  tool: ToolDeclaration;
+}
+/**
+ * What a tool run returns (TL-11). Any combination of parts may be present.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToolResult".
+ */
+export interface ToolResult {
+  deleted_feature_ids?: string[] | null;
+  modified_features?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+      )[]
+    | null;
+  named_sets?: NamedSet[] | null;
+  new_features?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+      )[]
+    | null;
+  non_spatial?: NonSpatialResult[] | null;
+  state_change?: SharedStateChange | null;
+}
+/**
+ * Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowTimeMessage".
+ */
+export interface ShowTimeMessage {
+  /**
+   * How tracks outside the time window are drawn (CAP-29).
+   */
+  context_tracks?: ContextTracksEnum | null;
+  kind: "show_time";
+  /**
+   * The analyst's setting that shows faint context tracks as visible, so the time controller can say so.
+   */
+  minimum_context_contrast?: boolean | null;
+  /**
+   * The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).
+   */
+  saved_window?: TimeRange | null;
+  time?: TimeState | null;
+  /**
+   * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).
+   */
+  time_range?: TimeRange | null;
+}
+/**
+ * Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowTimelineMessage".
+ */
+export interface ShowTimelineMessage {
+  kind: "show_timeline";
+  /**
+   * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
+   */
+  narrative_on_map?: boolean | null;
+  /**
+   * Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.
+   */
+  plot_id?: string | null;
+  time?: TimeState | null;
+  /**
+   * The Timeline's rows, in its order (show_timeline).
+   */
+  timeline_entries?: TimelineEntry[] | null;
+  /**
+   * The plot's tracks, which a narrative entry can belong to (show_timeline).
+   */
+  timeline_tracks?: ToteTrack[] | null;
+}
+/**
+ * A track the analyst can put in the Tote, as the Tote view lists them.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteTrack".
+ */
+export interface ToteTrack {
+  colour?: string | null;
+  id: string;
+  name: string;
+}
+/**
+ * Host to bearing view: the plot's sensors and TMA solutions, the cuts of the sensor chosen, and the residuals of the solution shown (tma); none when no plot is open (CAP-21).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowTmaMessage".
+ */
+export interface ShowTmaMessage {
+  kind: "show_tma";
+  /**
+   * What the bearing view shows (show_tma).
+   */
+  tma?: TmaView | null;
+}
+/**
+ * What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals. The view follows the Outline's selection (product owner, 27 Oct 2026): a solution, one of its legs or fixes shows the solution; a sensor, or some of its cuts, the sensor's coverage.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaView".
+ */
+export interface TmaView {
+  /**
+   * With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.
+   */
+  coverage?: TmaCut[] | null;
+  cuts?: TmaCut[] | null;
+  /**
+   * The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.
+   */
+  error_cut_off?: number | null;
+  /**
+   * Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there.
+   */
+  focus?: TmaFocus | null;
+  /**
+   * The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.
+   */
+  ownship?: TmaOwnship[] | null;
+  /**
+   * Which plot is open, as its host knows it.
+   */
+  plot_id?: string | null;
+  /**
+   * An earlier revision is shown read-only, so nothing can be changed.
+   */
+  read_only?: boolean | null;
+  residuals?: TmaResiduals | null;
+  /**
+   * The sensor whose cuts are listed.
+   */
+  sensor_id?: string | null;
+  sensors?: TmaSensorRow[] | null;
+  /**
+   * The solution shown: the one selected on the map or in the Outline, or chosen in the view.
+   */
+  solution_id?: string | null;
+  solutions?: TmaSolutionRow[] | null;
+  /**
+   * What is shown, in one line, as the host says it (product owner, 27 Oct 2026): "Contact 1 solution, leg 2, fix at 10:38:00Z", "Towed array on BLUE ONE: 102 cuts".
+   */
+  title?: string | null;
+}
+/**
+ * One cut, as the bearing view lists it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaCut".
+ */
+export interface TmaCut {
+  /**
+   * Its ambiguous twin, degrees true, where it has one.
+   */
+  ambiguous_bearing?: number | null;
+  /**
+   * The bearing recorded first, degrees true.
+   */
+  bearing: number;
+  /**
+   * The colour it is drawn in (its own, or its sensor's).
+   */
+  colour?: string | null;
+  hidden?: boolean | null;
+  /**
+   * The cut's feature id.
+   */
+  id: string;
+  label?: string | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  origin?: [number, number];
+  /**
+   * Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).
+   */
+  origin_derived?: boolean | null;
+  /**
+   * Which bearing the analyst kept, if resolved.
+   */
+  resolved?: SensorCutKeptEnum | null;
+  /**
+   * Its sensor's name.
+   */
+  sensor?: string | null;
+  sensor_id: string;
+  /**
+   * The side of the host's course its first bearing is on, where it has a twin and the side can be told.
+   */
+  side?: SideEnum | null;
+  time: string;
+}
+/**
+ * What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period, or cut_ids, the first guess's form opened for them if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The plot then has the keyboard (the form, if opened).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaFocus".
+ */
+export interface TmaFocus {
+  /**
+   * With make, the cuts the solution is to be rooted in, exactly: a run of cuts selected in the Outline (product owner, 27 Oct 2026).
+   */
+  cut_ids?: string[] | null;
+  /**
+   * Choose the cut at or nearest this time.
+   */
+  cut_time?: string | null;
+  /**
+   * Choose the cut counted in the RMS with the largest residual.
+   */
+  largest?: boolean | null;
+  /**
+   * With period or cut_ids, open the first guess's form (TMA solution from cuts…).
+   */
+  make?: boolean | null;
+  /**
+   * Choose the cuts in this period, ends included, as the period.
+   */
+  period?: TimeRange | null;
+}
+/**
+ * A track carrying the solution's sensors (ownship): its course over the period the Bearings view shows, for the Course/Speed pane (product owner, 25 Oct 2026). Its courses as logged at its fixes, thinned to at most a few thousand.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaOwnship".
+ */
+export interface TmaOwnship {
+  colour?: string | null;
+  /**
+   * Its course at each of those times, degrees true: as logged, else as its fixes imply (product owner, 28 Oct 2026).
+   */
+  courses: number[];
+  /**
+   * The track's feature id.
+   */
+  id: string;
+  name: string;
+  /**
+   * Its speed at each of those times, metres a second: as logged, else as its fixes imply (product owner, 28 Oct 2026), for the Course/Speed pane's ownship speed.
+   */
+  speeds?: number[] | null;
+  times: string[];
+}
+/**
+ * A solution's bearing residuals (debrief/tma_residuals): a row per rooted cut in time order, and the RMS error of those counted.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaResiduals".
+ */
+export interface TmaResiduals {
+  /**
+   * How many residuals the RMS counts.
+   */
+  counted: number;
+  /**
+   * How many cuts are taken from an origin Debrief worked out.
+   */
+  derived_origins?: number | null;
+  /**
+   * How many cuts the analyst left out.
+   */
+  excluded: number;
+  /**
+   * How many rooted cuts are hidden on the map: left out of the residuals and the RMS until shown again (legacy's "only plot visible data"; product owner, 25 Oct 2026).
+   */
+  hidden?: number | null;
+  /**
+   * How many ambiguous cuts use the bearing nearer the solution.
+   */
+  nearer_side?: number | null;
+  /**
+   * The root mean square of the residuals counted (degrees): every rooted cut with a residual, less those left out. Left out when none is counted.
+   */
+  rms?: number | null;
+  rows: TmaResidualRow[];
+  solution_id: string;
+  /**
+   * How many rooted cuts give no residual: outside their host's fixes, or outside the solution's, or no longer in the plot.
+   */
+  without: number;
+}
+/**
+ * One rooted cut's residual: its measured bearing less the bearing from its origin to where the solution was at its time, within plus or minus 180 degrees, as legacy Doublet.calculateBearingError.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaResidualRow".
+ */
+export interface TmaResidualRow {
+  /**
+   * Its ambiguous twin, degrees true, where it has one.
+   */
+  ambiguous_bearing?: number | null;
+  /**
+   * The bearing recorded first, degrees true.
+   */
+  bearing: number;
+  /**
+   * The bearing from its origin to the solution at its time, along the geodesic.
+   */
+  calculated?: number | null;
+  /**
+   * The colour it is drawn in (its own, or its sensor's).
+   */
+  colour?: string | null;
+  /**
+   * Left out of the RMS error by the analyst.
+   */
+  excluded?: boolean | null;
+  hidden?: boolean | null;
+  /**
+   * The cut's feature id.
+   */
+  id: string;
+  label?: string | null;
+  /**
+   * Which leg of the solution it falls in, from 1.
+   */
+  leg?: number | null;
+  /**
+   * The bearing measured: the one kept, the cut's only one, or, for an ambiguous cut not yet resolved, the one nearer the solution (nearer_side), which the view says.
+   */
+  measured?: number | null;
+  /**
+   * True for an ambiguous cut not yet resolved: measured is the bearing nearer the solution, chosen afresh as it moves (product owner, 24 Oct 2026).
+   */
+  nearer_side?: boolean | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  origin?: [number | null, number | null];
+  /**
+   * Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).
+   */
+  origin_derived?: boolean | null;
+  /**
+   * An ambiguous cut not yet resolved: its other bearing (the one not measured) less calculated, degrees, within (-180, 180]. Drawn faint and never counted, so the analyst can pick a side from the plot (product owner, 25 Oct 2026).
+   */
+  other_residual?: number | null;
+  /**
+   * measured less calculated, degrees, within (-180, 180]; left out where there is none.
+   */
+  residual?: number | null;
+  /**
+   * Which bearing the analyst kept, if resolved.
+   */
+  resolved?: SensorCutKeptEnum | null;
+  /**
+   * Its sensor's name.
+   */
+  sensor?: string | null;
+  sensor_id: string;
+  /**
+   * The side of the host's course its first bearing is on, where it has a twin and the side can be told.
+   */
+  side?: SideEnum | null;
+  time: string;
+  /**
+   * Which of the cut's bearings measured is.
+   */
+  used?: SensorCutKeptEnum | null;
+}
+/**
+ * A sensor whose cuts the bearing view can list.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSensorRow".
+ */
+export interface TmaSensorRow {
+  /**
+   * How many of them are still ambiguous.
+   */
+  ambiguous?: number | null;
+  colour?: string | null;
+  /**
+   * How many cuts it has.
+   */
+  cuts: number;
+  /**
+   * The name of the track carrying it.
+   */
+  host?: string | null;
+  id: string;
+  name: string;
+}
+/**
+ * A TMA solution in the plot, as the bearing view lists it and draws it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSolutionRow".
+ */
+export interface TmaSolutionRow {
+  colour?: string | null;
+  contact: string;
+  /**
+   * Its course at each fix, degrees true: its DR legs' courses, for the Bearings view's Course/Speed pane (product owner, 25 Oct 2026).
+   */
+  courses?: number[] | null;
+  /**
+   * How many cuts it is rooted in.
+   */
+  cuts: number;
+  id: string;
+  leg_starts?: string[] | null;
+  name: string;
+  period: TimeRange;
+  /**
+   * Its speed at each fix, metres a second, for the Course/Speed pane.
+   */
+  speeds?: number[] | null;
+  /**
+   * Its fixes' times, for the view to place it as a drag moves it.
+   */
+  times?: string[] | null;
+}
+/**
+ * Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ShowToteMessage".
+ */
+export interface ShowToteMessage {
+  kind: "show_tote";
+  /**
+   * The Tote's values at current time (show_tote).
+   */
+  tote?: ToteResult | null;
+  /**
+   * The plot's tracks, which the analyst can choose from for the Tote (show_tote).
+   */
+  tote_tracks?: ToteTrack[] | null;
+  /**
+   * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
+   */
+  tote_view?: ToteView | null;
+}
+/**
+ * The Tote at one time: the primary's own measures, and each secondary's measures relative to the primary and its own, as debrief/tote returns them and the Tote view shows them.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteResult".
+ */
+export interface ToteResult {
+  group: MeasureGroup;
+  /**
+   * The definitions of the group's measures, in its order.
+   */
+  measures: MeasureDefinition[];
+  /**
+   * What the analyst should know about the Tote as a whole, such as a measure group chosen that this plot's study does not have (core is shown instead).
+   */
+  note?: string | null;
+  primary?: ToteRow | null;
+  /**
+   * One per secondary, in the order chosen.
+   */
+  rows: ToteRow[];
+  /**
+   * The time the values are for.
+   */
+  time: string;
+}
+/**
+ * One track in the Tote at current time.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteRow".
+ */
+export interface ToteRow {
+  /**
+   * The track's colour, lower-case hex, to key the row to the map.
+   */
+  colour?: string | null;
+  name?: string | null;
+  /**
+   * Why there are no values, for the analyst, such as "Starts 09:30:00Z".
+   */
+  note?: string | null;
+  status: ToteRowStatusEnum;
+  /**
+   * The track's feature id.
+   */
+  track: string;
+  values?: MeasureValue[] | null;
+}
+/**
+ * Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SourceChosenMessage".
+ */
+export interface SourceChosenMessage {
+  /**
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   */
+  feature_id: string;
+  kind: "source_chosen";
+  /**
+   * A track in a catalogue item (source_chosen, link_changed).
+   */
+  source: SourceTrackRef;
+  /**
+   * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).
+   */
+  time_range: TimeRange;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2391,149 +3693,66 @@ export interface StacItemProperties {
   [k: string]: unknown;
 }
 /**
- * One row of the Timeline (CAP-05, CAP-20): a narrative entry, a time-only annotation (a note or a period) or a comment on a track's fix, as the Timeline lists them, in one time order.
+ * Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TimelineEntry".
+ * via the `definition` "TakeAskedMessage".
  */
-export interface TimelineEntry {
+export interface TakeAskedMessage {
   /**
-   * That track's colour, lower-case hex RGB.
+   * The item, at the revision the analyst saw (take_asked, dismiss_asked).
    */
-  colour?: string | null;
-  /**
-   * The end of its period; left out for a single time.
-   */
-  end?: string | null;
-  /**
-   * A narrative entry's type, in its source's words.
-   */
-  entry_type?: string | null;
-  /**
-   * An annotation or track hidden on the map.
-   */
-  hidden?: boolean | null;
-  /**
-   * The narrative entry's or annotation's feature id, or fix:<track>:<time> for a fix's comment.
-   */
-  id: string;
-  kind: TimelineEntryKindEnum;
-  /**
-   * Who wrote a narrative entry; an annotation's name; the track a fix comment is on; the item supplying a period of data.
-   */
-  source: string;
-  /**
-   * Its time, or the start of its period.
-   */
-  start: string;
-  /**
-   * Its text.
-   */
-  text?: string | null;
-  /**
-   * The track it belongs to: a narrative entry's track, or a fix's.
-   */
-  track?: string | null;
+  item_revision: ItemRevision;
+  kind: "take_asked";
 }
 /**
- * One cut, as the bearing view lists it.
+ * Map to host: the analyst moved current time (time).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaCut".
+ * via the `definition` "TimeChangedMessage".
  */
-export interface TmaCut {
-  /**
-   * Its ambiguous twin, degrees true, where it has one.
-   */
-  ambiguous_bearing?: number | null;
-  /**
-   * The bearing recorded first, degrees true.
-   */
-  bearing: number;
-  /**
-   * The colour it is drawn in (its own, or its sensor's).
-   */
-  colour?: string | null;
-  hidden?: boolean | null;
-  /**
-   * The cut's feature id.
-   */
-  id: string;
-  label?: string | null;
-  /**
-   * @minItems 2
-   * @maxItems 2
-   */
-  origin?: [number, number];
-  /**
-   * Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).
-   */
-  origin_derived?: boolean | null;
-  /**
-   * Which bearing the analyst kept, if resolved.
-   */
-  resolved?: SensorCutKeptEnum | null;
-  /**
-   * Its sensor's name.
-   */
-  sensor?: string | null;
-  sensor_id: string;
-  /**
-   * The side of the host's course its first bearing is on, where it has a twin and the side can be told.
-   */
-  side?: SideEnum | null;
-  time: string;
+export interface TimeChangedMessage {
+  kind: "time_changed";
+  time: TimeState;
 }
 /**
- * What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period, or cut_ids, the first guess's form opened for them if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The plot then has the keyboard (the form, if opened).
+ * Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaFocus".
+ * via the `definition` "TimelineChosenMessage".
  */
-export interface TmaFocus {
+export interface TimelineChosenMessage {
   /**
-   * With make, the cuts the solution is to be rooted in, exactly: a run of cuts selected in the Outline (product owner, 27 Oct 2026).
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  cut_ids?: string[] | null;
-  /**
-   * Choose the cut at or nearest this time.
-   */
-  cut_time?: string | null;
-  /**
-   * Choose the cut counted in the RMS with the largest residual.
-   */
-  largest?: boolean | null;
-  /**
-   * With period or cut_ids, open the first guess's form (TMA solution from cuts…).
-   */
-  make?: boolean | null;
-  /**
-   * Choose the cuts in this period, ends included, as the period.
-   */
-  period?: TimeRange | null;
+  feature_id: string;
+  kind: "timeline_chosen";
 }
 /**
- * A track carrying the solution's sensors (ownship): its course over the period the Bearings view shows, for the Course/Speed pane (product owner, 25 Oct 2026). Its courses as logged at its fixes, thinned to at most a few thousand.
+ * Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaOwnship".
+ * via the `definition` "TmaChosenMessage".
  */
-export interface TmaOwnship {
-  colour?: string | null;
+export interface TmaChosenMessage {
   /**
-   * Its course at each of those times, degrees true: as logged, else as its fixes imply (product owner, 28 Oct 2026).
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  courses: number[];
+  feature_id: string;
+  kind: "tma_chosen";
+}
+/**
+ * Bearing view to host: make a TMA solution as asked (tma_request: the cuts, and a first guess by form), as one recorded step (CAP-21; product owner, 24 Oct 2026).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaCreateMessage".
+ */
+export interface TmaCreateMessage {
+  kind: "tma_create";
   /**
-   * The track's feature id.
+   * A TMA solution asked for (tma_create, tma_guess, tma_guessed).
    */
-  id: string;
-  name: string;
-  /**
-   * Its speed at each of those times, metres a second: as logged, else as its fixes imply (product owner, 28 Oct 2026), for the Course/Speed pane's ownship speed.
-   */
-  speeds?: number[] | null;
-  times: string[];
+  tma_request: TmaRequest;
 }
 /**
  * A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from the bearing view's form, two clicks on the map, or an agent (debrief/tma_create): the cuts to root it in (sensor_ids and a period, or cut_ids), and a first guess, either by form (a range on the first cut's bearing, a course and a speed) or by two positions (on the first cut's line and on the last's; the course and speed follow). Made as one recorded, undoable step.
@@ -2594,413 +3813,224 @@ export interface TmaRequest {
   speed?: Speed | null;
 }
 /**
- * One rooted cut's residual: its measured bearing less the bearing from its origin to where the solution was at its time, within plus or minus 180 degrees, as legacy Doublet.calculateBearingError.
+ * Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaResidualRow".
+ * via the `definition` "TmaCutOffMessage".
  */
-export interface TmaResidualRow {
+export interface TmaCutOffMessage {
   /**
-   * Its ambiguous twin, degrees true, where it has one.
+   * The analyst's error cut-off, degrees (tma_cut_off).
    */
-  ambiguous_bearing?: number | null;
-  /**
-   * The bearing recorded first, degrees true.
-   */
-  bearing: number;
-  /**
-   * The bearing from its origin to the solution at its time, along the geodesic.
-   */
-  calculated?: number | null;
-  /**
-   * The colour it is drawn in (its own, or its sensor's).
-   */
-  colour?: string | null;
-  /**
-   * Left out of the RMS error by the analyst.
-   */
-  excluded?: boolean | null;
-  hidden?: boolean | null;
-  /**
-   * The cut's feature id.
-   */
-  id: string;
-  label?: string | null;
-  /**
-   * Which leg of the solution it falls in, from 1.
-   */
-  leg?: number | null;
-  /**
-   * The bearing measured: the one kept, the cut's only one, or, for an ambiguous cut not yet resolved, the one nearer the solution (nearer_side), which the view says.
-   */
-  measured?: number | null;
-  /**
-   * True for an ambiguous cut not yet resolved: measured is the bearing nearer the solution, chosen afresh as it moves (product owner, 24 Oct 2026).
-   */
-  nearer_side?: boolean | null;
-  /**
-   * @minItems 2
-   * @maxItems 2
-   */
-  origin?: [number | null, number | null];
-  /**
-   * Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).
-   */
-  origin_derived?: boolean | null;
-  /**
-   * An ambiguous cut not yet resolved: its other bearing (the one not measured) less calculated, degrees, within (-180, 180]. Drawn faint and never counted, so the analyst can pick a side from the plot (product owner, 25 Oct 2026).
-   */
-  other_residual?: number | null;
-  /**
-   * measured less calculated, degrees, within (-180, 180]; left out where there is none.
-   */
-  residual?: number | null;
-  /**
-   * Which bearing the analyst kept, if resolved.
-   */
-  resolved?: SensorCutKeptEnum | null;
-  /**
-   * Its sensor's name.
-   */
-  sensor?: string | null;
-  sensor_id: string;
-  /**
-   * The side of the host's course its first bearing is on, where it has a twin and the side can be told.
-   */
-  side?: SideEnum | null;
-  time: string;
-  /**
-   * Which of the cut's bearings measured is.
-   */
-  used?: SensorCutKeptEnum | null;
+  error_cut_off: number;
+  kind: "tma_cut_off";
 }
 /**
- * A solution's bearing residuals (debrief/tma_residuals): a row per rooted cut in time order, and the RMS error of those counted.
+ * Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaResiduals".
+ * via the `definition` "TmaExcludeMessage".
  */
-export interface TmaResiduals {
+export interface TmaExcludeMessage {
   /**
-   * How many residuals the RMS counts.
+   * The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).
    */
-  counted: number;
+  cut_ids: string[];
   /**
-   * How many cuts are taken from an origin Debrief worked out.
+   * Whether the cuts are left out (tma_exclude).
    */
-  derived_origins?: number | null;
+  excluded: boolean;
   /**
-   * How many cuts the analyst left out.
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  excluded: number;
-  /**
-   * How many rooted cuts are hidden on the map: left out of the residuals and the RMS until shown again (legacy's "only plot visible data"; product owner, 25 Oct 2026).
-   */
-  hidden?: number | null;
-  /**
-   * How many ambiguous cuts use the bearing nearer the solution.
-   */
-  nearer_side?: number | null;
-  /**
-   * The root mean square of the residuals counted (degrees): every rooted cut with a residual, less those left out. Left out when none is counted.
-   */
-  rms?: number | null;
-  rows: TmaResidualRow[];
-  solution_id: string;
-  /**
-   * How many rooted cuts give no residual: outside their host's fixes, or outside the solution's, or no longer in the plot.
-   */
-  without: number;
+  feature_id: string;
+  kind: "tma_exclude";
 }
 /**
- * A sensor whose cuts the bearing view can list.
+ * Host to map: the analyst asked to make a TMA solution by two clicks (tma_request: the cuts), one on the first cut's line and one on the last's; with no tma_request, stop asking.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaSensorRow".
+ * via the `definition` "TmaGuessMessage".
  */
-export interface TmaSensorRow {
+export interface TmaGuessMessage {
+  kind: "tma_guess";
   /**
-   * How many of them are still ambiguous.
+   * A TMA solution asked for (tma_create, tma_guess, tma_guessed).
    */
-  ambiguous?: number | null;
-  colour?: string | null;
-  /**
-   * How many cuts it has.
-   */
-  cuts: number;
-  /**
-   * The name of the track carrying it.
-   */
-  host?: string | null;
-  id: string;
-  name: string;
+  tma_request?: TmaRequest | null;
 }
 /**
- * A TMA solution in the plot, as the bearing view lists it and draws it.
+ * Map to host: the two clicks made (tma_request, with first_position and last_position), so the solution is made as one recorded step; with no tma_request, the analyst cancelled.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaSolutionRow".
+ * via the `definition` "TmaGuessedMessage".
  */
-export interface TmaSolutionRow {
-  colour?: string | null;
-  contact: string;
+export interface TmaGuessedMessage {
+  kind: "tma_guessed";
   /**
-   * Its course at each fix, degrees true: its DR legs' courses, for the Bearings view's Course/Speed pane (product owner, 25 Oct 2026).
+   * A TMA solution asked for (tma_create, tma_guess, tma_guessed).
    */
-  courses?: number[] | null;
-  /**
-   * How many cuts it is rooted in.
-   */
-  cuts: number;
-  id: string;
-  leg_starts?: string[] | null;
-  name: string;
-  period: TimeRange;
-  /**
-   * Its speed at each fix, metres a second, for the Course/Speed pane.
-   */
-  speeds?: number[] | null;
-  /**
-   * Its fixes' times, for the view to place it as a drag moves it.
-   */
-  times?: string[] | null;
+  tma_request?: TmaRequest | null;
 }
 /**
- * What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals. The view follows the Outline's selection (product owner, 27 Oct 2026): a solution, one of its legs or fixes shows the solution; a sensor, or some of its cuts, the sensor's coverage.
+ * Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TmaView".
+ * via the `definition` "TmaMadeMessage".
  */
-export interface TmaView {
+export interface TmaMadeMessage {
   /**
-   * With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  coverage?: TmaCut[] | null;
-  cuts?: TmaCut[] | null;
-  /**
-   * The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.
-   */
-  error_cut_off?: number | null;
-  /**
-   * Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there.
-   */
-  focus?: TmaFocus | null;
-  /**
-   * The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.
-   */
-  ownship?: TmaOwnship[] | null;
-  /**
-   * Which plot is open, as its host knows it.
-   */
-  plot_id?: string | null;
-  /**
-   * An earlier revision is shown read-only, so nothing can be changed.
-   */
-  read_only?: boolean | null;
-  residuals?: TmaResiduals | null;
-  /**
-   * The sensor whose cuts are listed.
-   */
-  sensor_id?: string | null;
-  sensors?: TmaSensorRow[] | null;
-  /**
-   * The solution shown: the one selected on the map or in the Outline, or chosen in the view.
-   */
-  solution_id?: string | null;
-  solutions?: TmaSolutionRow[] | null;
-  /**
-   * What is shown, in one line, as the host says it (product owner, 27 Oct 2026): "Contact 1 solution, leg 2, fix at 10:38:00Z", "Towed array on BLUE ONE: 102 cuts".
-   */
-  title?: string | null;
+  feature_id?: string | null;
+  kind: "tma_made";
+  message?: string | null;
 }
 /**
- * How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).
+ * Bearing view to host: the analyst right-clicked a dot in the Bearings view's plot: the Outline's menu for it (feature_id: the cut, or the solution for one of its fixes; current_time: the dot's time), whose entries include splitting the solution there and selecting it (product owner, 29 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "ToolDeclaration".
+ * via the `definition` "TmaMenuMessage".
  */
-export interface ToolDeclaration {
+export interface TmaMenuMessage {
   /**
-   * Feature kinds from the taxonomy, or "*" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).
+   * Current time from shared state, which a tool form offers for its time fields.
    */
-  applies_to: string[];
+  current_time: string;
   /**
-   * Short user-facing explanation of what the tool does (CAP-24).
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  explanation: string;
-  /**
-   * Any judgement the tool involves, shown on its form (CAP-24).
-   */
-  judgement?: string | null;
-  max_selected?: number | null;
-  min_selected?: number | null;
-  /**
-   * Dotted, unique across loaded libraries, for example core.smooth_track.
-   */
-  name: string;
-  outputs: ToolOutputKindEnum[];
-  parameters?: ParameterDeclaration[] | null;
-  title: string;
-  /**
-   * When true, Debrief records the seed (SUB-20).
-   */
-  uses_randomness?: boolean | null;
-  version: string;
+  feature_id: string;
+  kind: "tma_menu";
 }
 /**
- * What a tool run returns (TL-11). Any combination of parts may be present.
+ * Bearing view to host: which of the plot's panes show (panes_shown: bearing, error, course), when the page starts and when the analyst toggles one, so the same panes show wherever Bearings is next opened: in the panel or popped out into an editor tab or window of its own (product owner, 28 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "ToolResult".
+ * via the `definition` "TmaPanesMessage".
  */
-export interface ToolResult {
-  deleted_feature_ids?: string[] | null;
-  modified_features?:
-    | (
-        | TrackFeature
-        | AnnotationFeature
-        | SensorObservationsFeature
-        | SensorFeature
-        | SensorCutFeature
-        | NarrativeFeature
-      )[]
-    | null;
-  named_sets?: NamedSet[] | null;
-  new_features?:
-    | (
-        | TrackFeature
-        | AnnotationFeature
-        | SensorObservationsFeature
-        | SensorFeature
-        | SensorCutFeature
-        | NarrativeFeature
-      )[]
-    | null;
-  non_spatial?: NonSpatialResult[] | null;
-  state_change?: SharedStateChange | null;
+export interface TmaPanesMessage {
+  kind: "tma_panes";
+  /**
+   * The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).
+   */
+  panes_shown: string[];
 }
 /**
- * The Tote at one time: the primary's own measures, and each secondary's measures relative to the primary and its own, as debrief/tote returns them and the Tote view shows them.
+ * Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "ToteResult".
+ * via the `definition` "TmaPlotDrawnMessage".
  */
-export interface ToteResult {
-  group: MeasureGroup;
+export interface TmaPlotDrawnMessage {
+  kind: "tma_plot_drawn";
   /**
-   * The definitions of the group's measures, in its order.
+   * The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
    */
-  measures: MeasureDefinition[];
+  pane_widths: number[];
   /**
-   * What the analyst should know about the Tote as a whole, such as a measure group chosen that this plot's study does not have (core is shown instead).
+   * The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).
    */
-  note?: string | null;
-  primary?: ToteRow | null;
-  /**
-   * One per secondary, in the order chosen.
-   */
-  rows: ToteRow[];
-  /**
-   * The time the values are for.
-   */
-  time: string;
+  plot_height: number;
 }
 /**
- * One track in the Tote at current time.
+ * Map to host, and host to bearing view: a TMA solution as a drag on the map now leaves it (feature_id, preview: one position per fix), so its residuals are worked out again as it moves; with no preview, the drag ended or was put back.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "ToteRow".
+ * via the `definition` "TmaPreviewMessage".
  */
-export interface ToteRow {
+export interface TmaPreviewMessage {
   /**
-   * The track's colour, lower-case hex, to key the row to the map.
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  colour?: string | null;
-  name?: string | null;
+  feature_id: string;
+  kind: "tma_preview";
   /**
-   * Why there are no values, for the analyst, such as "Starts 09:30:00Z".
+   * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
    */
-  note?: string | null;
-  status: ToteRowStatusEnum;
-  /**
-   * The track's feature id.
-   */
-  track: string;
-  values?: MeasureValue[] | null;
+  preview?: LineStringGeometry | null;
 }
 /**
- * A track the analyst can put in the Tote, as the Tote view lists them.
+ * Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "ToteTrack".
+ * via the `definition` "TmaResolveMessage".
  */
-export interface ToteTrack {
-  colour?: string | null;
-  id: string;
-  name: string;
+export interface TmaResolveMessage {
+  kind: "tma_resolve";
+  /**
+   * The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).
+   */
+  resolution: AmbiguityResolution;
 }
 /**
- * A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. set_plotting_mode with plotting_mode dr plots the whole track by dead reckoning, each fix placed from the one before by that fix's recorded course and speed, from the track's first fix; with otg it puts the fixes back where they were logged, after the analyst confirms losing any change made while plotted by dead reckoning (discard_dr_changes).
+ * Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TrackEdit".
+ * via the `definition` "TmaSelectMessage".
  */
-export interface TrackEdit {
-  action: TrackEditActionEnum;
+export interface TmaSelectMessage {
   /**
-   * The end of the period a shear or a stretch holds fixed.
+   * Current time from shared state, which a tool form offers for its time fields.
    */
-  anchor?: TrackEditAnchorEnum | null;
+  current_time: string;
   /**
-   * How far a rotation turns the fixes about the pivot; positive is clockwise.
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  angle?: Angle | null;
+  feature_id: string;
+  kind: "tma_select";
+}
+/**
+ * Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSplitMessage".
+ */
+export interface TmaSplitMessage {
   /**
-   * Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north.
+   * Current time from shared state, which a tool form offers for its time fields.
    */
-  bearing?: Angle | null;
+  current_time: string;
   /**
-   * The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
-  course?: Angle | null;
+  feature_id: string;
+  kind: "tma_split";
+}
+/**
+ * Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaTimeAskedMessage".
+ */
+export interface TmaTimeAskedMessage {
   /**
-   * set_plotting_mode to otg only: plot the track over the ground although it was changed while plotted by dead reckoning, losing those changes, as the analyst confirmed (decision, product owner, 14 Oct 2026). Without it such a change is refused, saying why.
+   * Current time from shared state, which a tool form offers for its time fields.
    */
-  discard_dr_changes?: boolean | null;
+  current_time: string;
+  kind: "tma_time_asked";
+}
+/**
+ * Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteChangedMessage".
+ */
+export interface ToteChangedMessage {
+  kind: "tote_changed";
   /**
-   * How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved.
+   * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
    */
-  distance?: Length | null;
-  /**
-   * The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).
-   */
-  fix_time?: string | null;
-  /**
-   * The fixes to change: those whose times fall in it, ends included. Left out, the whole track.
-   */
-  period?: TimeRange | null;
-  /**
-   * [longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.
-   *
-   * @minItems 2
-   * @maxItems 2
-   */
-  pivot?: [number, number] | null;
-  /**
-   * How set_plotting_mode plots the track, over the ground or by dead reckoning.
-   */
-  plotting_mode?: PlottingModeEnum | null;
-  /**
-   * [longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.
-   *
-   * @minItems 2
-   * @maxItems 2
-   */
-  position?: [number, number] | null;
-  /**
-   * The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.
-   */
-  speed?: Speed | null;
+  tote_view: ToteView;
+}
+/**
+ * Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "UndoAskedMessage".
+ */
+export interface UndoAskedMessage {
+  kind: "undo_asked";
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -3029,177 +4059,34 @@ export interface UserConfig {
   track_import_mode?: TrackImportModeEnum | null;
 }
 /**
+ * Map to host: the analyst panned or zoomed (viewport).
+ *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "WebviewMessage".
+ * via the `definition` "ViewportChangedMessage".
  */
-export interface WebviewMessage {
-  /**
-   * An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).
-   */
-  annotation?: AnnotationSpec | null;
-  /**
-   * How tracks outside the time window are drawn (CAP-29).
-   */
-  context_tracks?: ContextTracksEnum | null;
-  /**
-   * The open plot's coverage (show_coverage).
-   */
-  coverage?: CoverageReport | null;
-  /**
-   * Current time from shared state, which a tool form offers for its time fields.
-   */
-  current_time?: string | null;
-  /**
-   * The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).
-   */
-  cut_ids?: string[] | null;
-  /**
-   * The analyst's error cut-off, degrees (tma_cut_off).
-   */
-  error_cut_off?: number | null;
-  /**
-   * Whether the cuts are left out (tma_exclude).
-   */
-  excluded?: boolean | null;
-  /**
-   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
-   */
-  feature_id?: string | null;
-  /**
-   * The time of the fix the analyst chose on the map (fix_chosen).
-   */
-  fix_time?: string | null;
-  /**
-   * The times of the fixes the map rings (show_fixes).
-   */
-  fix_times?: string[] | null;
-  /**
-   * How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
-   */
-  hidden_count?: number | null;
-  /**
-   * The image the map drew (image_rendered).
-   */
-  image?: RenderedImage | null;
-  /**
-   * What image to draw, and how (export_image).
-   */
-  image_request?: ImageRequest | null;
-  /**
-   * The item, at the revision the analyst saw (take_asked, dismiss_asked).
-   */
-  item_revision?: ItemRevision | null;
-  /**
-   * Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
-   */
-  keep?: AmbiguityKeepEnum | null;
-  kind: WebviewMessageKindEnum;
-  /**
-   * Whether the source is the track's platform (link_changed).
-   */
-  linked?: boolean | null;
-  message?: string | null;
-  /**
-   * The analyst's setting that shows faint context tracks as visible, so the time controller can say so.
-   */
-  minimum_context_contrast?: boolean | null;
-  /**
-   * A narrative entry as the Timeline's form describes it (save_narrative).
-   */
-  narrative?: NarrativeSpec | null;
-  /**
-   * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
-   */
-  narrative_on_map?: boolean | null;
-  /**
-   * The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
-   */
-  pane_widths?: number[] | null;
-  /**
-   * The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).
-   */
-  panes_shown?: string[] | null;
-  parameters?: ParameterValue[] | null;
-  /**
-   * Whether current time is playing (playing_changed).
-   */
-  playing?: boolean | null;
-  plot?: DebriefFeatureCollection | null;
-  /**
-   * The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).
-   */
-  plot_height?: number | null;
-  /**
-   * Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.
-   */
-  plot_id?: string | null;
-  plot_title?: string | null;
-  /**
-   * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
-   */
-  preview?: LineStringGeometry | null;
-  /**
-   * The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).
-   */
-  resolution?: AmbiguityResolution | null;
-  result?: ToolResult | null;
-  result_title?: string | null;
-  /**
-   * The plot shown is an earlier revision, read-only (show_plot).
-   */
-  revision_shown?: RevisionShown | null;
-  /**
-   * The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).
-   */
-  saved_window?: TimeRange | null;
-  selected_names?: string[] | null;
-  selection?: Selection | null;
-  /**
-   * A track in a catalogue item (source_chosen, link_changed).
-   */
-  source?: SourceTrackRef | null;
-  time?: TimeState | null;
+export interface ViewportChangedMessage {
+  kind: "viewport_changed";
+  viewport: Viewport;
+}
+/**
+ * Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "WindowChangedMessage".
+ */
+export interface WindowChangedMessage {
+  kind: "window_changed";
   /**
    * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).
    */
-  time_range?: TimeRange | null;
-  /**
-   * The Timeline's rows, in its order (show_timeline).
-   */
-  timeline_entries?: TimelineEntry[] | null;
-  /**
-   * The narrative entry current time is at, to show on the map beside its track (set_narrative).
-   */
-  timeline_entry?: TimelineEntry | null;
-  /**
-   * The plot's tracks, which a narrative entry can belong to (show_timeline).
-   */
-  timeline_tracks?: ToteTrack[] | null;
-  /**
-   * What the bearing view shows (show_tma).
-   */
-  tma?: TmaView | null;
-  /**
-   * A TMA solution asked for (tma_create, tma_guess, tma_guessed).
-   */
-  tma_request?: TmaRequest | null;
-  tool?: ToolDeclaration | null;
-  tool_name?: string | null;
-  /**
-   * The Tote's values at current time (show_tote).
-   */
-  tote?: ToteResult | null;
-  /**
-   * The plot's tracks, which the analyst can choose from for the Tote (show_tote).
-   */
-  tote_tracks?: ToteTrack[] | null;
-  /**
-   * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
-   */
-  tote_view?: ToteView | null;
-  /**
-   * How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).
-   */
-  track_edit?: TrackEdit | null;
-  viewport?: Viewport | null;
+  time_range: TimeRange;
+}
+/**
+ * What every webview message has: its kind. Each kind's class below is one of these; the generator makes WebviewMessage, their union told apart by kind, in JSON Schema, Pydantic and TypeScript.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "WebviewMessageBase".
+ */
+export interface WebviewMessageBase {
+  kind: WebviewMessageKindEnum;
 }

@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { compile } from "json-schema-to-typescript";
+import { refsWithoutSiblings } from "./passes.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const schemaPath = join(here, "../../../schemas/generated/debrief.schema.json");
@@ -15,7 +16,7 @@ const header =
 
 const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
 // Emit every definition once; the root is the LinkML tree_root, already in $defs.
-const typeSource = { $defs: schema.$defs, title: "DebriefSchemaDefinitions", type: "object" };
+const typeSource = { $defs: refsWithoutSiblings(schema.$defs), title: "DebriefSchemaDefinitions", type: "object" };
 const types = await compile(typeSource, "DebriefFeatureCollection", {
   bannerComment: "",
   additionalProperties: false,

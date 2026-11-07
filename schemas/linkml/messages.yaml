@@ -22,8 +22,10 @@ description: >-
   Every message the VS Code extension host and its webviews (map, time
   controller, tool form, results) send each other. They cross a process boundary, so they are
   boundary types (CON-01, CON-08), validated on receipt. The same messages
-  will serve the web build's host (CON-05). Which members each kind needs is
-  checked by the receiver.
+  will serve the web build's host (CON-05). Each kind is a class of its own,
+  naming the members it carries and those it needs; WebviewMessage is their
+  union, told apart by kind, so a message's members are checked by the schema
+  in both languages and TypeScript narrows on its kind.
 
 enums:
   TimelineEntryKindEnum:
@@ -34,75 +36,261 @@ enums:
       fix_comment: {description: "A comment on one of a track's fixes."}
       coverage: {description: "A period a track has data for, from one source: the plot itself or the catalogue item supplying it (CAP-05, CAP-08)."}
   WebviewMessageKindEnum:
+    description: >-
+      Every webview message's kind. Each has one class below, which says what
+      the message is for and which members it carries.
     permissible_values:
-      ready: {description: "Webview to host: loaded and listening."}
-      show_plot: {description: "Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only."}
-      set_selection: {description: "Host to map: the selection changed elsewhere (selection)."}
-      selection_changed: {description: "Map to host: the analyst changed the selection (selection)."}
-      set_time: {description: "Host to map: current time changed elsewhere (time)."}
-      time_changed: {description: "Map to host: the analyst moved current time (time)."}
-      set_viewport: {description: "Host to map: show this area (viewport)."}
-      viewport_changed: {description: "Map to host: the analyst panned or zoomed (viewport)."}
-      show_hidden: {description: "Map to host: show every feature hidden on the map (no members)."}
-      show_form: {description: "Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known)."}
-      run_tool: {description: "Form to host: run the tool with these values (tool_name, parameters)."}
-      cancel: {description: "Form to host: close without running."}
-      form_busy: {description: "Host to form: the tool is running (message)."}
-      form_error: {description: "Host to form: the run failed or a value was refused (message)."}
-      show_results: {description: "Host to results: show a tool's result (tool, result_title, result)."}
-      show_time: {description: "Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open."}
-      window_changed: {description: "Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range)."}
-      context_changed: {description: "Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks)."}
-      set_context: {description: "Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied."}
-      show_annotation_form: {description: "Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known."}
-      save_annotation: {description: "Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one)."}
-      delete_annotation: {description: "Annotation form to host: delete this annotation (feature_id)."}
-      edit_annotation: {description: "Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step."}
-      annotation_drawn: {description: "Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step."}
-      edit_track: {description: "Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step."}
-      show_fixes: {description: "Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away."}
-      show_tote: {description: "Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open."}
-      tote_changed: {description: "Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view)."}
-      set_tote: {description: "Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen."}
-      show_timeline: {description: "Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open."}
-      narrative_on_map_changed: {description: "Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island."}
-      playing_changed: {description: "Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts."}
-      timeline_chosen: {description: "Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it."}
-      save_narrative: {description: "Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step."}
-      delete_narrative: {description: "Timeline to host: delete this narrative entry (feature_id), as one recorded step."}
-      open_narrative_form: {description: "Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked."}
-      narrative_saved: {description: "Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not."}
-      set_narrative: {description: "Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away."}
-      undo_asked: {description: "Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026)."}
-      redo_asked: {description: "Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone."}
-      fix_chosen: {description: "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard."}
-      show_coverage: {description: "Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown."}
-      source_chosen: {description: "Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09)."}
-      link_changed: {description: "Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step."}
-      take_asked: {description: "Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11)."}
-      dismiss_asked: {description: "Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10)."}
-      review_cleared: {description: "Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12)."}
-      export_image: {description: "Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25)."}
-      image_rendered: {description: "Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn."}
-      latest_asked: {description: "Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members)."}
-      resolve_asked: {description: "Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects)."}
-      cut_chosen: {description: "Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it."}
-      show_tma: {description: "Host to bearing view: the plot's sensors and TMA solutions, the cuts of the sensor chosen, and the residuals of the solution shown (tma); none when no plot is open (CAP-21)."}
-      tma_chosen: {description: "Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id)."}
-      tma_create: {description: "Bearing view to host: make a TMA solution as asked (tma_request: the cuts, and a first guess by form), as one recorded step (CAP-21; product owner, 24 Oct 2026)."}
-      tma_guess: {description: "Host to map: the analyst asked to make a TMA solution by two clicks (tma_request: the cuts), one on the first cut's line and one on the last's; with no tma_request, stop asking."}
-      tma_guessed: {description: "Map to host: the two clicks made (tma_request, with first_position and last_position), so the solution is made as one recorded step; with no tma_request, the analyst cancelled."}
-      tma_preview: {description: "Map to host, and host to bearing view: a TMA solution as a drag on the map now leaves it (feature_id, preview: one position per fix), so its residuals are worked out again as it moves; with no preview, the drag ended or was put back."}
-      tma_exclude: {description: "Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step."}
-      tma_split: {description: "Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step."}
-      tma_time_asked: {description: "Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it."}
-      tma_select: {description: "Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026)."}
-      tma_menu: {description: "Bearing view to host: the analyst right-clicked a dot in the Bearings view's plot: the Outline's menu for it (feature_id: the cut, or the solution for one of its fixes; current_time: the dot's time), whose entries include splitting the solution there and selecting it (product owner, 29 Oct 2026)."}
-      tma_resolve: {description: "Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026)."}
-      tma_cut_off: {description: "Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026)."}
-      tma_plot_drawn: {description: "Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026)."}
-      tma_panes: {description: "Bearing view to host: which of the plot's panes show (panes_shown: bearing, error, course), when the page starts and when the analyst toggles one, so the same panes show wherever Bearings is next opened: in the panel or popped out into an editor tab or window of its own (product owner, 28 Oct 2026)."}
-      tma_made: {description: "Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open."}
+      ready: {}
+      show_plot: {}
+      set_selection: {}
+      selection_changed: {}
+      set_time: {}
+      time_changed: {}
+      set_viewport: {}
+      viewport_changed: {}
+      show_hidden: {}
+      show_form: {}
+      run_tool: {}
+      cancel: {}
+      form_busy: {}
+      form_error: {}
+      show_results: {}
+      show_time: {}
+      window_changed: {}
+      context_changed: {}
+      set_context: {}
+      show_annotation_form: {}
+      save_annotation: {}
+      delete_annotation: {}
+      edit_annotation: {}
+      annotation_drawn: {}
+      edit_track: {}
+      show_fixes: {}
+      show_tote: {}
+      tote_changed: {}
+      set_tote: {}
+      show_timeline: {}
+      narrative_on_map_changed: {}
+      playing_changed: {}
+      timeline_chosen: {}
+      save_narrative: {}
+      delete_narrative: {}
+      open_narrative_form: {}
+      narrative_saved: {}
+      set_narrative: {}
+      undo_asked: {}
+      redo_asked: {}
+      fix_chosen: {}
+      show_coverage: {}
+      source_chosen: {}
+      link_changed: {}
+      take_asked: {}
+      dismiss_asked: {}
+      review_cleared: {}
+      export_image: {}
+      image_rendered: {}
+      latest_asked: {}
+      resolve_asked: {}
+      cut_chosen: {}
+      show_tma: {}
+      tma_chosen: {}
+      tma_create: {}
+      tma_guess: {}
+      tma_guessed: {}
+      tma_preview: {}
+      tma_exclude: {}
+      tma_split: {}
+      tma_time_asked: {}
+      tma_select: {}
+      tma_menu: {}
+      tma_resolve: {}
+      tma_cut_off: {}
+      tma_plot_drawn: {}
+      tma_panes: {}
+      tma_made: {}
+
+slots:
+  # The members webview messages carry; each kind's class names its own.
+  plot: {range: DebriefFeatureCollection, inlined: true}
+  plot_title: {}
+  hidden_count:
+    description: How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
+    range: integer
+    minimum_value: 0
+  selection: {range: Selection, inlined: true}
+  viewport: {range: Viewport, inlined: true}
+  time: {range: TimeState, inlined: true}
+  saved_window:
+    description: >-
+      The time window as saved in the plot, so the time controller can
+      say when the window shown differs from it (CAP-28).
+    range: TimeRange
+    inlined: true
+  context_tracks:
+    description: How tracks outside the time window are drawn (CAP-29).
+    range: ContextTracksEnum
+  minimum_context_contrast:
+    description: >-
+      The analyst's setting that shows faint context tracks as visible, so
+      the time controller can say so.
+    range: boolean
+  time_range:
+    description: >-
+      The plot's period, so times can be entered as the analyst reads them
+      (show_form) and the time window set within it (show_time); the time
+      window to save (window_changed); or the period whose source the
+      analyst chose (source_chosen).
+    range: TimeRange
+    inlined: true
+  current_time:
+    description: Current time from shared state, which a tool form offers for its time fields.
+    range: UtcTimestamp
+  tool: {range: ToolDeclaration, inlined: true}
+  selected_names: {multivalued: true}
+  tool_name: {}
+  parameters:
+    range: ParameterValue
+    multivalued: true
+    inlined_as_list: true
+  message: {}
+  result_title: {}
+  result: {range: ToolResult, inlined: true}
+  annotation:
+    description: >-
+      An annotation as the form describes it (show_annotation_form,
+      save_annotation), as drawn on the map (annotation_drawn), or as
+      changed on the map (edit_annotation).
+    range: AnnotationSpec
+    inlined: true
+  feature_id:
+    description: The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+  track_edit:
+    description: How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).
+    range: TrackEdit
+    inlined: true
+  fix_times:
+    description: The times of the fixes the map rings (show_fixes).
+    range: UtcTimestamp
+    multivalued: true
+  fix_time:
+    description: The time of the fix the analyst chose on the map (fix_chosen).
+    range: UtcTimestamp
+  preview:
+    description: >-
+      A track as a change would leave it, one position per fix, drawn
+      beside it until the analyst applies or cancels the change
+      (show_fixes).
+    range: LineStringGeometry
+    inlined: true
+  tote:
+    description: The Tote's values at current time (show_tote).
+    range: ToteResult
+    inlined: true
+  tote_view:
+    description: Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
+    range: ToteView
+    inlined: true
+  timeline_entries:
+    description: The Timeline's rows, in its order (show_timeline).
+    range: TimelineEntry
+    multivalued: true
+    inlined_as_list: true
+  timeline_entry:
+    description: The narrative entry current time is at, to show on the map beside its track (set_narrative).
+    range: TimelineEntry
+    inlined: true
+  plot_id:
+    description: >-
+      Which plot is open, as its host knows it (show_timeline): a list read
+      again for the same plot keeps the reader's place; another plot is read
+      from current time.
+  narrative_on_map:
+    description: >-
+      Whether the map shows the narrative entry current time is at beside
+      its track (show_timeline, narrative_on_map_changed): the plot's
+      PlotView.narrative_on_map; left out means it does.
+    range: boolean
+  playing:
+    description: Whether current time is playing (playing_changed).
+    range: boolean
+  timeline_tracks:
+    description: The plot's tracks, which a narrative entry can belong to (show_timeline).
+    range: ToteTrack
+    multivalued: true
+    inlined_as_list: true
+  narrative:
+    description: A narrative entry as the Timeline's form describes it (save_narrative).
+    range: NarrativeSpec
+    inlined: true
+  tote_tracks:
+    description: The plot's tracks, which the analyst can choose from for the Tote (show_tote).
+    range: ToteTrack
+    multivalued: true
+    inlined_as_list: true
+  coverage:
+    description: The open plot's coverage (show_coverage).
+    range: CoverageReport
+    inlined: true
+  source:
+    description: A track in a catalogue item (source_chosen, link_changed).
+    range: SourceTrackRef
+    inlined: true
+  linked:
+    description: Whether the source is the track's platform (link_changed).
+    range: boolean
+  item_revision:
+    description: The item, at the revision the analyst saw (take_asked, dismiss_asked).
+    range: ItemRevision
+    inlined: true
+  image_request:
+    description: What image to draw, and how (export_image).
+    range: ImageRequest
+    inlined: true
+  image:
+    description: The image the map drew (image_rendered).
+    range: RenderedImage
+    inlined: true
+  revision_shown:
+    description: The plot shown is an earlier revision, read-only (show_plot).
+    range: RevisionShown
+    inlined: true
+  keep:
+    description: Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
+    range: AmbiguityKeepEnum
+  tma:
+    description: What the bearing view shows (show_tma).
+    range: TmaView
+    inlined: true
+  tma_request:
+    description: A TMA solution asked for (tma_create, tma_guess, tma_guessed).
+    range: TmaRequest
+    inlined: true
+  resolution:
+    description: The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).
+    range: AmbiguityResolution
+    inlined: true
+  cut_ids:
+    description: The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).
+    multivalued: true
+  excluded:
+    description: Whether the cuts are left out (tma_exclude).
+    range: boolean
+  plot_height:
+    description: The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).
+    range: integer
+    minimum_value: 0
+  pane_widths:
+    description: The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
+    range: integer
+    multivalued: true
+  panes_shown:
+    description: The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).
+    multivalued: true
+  error_cut_off:
+    description: The analyst's error cut-off, degrees (tma_cut_off).
+    range: float
+    minimum_value: 0.01
+    maximum_value: 180
 
 classes:
   TimelineEntry:
@@ -133,186 +321,548 @@ classes:
         pattern: "^#[0-9a-f]{6}$"
       hidden: {range: boolean, description: "An annotation or track hidden on the map."}
 
-  WebviewMessage:
+  WebviewMessageBase:
+    abstract: true
+    description: >-
+      What every webview message has: its kind. Each kind's class below is one
+      of these; the generator makes WebviewMessage, their union told apart by
+      kind, in JSON Schema, Pydantic and TypeScript.
+    annotations:
+      union: WebviewMessage
+      discriminator: kind
     attributes:
       kind: {range: WebviewMessageKindEnum, required: true}
-      plot: {range: DebriefFeatureCollection, inlined: true}
-      plot_title: {}
-      hidden_count:
-        description: How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
-        range: integer
-        minimum_value: 0
-      selection: {range: Selection, inlined: true}
-      viewport: {range: Viewport, inlined: true}
-      time: {range: TimeState, inlined: true}
-      saved_window:
-        description: >-
-          The time window as saved in the plot, so the time controller can
-          say when the window shown differs from it (CAP-28).
-        range: TimeRange
-        inlined: true
-      context_tracks:
-        description: How tracks outside the time window are drawn (CAP-29).
-        range: ContextTracksEnum
-      minimum_context_contrast:
-        description: >-
-          The analyst's setting that shows faint context tracks as visible, so
-          the time controller can say so.
-        range: boolean
-      time_range:
-        description: >-
-          The plot's period, so times can be entered as the analyst reads them
-          (show_form) and the time window set within it (show_time); the time
-          window to save (window_changed); or the period whose source the
-          analyst chose (source_chosen).
-        range: TimeRange
-        inlined: true
-      current_time:
-        description: Current time from shared state, which a tool form offers for its time fields.
-        range: UtcTimestamp
-      tool: {range: ToolDeclaration, inlined: true}
-      selected_names: {multivalued: true}
-      tool_name: {}
-      parameters:
-        range: ParameterValue
-        multivalued: true
-        inlined_as_list: true
-      message: {}
-      result_title: {}
-      result: {range: ToolResult, inlined: true}
-      annotation:
-        description: >-
-          An annotation as the form describes it (show_annotation_form,
-          save_annotation), as drawn on the map (annotation_drawn), or as
-          changed on the map (edit_annotation).
-        range: AnnotationSpec
-        inlined: true
-      feature_id:
-        description: The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
-      track_edit:
-        description: How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).
-        range: TrackEdit
-        inlined: true
-      fix_times:
-        description: The times of the fixes the map rings (show_fixes).
-        range: UtcTimestamp
-        multivalued: true
-      fix_time:
-        description: The time of the fix the analyst chose on the map (fix_chosen).
-        range: UtcTimestamp
-      preview:
-        description: >-
-          A track as a change would leave it, one position per fix, drawn
-          beside it until the analyst applies or cancels the change
-          (show_fixes).
-        range: LineStringGeometry
-        inlined: true
-      tote:
-        description: The Tote's values at current time (show_tote).
-        range: ToteResult
-        inlined: true
-      tote_view:
-        description: Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
-        range: ToteView
-        inlined: true
-      timeline_entries:
-        description: The Timeline's rows, in its order (show_timeline).
-        range: TimelineEntry
-        multivalued: true
-        inlined_as_list: true
-      timeline_entry:
-        description: The narrative entry current time is at, to show on the map beside its track (set_narrative).
-        range: TimelineEntry
-        inlined: true
-      plot_id:
-        description: >-
-          Which plot is open, as its host knows it (show_timeline): a list read
-          again for the same plot keeps the reader's place; another plot is read
-          from current time.
-      narrative_on_map:
-        description: >-
-          Whether the map shows the narrative entry current time is at beside
-          its track (show_timeline, narrative_on_map_changed): the plot's
-          PlotView.narrative_on_map; left out means it does.
-        range: boolean
-      playing:
-        description: Whether current time is playing (playing_changed).
-        range: boolean
-      timeline_tracks:
-        description: The plot's tracks, which a narrative entry can belong to (show_timeline).
-        range: ToteTrack
-        multivalued: true
-        inlined_as_list: true
-      narrative:
-        description: A narrative entry as the Timeline's form describes it (save_narrative).
-        range: NarrativeSpec
-        inlined: true
-      tote_tracks:
-        description: The plot's tracks, which the analyst can choose from for the Tote (show_tote).
-        range: ToteTrack
-        multivalued: true
-        inlined_as_list: true
-      coverage:
-        description: The open plot's coverage (show_coverage).
-        range: CoverageReport
-        inlined: true
-      source:
-        description: A track in a catalogue item (source_chosen, link_changed).
-        range: SourceTrackRef
-        inlined: true
-      linked:
-        description: Whether the source is the track's platform (link_changed).
-        range: boolean
-      item_revision:
-        description: The item, at the revision the analyst saw (take_asked, dismiss_asked).
-        range: ItemRevision
-        inlined: true
-      image_request:
-        description: What image to draw, and how (export_image).
-        range: ImageRequest
-        inlined: true
-      image:
-        description: The image the map drew (image_rendered).
-        range: RenderedImage
-        inlined: true
-      revision_shown:
-        description: The plot shown is an earlier revision, read-only (show_plot).
-        range: RevisionShown
-        inlined: true
-      keep:
-        description: Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
-        range: AmbiguityKeepEnum
-      tma:
-        description: What the bearing view shows (show_tma).
-        range: TmaView
-        inlined: true
-      tma_request:
-        description: A TMA solution asked for (tma_create, tma_guess, tma_guessed).
-        range: TmaRequest
-        inlined: true
-      resolution:
-        description: The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).
-        range: AmbiguityResolution
-        inlined: true
-      cut_ids:
-        description: The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).
-        multivalued: true
-      excluded:
-        description: Whether the cuts are left out (tma_exclude).
-        range: boolean
-      plot_height:
-        description: The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).
-        range: integer
-        minimum_value: 0
-      pane_widths:
-        description: The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
-        range: integer
-        multivalued: true
-      panes_shown:
-        description: The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).
-        multivalued: true
-      error_cut_off:
-        description: The analyst's error cut-off, degrees (tma_cut_off).
-        range: float
-        minimum_value: 0.01
-        maximum_value: 180
+
+  ReadyMessage:
+    is_a: WebviewMessageBase
+    description: "Webview to host: loaded and listening."
+    slot_usage:
+      kind: {equals_string: ready}
+
+  ShowPlotMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only."
+    slots: [plot, plot_title, selection, time, viewport, hidden_count, context_tracks, revision_shown]
+    slot_usage:
+      kind: {equals_string: show_plot}
+      plot: {required: true}
+      plot_title: {required: true}
+      selection: {required: true}
+
+  SetSelectionMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: the selection changed elsewhere (selection)."
+    slots: [selection]
+    slot_usage:
+      kind: {equals_string: set_selection}
+      selection: {required: true}
+
+  SelectionChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst changed the selection (selection)."
+    slots: [selection]
+    slot_usage:
+      kind: {equals_string: selection_changed}
+      selection: {required: true}
+
+  SetTimeMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: current time changed elsewhere (time)."
+    slots: [time]
+    slot_usage:
+      kind: {equals_string: set_time}
+      time: {required: true}
+
+  TimeChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst moved current time (time)."
+    slots: [time]
+    slot_usage:
+      kind: {equals_string: time_changed}
+      time: {required: true}
+
+  SetViewportMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: show this area (viewport)."
+    slots: [viewport]
+    slot_usage:
+      kind: {equals_string: set_viewport}
+      viewport: {required: true}
+
+  ViewportChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst panned or zoomed (viewport)."
+    slots: [viewport]
+    slot_usage:
+      kind: {equals_string: viewport_changed}
+      viewport: {required: true}
+
+  ShowHiddenMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: show every feature hidden on the map (no members)."
+    slot_usage:
+      kind: {equals_string: show_hidden}
+
+  ShowFormMessage:
+    is_a: WebviewMessageBase
+    description: "Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known)."
+    slots: [tool, selected_names, time_range, current_time]
+    slot_usage:
+      kind: {equals_string: show_form}
+      tool: {required: true}
+      selected_names: {required: true}
+
+  RunToolMessage:
+    is_a: WebviewMessageBase
+    description: "Form to host: run the tool with these values (tool_name, parameters)."
+    slots: [tool_name, parameters]
+    slot_usage:
+      kind: {equals_string: run_tool}
+      tool_name: {required: true}
+      parameters: {required: true}
+
+  CancelMessage:
+    is_a: WebviewMessageBase
+    description: "Form to host: close without running."
+    slot_usage:
+      kind: {equals_string: cancel}
+
+  FormBusyMessage:
+    is_a: WebviewMessageBase
+    description: "Host to form: the tool is running (message)."
+    slots: [message]
+    slot_usage:
+      kind: {equals_string: form_busy}
+      message: {required: true}
+
+  FormErrorMessage:
+    is_a: WebviewMessageBase
+    description: "Host to form: the run failed or a value was refused (message)."
+    slots: [message]
+    slot_usage:
+      kind: {equals_string: form_error}
+      message: {required: true}
+
+  ShowResultsMessage:
+    is_a: WebviewMessageBase
+    description: "Host to results: show a tool's result (tool, result_title, result)."
+    slots: [tool, result_title, result]
+    slot_usage:
+      kind: {equals_string: show_results}
+      tool: {required: true}
+      result_title: {required: true}
+      result: {required: true}
+
+  ShowTimeMessage:
+    is_a: WebviewMessageBase
+    description: "Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open."
+    slots: [time, time_range, saved_window, context_tracks, minimum_context_contrast]
+    slot_usage:
+      kind: {equals_string: show_time}
+
+  WindowChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range)."
+    slots: [time_range]
+    slot_usage:
+      kind: {equals_string: window_changed}
+      time_range: {required: true}
+
+  ContextChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks)."
+    slots: [context_tracks]
+    slot_usage:
+      kind: {equals_string: context_changed}
+      context_tracks: {required: true}
+
+  SetContextMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied."
+    slots: [context_tracks]
+    slot_usage:
+      kind: {equals_string: set_context}
+      context_tracks: {required: true}
+
+  ShowAnnotationFormMessage:
+    is_a: WebviewMessageBase
+    description: "Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known."
+    slots: [annotation, feature_id, time_range, current_time]
+    slot_usage:
+      kind: {equals_string: show_annotation_form}
+
+  SaveAnnotationMessage:
+    is_a: WebviewMessageBase
+    description: "Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one)."
+    slots: [annotation, feature_id]
+    slot_usage:
+      kind: {equals_string: save_annotation}
+      annotation: {required: true}
+
+  DeleteAnnotationMessage:
+    is_a: WebviewMessageBase
+    description: "Annotation form to host: delete this annotation (feature_id)."
+    slots: [feature_id]
+    slot_usage:
+      kind: {equals_string: delete_annotation}
+      feature_id: {required: true}
+
+  EditAnnotationMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step."
+    slots: [feature_id, annotation]
+    slot_usage:
+      kind: {equals_string: edit_annotation}
+      feature_id: {required: true}
+
+  AnnotationDrawnMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step."
+    slots: [annotation]
+    slot_usage:
+      kind: {equals_string: annotation_drawn}
+      annotation: {required: true}
+
+  EditTrackMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step."
+    slots: [feature_id, track_edit]
+    slot_usage:
+      kind: {equals_string: edit_track}
+      feature_id: {required: true}
+      track_edit: {required: true}
+
+  ShowFixesMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away."
+    slots: [feature_id, fix_times, preview, message]
+    slot_usage:
+      kind: {equals_string: show_fixes}
+
+  ShowToteMessage:
+    is_a: WebviewMessageBase
+    description: "Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open."
+    slots: [tote_tracks, tote_view, tote]
+    slot_usage:
+      kind: {equals_string: show_tote}
+
+  ToteChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view)."
+    slots: [tote_view]
+    slot_usage:
+      kind: {equals_string: tote_changed}
+      tote_view: {required: true}
+
+  SetToteMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen."
+    slots: [tote_view]
+    slot_usage:
+      kind: {equals_string: set_tote}
+
+  ShowTimelineMessage:
+    is_a: WebviewMessageBase
+    description: "Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open."
+    slots: [timeline_entries, timeline_tracks, time, plot_id, narrative_on_map]
+    slot_usage:
+      kind: {equals_string: show_timeline}
+
+  NarrativeOnMapChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island."
+    slots: [narrative_on_map]
+    slot_usage:
+      kind: {equals_string: narrative_on_map_changed}
+      narrative_on_map: {required: true}
+
+  PlayingChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts."
+    slots: [playing]
+    slot_usage:
+      kind: {equals_string: playing_changed}
+      playing: {required: true}
+
+  TimelineChosenMessage:
+    is_a: WebviewMessageBase
+    description: "Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it."
+    slots: [feature_id]
+    slot_usage:
+      kind: {equals_string: timeline_chosen}
+      feature_id: {required: true}
+
+  SaveNarrativeMessage:
+    is_a: WebviewMessageBase
+    description: "Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step."
+    slots: [narrative, feature_id]
+    slot_usage:
+      kind: {equals_string: save_narrative}
+      narrative: {required: true}
+
+  DeleteNarrativeMessage:
+    is_a: WebviewMessageBase
+    description: "Timeline to host: delete this narrative entry (feature_id), as one recorded step."
+    slots: [feature_id]
+    slot_usage:
+      kind: {equals_string: delete_narrative}
+      feature_id: {required: true}
+
+  OpenNarrativeFormMessage:
+    is_a: WebviewMessageBase
+    description: "Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked."
+    slots: [feature_id]
+    slot_usage:
+      kind: {equals_string: open_narrative_form}
+
+  NarrativeSavedMessage:
+    is_a: WebviewMessageBase
+    description: "Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not."
+    slots: [feature_id, message]
+    slot_usage:
+      kind: {equals_string: narrative_saved}
+
+  SetNarrativeMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away."
+    slots: [timeline_entry]
+    slot_usage:
+      kind: {equals_string: set_narrative}
+
+  UndoAskedMessage:
+    is_a: WebviewMessageBase
+    description: "Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026)."
+    slot_usage:
+      kind: {equals_string: undo_asked}
+
+  RedoAskedMessage:
+    is_a: WebviewMessageBase
+    description: "Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone."
+    slot_usage:
+      kind: {equals_string: redo_asked}
+
+  FixChosenMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard."
+    slots: [feature_id, fix_time]
+    slot_usage:
+      kind: {equals_string: fix_chosen}
+      feature_id: {required: true}
+      fix_time: {required: true}
+
+  ShowCoverageMessage:
+    is_a: WebviewMessageBase
+    description: "Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown."
+    slots: [coverage, time, message]
+    slot_usage:
+      kind: {equals_string: show_coverage}
+
+  SourceChosenMessage:
+    is_a: WebviewMessageBase
+    description: "Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09)."
+    slots: [feature_id, time_range, source]
+    slot_usage:
+      kind: {equals_string: source_chosen}
+      feature_id: {required: true}
+      time_range: {required: true}
+      source: {required: true}
+
+  LinkChangedMessage:
+    is_a: WebviewMessageBase
+    description: "Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step."
+    slots: [feature_id, source, linked]
+    slot_usage:
+      kind: {equals_string: link_changed}
+      feature_id: {required: true}
+      source: {required: true}
+      linked: {required: true}
+
+  TakeAskedMessage:
+    is_a: WebviewMessageBase
+    description: "Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11)."
+    slots: [item_revision]
+    slot_usage:
+      kind: {equals_string: take_asked}
+      item_revision: {required: true}
+
+  DismissAskedMessage:
+    is_a: WebviewMessageBase
+    description: "Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10)."
+    slots: [item_revision]
+    slot_usage:
+      kind: {equals_string: dismiss_asked}
+      item_revision: {required: true}
+
+  ReviewClearedMessage:
+    is_a: WebviewMessageBase
+    description: "Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12)."
+    slot_usage:
+      kind: {equals_string: review_cleared}
+
+  ExportImageMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25)."
+    slots: [image_request]
+    slot_usage:
+      kind: {equals_string: export_image}
+      image_request: {required: true}
+
+  ImageRenderedMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn."
+    slots: [image, message]
+    slot_usage:
+      kind: {equals_string: image_rendered}
+
+  LatestAskedMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members)."
+    slot_usage:
+      kind: {equals_string: latest_asked}
+
+  ResolveAskedMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects)."
+    slots: [feature_id, keep]
+    slot_usage:
+      kind: {equals_string: resolve_asked}
+      feature_id: {required: true}
+      keep: {required: true}
+
+  CutChosenMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it."
+    slots: [feature_id]
+    slot_usage:
+      kind: {equals_string: cut_chosen}
+      feature_id: {required: true}
+
+  ShowTmaMessage:
+    is_a: WebviewMessageBase
+    description: "Host to bearing view: the plot's sensors and TMA solutions, the cuts of the sensor chosen, and the residuals of the solution shown (tma); none when no plot is open (CAP-21)."
+    slots: [tma]
+    slot_usage:
+      kind: {equals_string: show_tma}
+
+  TmaChosenMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id)."
+    slots: [feature_id]
+    slot_usage:
+      kind: {equals_string: tma_chosen}
+      feature_id: {required: true}
+
+  TmaCreateMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: make a TMA solution as asked (tma_request: the cuts, and a first guess by form), as one recorded step (CAP-21; product owner, 24 Oct 2026)."
+    slots: [tma_request]
+    slot_usage:
+      kind: {equals_string: tma_create}
+      tma_request: {required: true}
+
+  TmaGuessMessage:
+    is_a: WebviewMessageBase
+    description: "Host to map: the analyst asked to make a TMA solution by two clicks (tma_request: the cuts), one on the first cut's line and one on the last's; with no tma_request, stop asking."
+    slots: [tma_request]
+    slot_usage:
+      kind: {equals_string: tma_guess}
+
+  TmaGuessedMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host: the two clicks made (tma_request, with first_position and last_position), so the solution is made as one recorded step; with no tma_request, the analyst cancelled."
+    slots: [tma_request]
+    slot_usage:
+      kind: {equals_string: tma_guessed}
+
+  TmaPreviewMessage:
+    is_a: WebviewMessageBase
+    description: "Map to host, and host to bearing view: a TMA solution as a drag on the map now leaves it (feature_id, preview: one position per fix), so its residuals are worked out again as it moves; with no preview, the drag ended or was put back."
+    slots: [feature_id, preview]
+    slot_usage:
+      kind: {equals_string: tma_preview}
+      feature_id: {required: true}
+
+  TmaExcludeMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step."
+    slots: [feature_id, cut_ids, excluded]
+    slot_usage:
+      kind: {equals_string: tma_exclude}
+      feature_id: {required: true}
+      cut_ids: {required: true}
+      excluded: {required: true}
+
+  TmaSplitMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step."
+    slots: [feature_id, current_time]
+    slot_usage:
+      kind: {equals_string: tma_split}
+      feature_id: {required: true}
+      current_time: {required: true}
+
+  TmaTimeAskedMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it."
+    slots: [current_time]
+    slot_usage:
+      kind: {equals_string: tma_time_asked}
+      current_time: {required: true}
+
+  TmaSelectMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026)."
+    slots: [feature_id, current_time]
+    slot_usage:
+      kind: {equals_string: tma_select}
+      feature_id: {required: true}
+      current_time: {required: true}
+
+  TmaMenuMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: the analyst right-clicked a dot in the Bearings view's plot: the Outline's menu for it (feature_id: the cut, or the solution for one of its fixes; current_time: the dot's time), whose entries include splitting the solution there and selecting it (product owner, 29 Oct 2026)."
+    slots: [feature_id, current_time]
+    slot_usage:
+      kind: {equals_string: tma_menu}
+      feature_id: {required: true}
+      current_time: {required: true}
+
+  TmaResolveMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026)."
+    slots: [resolution]
+    slot_usage:
+      kind: {equals_string: tma_resolve}
+      resolution: {required: true}
+
+  TmaCutOffMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026)."
+    slots: [error_cut_off]
+    slot_usage:
+      kind: {equals_string: tma_cut_off}
+      error_cut_off: {required: true}
+
+  TmaPlotDrawnMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026)."
+    slots: [plot_height, pane_widths]
+    slot_usage:
+      kind: {equals_string: tma_plot_drawn}
+      plot_height: {required: true}
+      pane_widths: {required: true}
+
+  TmaPanesMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: which of the plot's panes show (panes_shown: bearing, error, course), when the page starts and when the analyst toggles one, so the same panes show wherever Bearings is next opened: in the panel or popped out into an editor tab or window of its own (product owner, 28 Oct 2026)."
+    slots: [panes_shown]
+    slot_usage:
+      kind: {equals_string: tma_panes}
+      panes_shown: {required: true}
+
+  TmaMadeMessage:
+    is_a: WebviewMessageBase
+    description: "Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open."
+    slots: [feature_id, message]
+    slot_usage:
+      kind: {equals_string: tma_made}

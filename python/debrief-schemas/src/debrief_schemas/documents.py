@@ -32,7 +32,7 @@ from importlib.resources import files
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from jsonschema import Draft201909Validator
+from jsonschema import Draft201909Validator, ValidationError, validators
 from pydantic import BaseModel
 
 from debrief_schemas.chain import (
@@ -129,11 +129,36 @@ def _json_schema() -> dict[str, Any]:
     return json.loads(text)
 
 
+def _one_of(validator: Any, one_of: list[Any], instance: Any, schema: dict[str, Any]) -> Any:
+    """oneOf, told apart by its discriminator when it has one (OpenAPI's keyword, which
+    the generator writes on a union such as WebviewMessage, and Ajv honours): only the
+    member the discriminator names is checked, so the problems are that member's, as
+    TypeScript reports them, not that no member matched."""
+    tag = schema.get("discriminator", {}).get("propertyName")
+    if tag is None or not isinstance(instance, dict):
+        yield from _ONE_OF(validator, one_of, instance, schema)
+        return
+    if tag not in instance:
+        yield ValidationError(f"{tag!r} is a required property")
+        return
+    defs = _json_schema()["$defs"]
+    for option in one_of:
+        fixed = defs[option["$ref"].removeprefix("#/$defs/")]["properties"][tag]
+        if instance[tag] == fixed.get("const") or instance[tag] in fixed.get("enum", ()):
+            yield from validator.descend(instance, option)
+            return
+    yield ValidationError(f"{instance[tag]!r} is not a known {tag}", path=(tag,))
+
+
+_ONE_OF = Draft201909Validator.VALIDATORS["oneOf"]
+_Validator = validators.extend(Draft201909Validator, {"oneOf": _one_of})
+
+
 @cache
 def _class_validator(name: str) -> Draft201909Validator:
     schema = _json_schema()
     root = {"$schema": schema["$schema"], "$defs": schema["$defs"], "$ref": f"#/$defs/{name}"}
-    return Draft201909Validator(root)
+    return _Validator(root)
 
 
 def _validator(kind: DocumentKind) -> Draft201909Validator:
@@ -161,7 +186,7 @@ _FEATURES_PASSED_MAX = 200_000
 def _item_validator(name: str, member: str) -> Draft201909Validator:
     schema = _json_schema()
     items = schema["$defs"][name]["properties"][member]["items"]
-    return Draft201909Validator({"$schema": schema["$schema"], "$defs": schema["$defs"], **items})
+    return _Validator({"$schema": schema["$schema"], "$defs": schema["$defs"], **items})
 
 
 # Each feature kind's own class. A feature that is valid against its kind's class is
@@ -994,14 +1019,17 @@ def _tool_result_problems(result: g.ToolResult, raw: dict[str, Any]) -> list[str
     return problems
 
 
-def _state_problems(state: g.SharedState | g.SharedStateChange | g.WebviewMessage) -> list[str]:
+def _state_problems(state: g.SharedState | g.SharedStateChange | g.WebviewMessageBase) -> list[str]:
+    """Rules on current time and the viewport, where carried: a message of a kind that
+    carries neither has no such members."""
     problems = []
-    if state.time is not None:
-        problems += _time_range_problems("time", state.time.range)
-        if not state.time.range.start <= state.time.current <= state.time.range.end:
+    time, viewport = getattr(state, "time", None), getattr(state, "viewport", None)
+    if time is not None:
+        problems += _time_range_problems("time", time.range)
+        if not time.range.start <= time.current <= time.range.end:
             problems.append("time: current time is outside the range")
-    if state.viewport is not None:
-        problems += _bbox_problems("viewport", state.viewport.bbox)
+    if viewport is not None:
+        problems += _bbox_problems("viewport", viewport.bbox)
     return problems
 
 
@@ -1042,141 +1070,46 @@ def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str
     return problems
 
 
-# Members each webview message kind carries (CON-08); a trailing "?" marks one it
-# may leave out. Shared with TypeScript
-# through schemas/vectors/webview-messages.json, which a test checks matches.
-MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
-    "ready": (),
-    "show_plot": (
-        "plot",
-        "plot_title",
-        "selection",
-        "time?",
-        "viewport?",
-        "hidden_count?",
-        "context_tracks?",
-        "revision_shown?",
-    ),
-    "set_selection": ("selection",),
-    "selection_changed": ("selection",),
-    "set_time": ("time",),
-    "time_changed": ("time",),
-    "set_viewport": ("viewport",),
-    "viewport_changed": ("viewport",),
-    "show_hidden": (),
-    "show_form": ("tool", "selected_names", "time_range?", "current_time?"),
-    "run_tool": ("tool_name", "parameters"),
-    "cancel": (),
-    "form_busy": ("message",),
-    "form_error": ("message",),
-    "show_results": ("tool", "result_title", "result"),
-    "show_time": (
-        "time?",
-        "time_range?",
-        "saved_window?",
-        "context_tracks?",
-        "minimum_context_contrast?",
-    ),
-    "window_changed": ("time_range",),
-    "context_changed": ("context_tracks",),
-    "set_context": ("context_tracks",),
-    "show_annotation_form": ("annotation?", "feature_id?", "time_range?", "current_time?"),
-    "save_annotation": ("annotation", "feature_id?"),
-    "delete_annotation": ("feature_id",),
-    "edit_annotation": ("feature_id", "annotation?"),
-    "annotation_drawn": ("annotation",),
-    "edit_track": ("feature_id", "track_edit"),
-    "show_fixes": ("feature_id?", "fix_times?", "preview?", "message?"),
-    "fix_chosen": ("feature_id", "fix_time"),
-    "show_tote": ("tote_tracks?", "tote_view?", "tote?"),
-    "tote_changed": ("tote_view",),
-    "set_tote": ("tote_view?",),
-    "show_timeline": (
-        "timeline_entries?",
-        "timeline_tracks?",
-        "time?",
-        "plot_id?",
-        "narrative_on_map?",
-    ),
-    "narrative_on_map_changed": ("narrative_on_map",),
-    "playing_changed": ("playing",),
-    "timeline_chosen": ("feature_id",),
-    "save_narrative": ("narrative", "feature_id?"),
-    "delete_narrative": ("feature_id",),
-    "open_narrative_form": ("feature_id?",),
-    "narrative_saved": ("feature_id?", "message?"),
-    "set_narrative": ("timeline_entry?",),
-    "undo_asked": (),
-    "redo_asked": (),
-    "show_coverage": ("coverage?", "time?", "message?"),
-    "source_chosen": ("feature_id", "time_range", "source"),
-    "link_changed": ("feature_id", "source", "linked"),
-    "take_asked": ("item_revision",),
-    "dismiss_asked": ("item_revision",),
-    "review_cleared": (),
-    "export_image": ("image_request",),
-    "image_rendered": ("image?", "message?"),
-    "latest_asked": (),
-    "resolve_asked": ("feature_id", "keep"),
-    "cut_chosen": ("feature_id",),
-    "show_tma": ("tma?",),
-    "tma_chosen": ("feature_id",),
-    "tma_create": ("tma_request",),
-    "tma_guess": ("tma_request?",),
-    "tma_guessed": ("tma_request?",),
-    "tma_preview": ("feature_id", "preview?"),
-    "tma_exclude": ("feature_id", "cut_ids", "excluded"),
-    "tma_split": ("feature_id", "current_time"),
-    "tma_time_asked": ("current_time",),
-    "tma_select": ("feature_id", "current_time"),
-    "tma_menu": ("feature_id", "current_time"),
-    "tma_resolve": ("resolution",),
-    "tma_cut_off": ("error_cut_off",),
-    "tma_plot_drawn": ("plot_height", "pane_widths"),
-    "tma_panes": ("panes_shown",),
-    "tma_made": ("feature_id?", "message?"),
-}
-
-
 def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) -> list[str]:
-    kind = str(message.kind)
-    members = MESSAGE_MEMBERS[kind]
-    needed = [m for m in members if not m.endswith("?")]
-    allowed = {m.rstrip("?") for m in members}
-    problems = [f"{kind} needs {member}" for member in needed if member not in raw]
-    problems += [
-        f"{kind} does not carry {member}" for member in sorted(set(raw) - {"kind", *allowed})
-    ]
-    problems += _state_problems(message)  # time and viewport, where carried
-    problems += _time_range_problems("time_range", message.time_range)
-    problems += _time_range_problems("saved_window", message.saved_window)
-    if message.plot is not None:
-        problems += _plot_problems(message.plot, raw["plot"])
-    if message.result is not None:
-        problems += _tool_result_problems(message.result, raw["result"])
-    if message.track_edit is not None:
-        problems += track_edit_problems(message.track_edit)
-    problems += tote_view_problems(message.tote_view)
-    if kind == "resolve_asked" and str(message.keep) not in ("bearing", "ambiguous_bearing"):
+    """Rules on a webview message (CON-08) that JSON Schema cannot express. Which members
+    each kind carries and needs is its own class's in the schema, so JSON Schema has
+    checked them already; these are rules on what the members hold."""
+    m = message.root
+
+    def member(name: str) -> Any:
+        return getattr(m, name, None)  # None too for a member its kind does not carry
+
+    kind = str(m.kind)
+    problems = _state_problems(m)
+    problems += _time_range_problems("time_range", member("time_range"))
+    problems += _time_range_problems("saved_window", member("saved_window"))
+    if member("plot") is not None:
+        problems += _plot_problems(m.plot, raw["plot"])
+    if member("result") is not None:
+        problems += _tool_result_problems(m.result, raw["result"])
+    if member("track_edit") is not None:
+        problems += track_edit_problems(m.track_edit)
+    problems += tote_view_problems(member("tote_view"))
+    if kind == "resolve_asked" and str(m.keep) not in ("bearing", "ambiguous_bearing"):
         problems.append("resolve_asked keeps the bearing clicked: bearing or ambiguous_bearing")
-    if message.tma_request is not None:
-        problems += tma_request_problems(message.tma_request)
-    if kind == "tma_exclude" and not message.cut_ids:
+    request = member("tma_request")
+    if request is not None:
+        problems += tma_request_problems(request)
+    if kind == "tma_exclude" and not m.cut_ids:
         problems.append("tma_exclude names the cuts to leave out or count again")
     if (
         kind == "tma_guessed"
-        and message.tma_request is not None
-        and (
-            message.tma_request.first_position is None or message.tma_request.last_position is None
-        )
+        and request is not None
+        and (request.first_position is None or request.last_position is None)
     ):
         problems.append("tma_guessed carries both positions clicked")
     if kind == "tma_panes":
-        problems += _panes_problems(message.panes_shown or [])
-    if kind == "image_rendered" and (message.image is None) == (message.message is None):
+        problems += _panes_problems(m.panes_shown or [])
+    image = member("image")
+    if kind == "image_rendered" and (image is None) == (m.message is None):
         problems.append("image_rendered carries either the image or why there is none (message)")
-    if message.image is not None and message.image.viewport is not None:
-        problems += _bbox_problems("image viewport", message.image.viewport.bbox)
+    if image is not None and image.viewport is not None:
+        problems += _bbox_problems("image viewport", image.viewport.bbox)
     return problems
 
 

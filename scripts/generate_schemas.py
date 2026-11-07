@@ -38,19 +38,21 @@ HEADER = (
 
 
 def _push_type_patterns_to_slots(view: SchemaView) -> None:
-    """Copy each type's pattern onto the attributes that use it.
+    """Copy each type's pattern onto the attributes and schema-level slots that use it.
 
     gen-pydantic only enforces slot-level patterns, so without this a
     UtcTimestamp with microseconds would pass Pydantic validation while
     failing JSON Schema validation.
     """
+    slots = list(view.schema.slots.values())
     for cls in view.schema.classes.values():
-        for att in (cls.attributes or {}).values():
-            if att.pattern or not att.range or att.range not in view.all_types():
-                continue
-            pattern = view.induced_type(att.range).pattern
-            if pattern:
-                att.pattern = pattern
+        slots += (cls.attributes or {}).values()
+    for att in slots:
+        if att.pattern or not att.range or att.range not in view.all_types():
+            continue
+        pattern = view.induced_type(att.range).pattern
+        if pattern:
+            att.pattern = pattern
     view.set_modified()
 
 
@@ -129,6 +131,102 @@ def _strip_null_array_items(view: SchemaView, json_schema: dict) -> None:
                 strip(json_schema["$defs"][class_name]["properties"][att.alias or att_name])
 
 
+def _unions(view: SchemaView) -> dict[str, tuple[str, str, dict[str, list[str]]]]:
+    """Discriminated unions the schema asks for: {union: (base, slot, {class: values})}.
+
+    An abstract class annotated with `union` (the union's name) and `discriminator`
+    (the slot telling its members apart) stands for the union of the concrete
+    classes that are_a it; each fixes the slot with equals_string, or with
+    equals_string_in for a family sharing one shape. Every value of the slot's enum
+    must name exactly one member, so a kind added to the enum without its class, or
+    a class given a kind the enum lacks, fails generation.
+    """
+    unions = {}
+    for base, cls in view.all_classes().items():
+        annotations = {a.tag: a.value for a in (cls.annotations or {}).values()}
+        if "union" not in annotations:
+            continue
+        slot = annotations["discriminator"]
+        members: dict[str, list[str]] = {}
+        for name in view.class_descendants(base, reflexive=False):
+            if view.get_class(name).abstract:
+                continue
+            induced = view.induced_slot(slot, name)
+            values = list(induced.equals_string_in or []) or (
+                [induced.equals_string] if induced.equals_string else []
+            )
+            if not values:
+                raise ValueError(f"{name} does not fix {slot}, so cannot be told apart")
+            members[name] = values
+        enum = view.get_enum(view.induced_slot(slot, base).range)
+        named = [v for values in members.values() for v in values]
+        expected = list(enum.permissible_values) if enum else named
+        missing = sorted(set(expected) - set(named))
+        extra = sorted({v for v in named if named.count(v) > 1 or v not in expected})
+        if missing or extra:
+            raise ValueError(
+                f"{annotations['union']}: each {slot} must name one class; "
+                f"named by none: {missing}; by more than one, or not in the enum: {extra}"
+            )
+        # Members in the enum's order.
+        order = {v: i for i, v in enumerate(expected)}
+        ordered = dict(sorted(members.items(), key=lambda m: order[m[1][0]]))
+        unions[annotations["union"]] = (base, slot, ordered)
+    return unions
+
+
+def _union_in_json_schema(view: SchemaView, json_schema: dict) -> None:
+    """Add each discriminated union, as oneOf its members with a discriminator.
+
+    gen-json-schema writes each member's fixed slot as its enum's $ref beside a
+    const (or enum), which json-schema-to-typescript reads as the whole enum; only
+    the member's own values are kept, so TypeScript gets a literal per member and
+    a union it narrows on. The discriminator keyword is OpenAPI's: Ajv honours it,
+    reporting only the matching member's errors, and Python's validation does the
+    same (debrief_schemas.documents).
+    """
+    defs = json_schema["$defs"]
+    for union, (base, slot, members) in _unions(view).items():
+        for name, values in members.items():
+            fixed: dict = {"type": "string"}
+            fixed.update({"const": values[0]} if len(values) == 1 else {"enum": values})
+            defs[name]["properties"][slot] = fixed
+        defs[union] = {
+            "description": f"Any of {base}'s classes, told apart by {slot}.",
+            "discriminator": {"propertyName": slot},
+            "oneOf": [{"$ref": f"#/$defs/{name}"} for name in members],
+            "title": union,
+        }
+
+
+def _union_in_pydantic(view: SchemaView, pydantic: str) -> str:
+    """Add each discriminated union as a root model of its members, told apart by
+    the slot. gen-pydantic writes each member, fixing the slot as a Literal, but
+    not the union."""
+    lines = []
+    for union, (base, slot, members) in _unions(view).items():
+        lines += [
+            "",
+            "",
+            f"# Any of {base}'s classes, told apart by {slot}; added by the generator.",
+            f"class {union}(",
+            "    RootModel[",
+            "        _Annotated[",
+            "            Union[",
+            *(f"                {name}," for name in members),
+            "            ],",
+            f'            Field(discriminator="{slot}"),',
+            "        ]",
+            "    ]",
+            "):",
+            f'    """Any of {base}\'s classes, told apart by {slot}."""',
+        ]
+    if not lines:
+        return pydantic
+    lines = ["", "", "from typing import Annotated as _Annotated  # noqa: E402", *lines]
+    return pydantic.rstrip("\n") + "\n".join(lines) + "\n"
+
+
 def generate() -> dict[Path, str]:
     view = SchemaView(str(SOURCE))
     # Fold the modules into one schema so edits below reach every class.
@@ -142,10 +240,12 @@ def generate() -> dict[Path, str]:
     # Stable, diff-friendly output.
     json_schema = json.loads(json_schema)
     _strip_null_array_items(view, json_schema)
+    _union_in_json_schema(view, json_schema)
     json_schema = json.dumps(json_schema, indent=2, sort_keys=True) + "\n"
 
     pydantic = PydanticGenerator(schema, mergeimports=True).serialize()
     pydantic = _allow_extra_in_pydantic(view, pydantic)
+    pydantic = _union_in_pydantic(view, pydantic)
 
     version = schema.version
     return {

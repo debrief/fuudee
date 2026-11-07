@@ -89,7 +89,7 @@ describe("choosing the Tote's tracks: view state in the island", () => {
     ]);
     const refused = read("schemas/fixtures/webview_message/invalid/semantic/tote-changed-primary-also-secondary.json");
     expect(() => checkMessage(refused)).toThrow(/also a secondary/);
-    expect(() => checkMessage(read("schemas/fixtures/webview_message/invalid/semantic/tote-changed-without-view.json"))).toThrow();
+    expect(() => checkMessage(read("schemas/fixtures/webview_message/invalid/schema/tote-changed-without-view.json"))).toThrow();
     for (const name of ["show-tote", "show-tote-no-plot", "tote-changed", "set-tote"]) {
       const raw = read(`schemas/fixtures/webview_message/valid/${name}.json`);
       expect(checkMessage(raw)).toEqual(raw);
