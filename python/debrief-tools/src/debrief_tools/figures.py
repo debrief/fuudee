@@ -36,9 +36,11 @@ from __future__ import annotations
 
 import base64
 import binascii
+import functools
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -129,29 +131,41 @@ class Bridge:
             self._changed.notify_all()
 
 
-def handle(service: ToolService, method: str, params: dict[str, Any]) -> dict[str, Any]:
-    try:
-        if method == "debrief/figure_id":
-            return _figure_id(service, params)
-        if method == "debrief/export_image":
-            if "image" in params:
-                return _stamp_and_log(service, params)
-            return _ask_map(service, params)
-        if method == "debrief/find_image_source":
-            return _find(service, params)
-        if method == "debrief/host_poll":
-            wait = params.get("wait_s")
-            wait_s = min(float(wait), Bridge.POLL_S) if isinstance(wait, int | float) else None
-            return {"requests": service.bridge.poll(wait_s)}
-        if method == "debrief/host_answer":
-            return _host_answer(service, params)
-        return _open_revision(service, params)
-    except FigureIdError as error:
-        raise RpcError(INVALID_PARAMS, str(error)) from None
-    except FileNotFoundError as error:
-        raise RpcError(INVALID_PARAMS, f"There is no file {error.filename}.") from None
-    except MAPPED as error:
-        raise rpc_error(error) from None
+def answered(
+    work: Callable[[ToolService, dict[str, Any]], dict[str, Any]],
+) -> Callable[[ToolService, dict[str, Any], Any], dict[str, Any]]:
+    """A method's handler, as service.METHODS registers it: what its work raises said as
+    the JSON-RPC error a caller acts on."""
+
+    @functools.wraps(work)
+    def handler(service: ToolService, params: dict[str, Any], _args: Any = None) -> dict[str, Any]:
+        try:
+            return work(service, params)
+        except FigureIdError as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except FileNotFoundError as error:
+            raise RpcError(INVALID_PARAMS, f"There is no file {error.filename}.") from None
+        except MAPPED as error:
+            raise rpc_error(error) from None
+
+    return handler
+
+
+@answered
+def export_image(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
+    """debrief/export_image: a host's image (image) stamped and logged, or, from an agent
+    (no image), the image an open map draws."""
+    if "image" in params:
+        return _stamp_and_log(service, params)
+    return _ask_map(service, params)
+
+
+@answered
+def host_poll(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
+    """debrief/host_poll: the requests waiting for the host, long-polled."""
+    wait = params.get("wait_s")
+    wait_s = min(float(wait), Bridge.POLL_S) if isinstance(wait, int | float) else None
+    return {"requests": service.bridge.poll(wait_s)}
 
 
 def _plot(service: ToolService, params: dict[str, Any]) -> tuple[models.KnownStore, Catalogue, str]:
@@ -165,7 +179,8 @@ def _plot(service: ToolService, params: dict[str, Any]) -> tuple[models.KnownSto
     return store, catalogue, item
 
 
-def _figure_id(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
+@answered
+def figure_id(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
     """{id, short, revision}: a fresh image ID for an export of the plot, at its current
     revision or the revision given."""
     revision = params.get("revision")
@@ -272,7 +287,8 @@ def _ask_map(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
     return answer["result"]
 
 
-def _host_answer(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
+@answered
+def host_answer(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
     key = params.get("id")
     if not isinstance(key, str):
         raise RpcError(INVALID_PARAMS, "host_answer needs the request's id")
@@ -314,7 +330,8 @@ def _logged(service: ToolService) -> list[models.LoggedExport]:
         return []
 
 
-def _find(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
+@answered
+def find_image_source(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
     """{images: [{id, short, where, sources}], skipped?, problem?}: the plots each image ID
     names. file, a path to an image (or a Word or PowerPoint file of them); or id, typed
     from a footer. A source for each export the ID names: a footer's short form can name
@@ -373,7 +390,8 @@ def _skipped_said(skipped: list[dict[str, str]]) -> str:
     return " ".join(f"{s['where']} was not read: {s['why']}." for s in skipped)
 
 
-def _open_revision(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
+@answered
+def open_revision(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
     """{plot, step, current, latest, revision, export?}: the plot as it was at a revision,
     rebuilt by replay and checked; with the export log entry for the image id names, from
     the plot's export log or the analyst's own."""
