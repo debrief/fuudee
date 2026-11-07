@@ -24,7 +24,7 @@ import {
   toteEvents,
   type Component,
 } from "../../webview/dispatch.js";
-import { MESSAGE_KINDS } from "@debrief/schemas";
+import { MESSAGE_KINDS, type WebviewMessage } from "@debrief/schemas";
 
 /** A handler table that records each call, by its name and arguments. */
 function recorder<H extends object>(): { handlers: H; calls: [string, ...unknown[]][] } {
@@ -45,7 +45,7 @@ describe("the shared message glue (PAR-13)", () => {
     const { handlers, calls } = recorder<Parameters<typeof receiveTime>[0]>();
     const refused: Component[] = [];
     const receive = receiveTime(handlers, checkMessage, (c) => void refused.push(c));
-    const sent: Record<string, unknown>[] = [];
+    const sent: WebviewMessage[] = [];
     const events = timeEvents((m) => void sent.push(m));
     events.moved(TIME);
     events.windowSaved(TIME.range);

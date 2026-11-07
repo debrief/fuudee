@@ -1,9 +1,14 @@
 // Bundles the extension host code (Node) and each webview (browser).
 import { build } from "esbuild";
 import { cpSync, mkdirSync } from "node:fs";
+import path from "node:path";
+import { writeMessageValidator } from "./messagevalidator.mjs";
 
 const production = process.argv.includes("--production");
 const common = { bundle: true, sourcemap: !production, minify: production, logLevel: "warning" };
+// The webview messages' validator, compiled now: each page checks what its host sends (CON-08) and
+// may not compile code at run time (its Content-Security-Policy has no 'unsafe-eval').
+const validator = writeMessageValidator(path.resolve("dist-gen"));
 
 await build({
   ...common,
@@ -25,6 +30,8 @@ await build({
   jsx: "automatic",
   loader: { ".png": "dataurl", ".svg": "dataurl" },
   define: { "process.env.NODE_ENV": JSON.stringify(production ? "production" : "development") },
+  alias: { "debrief-webview-message-validator": validator.file },
+  nodePaths: validator.nodePaths,
 });
 
 mkdirSync("dist/webview", { recursive: true });

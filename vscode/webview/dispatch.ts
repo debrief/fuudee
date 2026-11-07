@@ -16,6 +16,7 @@
  *   compiled differently in each) and what its handlers do.
  */
 import type {
+  AmbiguityKeepEnum,
   AmbiguityResolution,
   AnnotationSpec,
   ItemRevision,
@@ -41,7 +42,7 @@ import type { ToteControlHost } from "./totecontrol.js";
 import type { CoverageAsk } from "./panels/flows/collation.js";
 
 /** Where a page's messages go: VS Code's postMessage, or the playground's receiver. */
-export type Send = (message: Record<string, unknown>) => void;
+export type Send = (message: WebviewMessage) => void;
 /** A host's check of a message: the message, or it throws. */
 export type Check = (raw: unknown) => WebviewMessage;
 /** Told, with the component, when a message is refused (never with the message: it can quote plot content, NFR-14). */
@@ -95,7 +96,7 @@ export const timeEvents = (send: Send): TimeControlHost => ({
   playing: (playing) => send({ kind: "playing_changed", playing }),
 });
 export const receiveTime = (h: TimeHandlers, check: Check, refused: Refused) =>
-  receiver("time", { ready: () => h.ready(), time_changed: (m) => h.timeChanged(m.time!), window_changed: (m) => h.windowChanged(m.time_range!), playing_changed: (m) => h.playingChanged(m.playing === true) }, check, refused);
+  receiver("time", { ready: () => h.ready(), time_changed: (m) => h.timeChanged(m.time), window_changed: (m) => h.windowChanged(m.time_range), playing_changed: (m) => h.playingChanged(m.playing === true) }, check, refused);
 
 // --- The Tote -------------------------------------------------------------------------------------
 
@@ -104,7 +105,7 @@ export interface ToteHandlers {
   toteChanged(view: ToteView): void;
 }
 export const toteEvents = (send: Send): ToteControlHost => ({ changed: (view) => send({ kind: "tote_changed", tote_view: view }) });
-export const receiveTote = (h: ToteHandlers, check: Check, refused: Refused) => receiver("tote", { ready: () => h.ready(), tote_changed: (m) => h.toteChanged(m.tote_view!) }, check, refused);
+export const receiveTote = (h: ToteHandlers, check: Check, refused: Refused) => receiver("tote", { ready: () => h.ready(), tote_changed: (m) => h.toteChanged(m.tote_view) }, check, refused);
 
 // --- Coverage -------------------------------------------------------------------------------------
 
@@ -125,10 +126,10 @@ export const receiveCoverage = (h: CoverageHandlers, check: Check, refused: Refu
     "coverage",
     {
       ready: () => h.ready(),
-      source_chosen: (m) => h.asked({ kind: "prefer", feature: m.feature_id!, period: m.time_range!, source: m.source! }),
-      link_changed: (m) => h.asked({ kind: "link", feature: m.feature_id!, source: m.source!, linked: m.linked === true }),
-      take_asked: (m) => h.asked({ kind: "take", source: m.item_revision! }),
-      dismiss_asked: (m) => h.asked({ kind: "dismiss", source: m.item_revision! }),
+      source_chosen: (m) => h.asked({ kind: "prefer", feature: m.feature_id, period: m.time_range, source: m.source }),
+      link_changed: (m) => h.asked({ kind: "link", feature: m.feature_id, source: m.source, linked: m.linked === true }),
+      take_asked: (m) => h.asked({ kind: "take", source: m.item_revision }),
+      dismiss_asked: (m) => h.asked({ kind: "dismiss", source: m.item_revision }),
       review_cleared: () => h.asked({ kind: "reviewed" }),
     },
     check,
@@ -159,9 +160,9 @@ export const receiveTimeline = (h: TimelineHandlers, check: Check, refused: Refu
     "timeline",
     {
       ready: () => h.ready(),
-      timeline_chosen: (m) => h.chosen(m.feature_id!),
-      save_narrative: (m) => h.save(m.narrative!, m.feature_id ?? undefined),
-      delete_narrative: (m) => h.remove(m.feature_id!),
+      timeline_chosen: (m) => h.chosen(m.feature_id),
+      save_narrative: (m) => h.save(m.narrative, m.feature_id ?? undefined),
+      delete_narrative: (m) => h.remove(m.feature_id),
       narrative_on_map_changed: (m) => h.narrativeOnMap(m.narrative_on_map === true),
       undo_asked: () => h.history("undo"),
       redo_asked: () => h.history("redo"),
@@ -180,7 +181,8 @@ export interface BearingsHandlers {
   exclude(solution: string, cutIds: string[], excluded: boolean): unknown;
   split(solution: string, at: string): unknown;
   time(at: string): unknown;
-  resolve(cut: string, keep: "port" | "starboard" | "ambiguous"): unknown;
+  /** Which bearing to keep, as the map's and the bearing view's choices name it (webview/sensors.ts). */
+  resolve(cut: string, keep: AmbiguityKeepEnum): unknown;
   resolveCuts(resolution: AmbiguityResolution): unknown;
   select(id: string, at: string): unknown;
   menu(id: string, at: string): unknown;
@@ -206,17 +208,18 @@ export const receiveBearings = (h: BearingsHandlers, check: Check, refused: Refu
     "bearings",
     {
       ready: () => h.ready(),
-      tma_create: (m) => h.create(m.tma_request!),
-      tma_guess: (m) => h.guess(m.tma_request!),
-      tma_exclude: (m) => h.exclude(m.feature_id!, m.cut_ids!, m.excluded!),
-      tma_split: (m) => h.split(m.feature_id!, m.current_time!),
-      tma_time_asked: (m) => h.time(m.current_time!),
-      resolve_asked: (m) => h.resolve(m.feature_id!, m.keep as "port" | "starboard" | "ambiguous"),
-      tma_resolve: (m) => m.resolution && h.resolveCuts(m.resolution),
-      tma_select: (m) => h.select(m.feature_id!, m.current_time!),
-      tma_menu: (m) => h.menu(m.feature_id!, m.current_time!),
-      tma_cut_off: (m) => h.cutOff(m.error_cut_off!),
-      tma_plot_drawn: (m) => h.drawn(m.plot_height!, m.pane_widths ?? []),
+      tma_create: (m) => h.create(m.tma_request),
+      // Bearings always asks with a request; only the host's tma_guess to the map may come without one.
+      tma_guess: (m) => m.tma_request && h.guess(m.tma_request),
+      tma_exclude: (m) => h.exclude(m.feature_id, m.cut_ids, m.excluded),
+      tma_split: (m) => h.split(m.feature_id, m.current_time),
+      tma_time_asked: (m) => h.time(m.current_time),
+      resolve_asked: (m) => h.resolve(m.feature_id, m.keep),
+      tma_resolve: (m) => h.resolveCuts(m.resolution),
+      tma_select: (m) => h.select(m.feature_id, m.current_time),
+      tma_menu: (m) => h.menu(m.feature_id, m.current_time),
+      tma_cut_off: (m) => h.cutOff(m.error_cut_off),
+      tma_plot_drawn: (m) => h.drawn(m.plot_height, m.pane_widths ?? []),
       tma_panes: (m) => h.panes(m.panes_shown ?? []),
     },
     check,
@@ -237,7 +240,7 @@ export interface MapHandlers {
   annotationChosen(id: string): unknown;
   trackEdited(id: string, edit: TrackEdit): unknown;
   fixChosen(id: string, at: string): unknown;
-  resolve(cut: string, keep: "port" | "starboard"): unknown;
+  resolve(cut: string, keep: AmbiguityKeepEnum): unknown;
   cutChosen(cut: string): unknown;
   annotationDrawn(annotation: AnnotationSpec): unknown;
   imageRendered(drawn: { image: RenderedImage } | { problem: string }): unknown;
@@ -250,19 +253,19 @@ export const receiveMap = (h: MapHandlers, check: Check, refused: Refused) =>
     "map",
     {
       ready: () => h.ready(),
-      selection_changed: (m) => h.selected(m.selection!.feature_ids),
-      time_changed: (m) => h.timeChanged(m.time!),
-      viewport_changed: (m) => h.viewportChanged(m.viewport!),
+      selection_changed: (m) => h.selected(m.selection.feature_ids),
+      time_changed: (m) => h.timeChanged(m.time),
+      viewport_changed: (m) => h.viewportChanged(m.viewport),
       show_hidden: () => h.showHidden(),
-      edit_annotation: (m) => (m.annotation ? h.annotationMoved(m.feature_id!, m.annotation) : h.annotationChosen(m.feature_id!)),
-      edit_track: (m) => h.trackEdited(m.feature_id!, m.track_edit!),
-      fix_chosen: (m) => h.fixChosen(m.feature_id!, m.fix_time!),
-      resolve_asked: (m) => m.feature_id && m.keep && h.resolve(m.feature_id, m.keep as "port" | "starboard"),
-      cut_chosen: (m) => h.cutChosen(m.feature_id!),
-      annotation_drawn: (m) => h.annotationDrawn(m.annotation!),
+      edit_annotation: (m) => (m.annotation ? h.annotationMoved(m.feature_id, m.annotation) : h.annotationChosen(m.feature_id)),
+      edit_track: (m) => h.trackEdited(m.feature_id, m.track_edit),
+      fix_chosen: (m) => h.fixChosen(m.feature_id, m.fix_time),
+      resolve_asked: (m) => h.resolve(m.feature_id, m.keep),
+      cut_chosen: (m) => h.cutChosen(m.feature_id),
+      annotation_drawn: (m) => h.annotationDrawn(m.annotation),
       image_rendered: (m) => h.imageRendered(m.image ? { image: m.image } : { problem: m.message ?? "The map could not draw the image." }),
       latest_asked: () => h.latestAsked(),
-      tma_preview: (m) => h.tmaPreview(m.feature_id!, m.preview ?? undefined),
+      tma_preview: (m) => h.tmaPreview(m.feature_id, m.preview ?? undefined),
       tma_guessed: (m) => h.tmaGuessed(m.tma_request ?? undefined),
     },
     check,
@@ -277,7 +280,7 @@ export interface FormHandlers {
   run(tool: string, parameters: ParameterValue[]): unknown;
 }
 export const receiveForm = (h: FormHandlers, check: Check, refused: Refused) =>
-  receiver("form", { ready: () => h.ready(), cancel: () => h.cancel(), run_tool: (m) => h.run(m.tool_name!, m.parameters ?? []) }, check, refused);
+  receiver("form", { ready: () => h.ready(), cancel: () => h.cancel(), run_tool: (m) => h.run(m.tool_name, m.parameters ?? []) }, check, refused);
 
 export interface AnnotationHandlers {
   ready(): void;
@@ -289,7 +292,7 @@ export interface AnnotationHandlers {
 export const receiveAnnotation = (h: AnnotationHandlers, check: Check, refused: Refused) =>
   receiver(
     "annotation",
-    { ready: () => h.ready(), cancel: () => h.cancel(), save_annotation: (m) => h.save(m.annotation!, m.feature_id ?? undefined), delete_annotation: (m) => h.remove(m.feature_id!) },
+    { ready: () => h.ready(), cancel: () => h.cancel(), save_annotation: (m) => h.save(m.annotation, m.feature_id ?? undefined), delete_annotation: (m) => h.remove(m.feature_id) },
     check,
     refused,
   );

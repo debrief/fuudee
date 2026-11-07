@@ -28,7 +28,7 @@
  */
 import L from "leaflet";
 import { convert, DEFAULT_SETTINGS } from "@debrief/kernel";
-import type { AnnotationSpec } from "@debrief/schemas";
+import type { AnnotationSpec, WebviewMessage } from "@debrief/schemas";
 import { lookOf } from "./annotationlook.js";
 import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
 import {
@@ -70,7 +70,7 @@ export interface EditorHost {
   map: L.Map;
   /** The map's own element, which takes keyboard focus. */
   element: HTMLElement;
-  post(message: Record<string, unknown>): void;
+  post(message: WebviewMessage): void;
   /** The annotation with this id, as its form describes it, if it is drawn on the map now. */
   annotation(id: string): AnnotationSpec | undefined;
   /** Draw or stop drawing a feature's own layers, while its changed form is shown instead. */
