@@ -318,7 +318,8 @@ def test_history_open_list_undo_redo_and_goto(client, catalogue) -> None:
     assert history("debrief/redo", base=undone)["result"]["base"]["current"] == 2
     assert history("debrief/goto", step=1)["result"]["base"]["current"] == 1
     origin = history("debrief/undo")["error"]
-    assert origin["code"] == -32602 and "as it was imported" in origin["message"]
+    # The history refuses: the caller opens the plot again to see where it stands.
+    assert origin["code"] == -32005 and "as it was imported" in origin["message"]
     assert history("debrief/history", item="nothing")["error"]["code"] == -32602
 
 
@@ -534,6 +535,32 @@ def test_colour_and_hiding_are_recorded_steps_undone_like_any_other(client, cata
     assert coloured["changed"]
     steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
     assert steps[-1]["notes"] == [f"Colour of {said} set to #00a000"]
+
+
+def test_a_change_without_agent_is_refused_and_one_with_it_is_recorded_as_theirs(
+    client, catalogue
+) -> None:
+    """Every change names who made it (SUB-24): a write with no agent is refused before
+    anything is read, never attributed to the analyst by default."""
+    where = {"store": "exercise", "item": "serial"}
+    for method in service_module.AGENT_METHODS:
+        error = rpc(client, method, {**where, "features": ["track-nelson"]}).json()["error"]
+        assert error["code"] == -32602, method
+        assert error["message"].startswith(f"{method} needs agent"), error["message"]
+    assert len(catalogue.history("serial").steps()) == 1
+    # Reading needs no agent.
+    assert "base" in rpc(client, "debrief/open", where).json()["result"]
+    agent = {"kind": "software_agent", "name": "Planner", "model": "test"}
+    coloured = rpc(
+        client,
+        "debrief/set_colour",
+        {**where, "agent": agent, "features": ["track-nelson"], "colour": "#00a000"},
+    ).json()["result"]
+    assert coloured["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert steps[-1]["agent"] == "Planner"
+    [record] = catalogue.history("serial").steps()[-1].records
+    assert (record.agent.kind, record.agent.name) == ("software_agent", "Planner")
 
 
 def test_annotations_are_added_restyled_and_deleted_as_recorded_steps(client, catalogue) -> None:
@@ -798,8 +825,17 @@ def test_the_service_logs_no_free_text_from_requests_or_libraries(tmp_path, capl
         service.handle = lambda method, params: 1 / 0  # type: ignore[method-assign]
         rpc(c, "NELSON was here")
         rpc(c, "tools/list")
+
+        def leaks(method, params):
+            raise RuntimeError("NELSON at /home/a/exercise/serial/plot.geojson")
+
+        service.handle = leaks  # type: ignore[method-assign]
+        told = rpc(c, "debrief/open", {"store": "s", "item": "serial"}).json()["error"]
+    # The client is told no more than the log is (NFR-14).
+    assert told == {"code": -32603, "message": service_module.INTERNAL_MESSAGE}
     lines = [r.getMessage() for r in caplog.records]
     assert "rpc_error method=-" in lines and "rpc_error method=tools/list" in lines
+    assert "rpc_error method=debrief/open" in lines
     assert any(
         line.startswith("tool_unavailable library=lab tool=- reason=<text:") for line in lines
     )
@@ -841,7 +877,7 @@ def test_a_plot_file_from_a_colleague_is_added_with_its_history(
     raw["history"]["steps"][1]["records"][0]["agent"]["name"] = "someone else"
     received.write_text(json.dumps(raw))
     error = rpc(client, "debrief/add_plot_file", params).json()["error"]
-    assert error["code"] == -32602
+    assert error["code"] == -32005  # a damaged history
     assert "history has been changed outside Debrief" in error["message"]
 
 

@@ -52,5 +52,5 @@ sequenceDiagram
 
 - **Detecting and merging:** `History.commit` and `_check_merge` in `debrief_stac.history`; `Catalogue.save_as_new` (`History.fork_into`).
 - **Checksums:** `debrief_schemas.chain` (the hash chain, the content hash, the step rules); the `DAMAGED` and `MISMATCH` messages in `debrief_stac.history`.
-- **The service:** `base` and `on_conflict` on `tools/call`; error -32001 on `debrief/undo`, `redo` and `goto`.
+- **The service:** `base` and `on_conflict` on `tools/call`; error -32001 on `debrief/undo`, `redo` and `goto`, and on every change; from any method, -32004 when another process is saving the plot (send it again) and -32005 when its history refuses or is damaged (open it again), in `debrief_tools.rpc`.
 - **The extension:** `watch`, `askAboutConflict` and `runTool` in `vscode/src/extension.ts`; `historyOnDisk` and `changedSince` in `vscode/src/catalogue.ts`.
