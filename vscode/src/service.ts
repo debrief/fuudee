@@ -350,11 +350,13 @@ export class ToolService {
 
   async listTools(): Promise<ToolListing> {
     const result = await this.request<{
-      tools: { _meta: { "debrief/declaration": ToolDeclaration } }[];
+      tools: { _meta?: { "debrief/declaration"?: ToolDeclaration } }[];
       _meta: { "debrief/unavailable": Unavailable[] };
     }>("tools/list");
     return {
-      tools: result.tools.map((t) => t._meta["debrief/declaration"]),
+      // Only the libraries' tools: tools/list also offers every debrief/ method, marked
+      // _meta["debrief/method"], which the extension calls by name instead.
+      tools: result.tools.flatMap((t) => t._meta?.["debrief/declaration"] ?? []),
       unavailable: result._meta["debrief/unavailable"],
     };
   }

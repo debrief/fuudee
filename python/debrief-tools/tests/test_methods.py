@@ -47,7 +47,7 @@ def test_the_table_prints_from_the_command_line() -> None:
 
 
 def test_every_method_can_describe_its_parameters_as_a_json_schema() -> None:
-    """Unused for now: tools/list lists only tools (TL-17)."""
+    """As tools/list offers it."""
     for method in METHODS.values():
         schema = method.input_schema()
         assert schema["type"] == "object", method.name

@@ -70,6 +70,24 @@ def test_tools_list_carries_declarations(client) -> None:
     assert rings["inputSchema"]["required"] == ["store", "item", "selection", "agent"]
 
 
+def test_tools_list_offers_exactly_the_registered_methods(client) -> None:
+    """tools/list is read from the registry: every method in service.METHODS, and nothing
+    else marked a method, each entry as the method's own listing says (one source)."""
+    result = rpc(client, "tools/list").json()["result"]
+    methods = [t for t in result["tools"] if "debrief/method" in t.get("_meta", {})]
+    assert [t["name"] for t in methods] == list(service_module.METHODS)
+    assert methods == [m.listing() for m in service_module.METHODS.values()]
+    tools = [t for t in result["tools"] if "debrief/declaration" in t["_meta"]]
+    assert len(tools) + len(methods) == len(result["tools"])  # each entry one or the other
+    assert not {t["name"] for t in tools} & set(service_module.METHODS)
+    stores = next(t for t in methods if t["name"] == "debrief/stores")
+    assert stores["description"] == service_module.METHODS["debrief/stores"].does
+    assert stores["inputSchema"] == {"type": "object", "properties": {}, "required": []}
+    undo = next(t for t in methods if t["name"] == "debrief/undo")
+    assert undo["inputSchema"]["required"][:2] == ["store", "item"]
+    assert undo["_meta"]["debrief/method"] == {"writes": True, "agent": False, "history": True}
+
+
 def test_tools_for_selection(client) -> None:
     result = rpc(client, "debrief/tools_for_selection", {"kinds": ["track", "track"]}).json()[
         "result"
@@ -159,6 +177,7 @@ def test_official_mcp_client_lists_and_calls_tools(config_file: Path, catalogue)
 
         listed, called = asyncio.run(session())
         assert {"core.track_summary", "core.add_note"} <= {t.name for t in listed.tools}
+        assert set(service_module.METHODS) <= {t.name for t in listed.tools}
         assert called.is_error is False
         assert called.structured_content["result"]["non_spatial"][0]["title"] == "Track summary"
     finally:

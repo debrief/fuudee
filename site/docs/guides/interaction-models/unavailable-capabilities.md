@@ -33,7 +33,7 @@ sequenceDiagram
     Host->>Service: tools/list
     Service->>Worker: describe libraries
     Worker-->>Service: tools, and unavailable with reasons
-    Service-->>Host: tools; _meta debrief/unavailable
+    Service-->>Host: tools and methods; _meta debrief/unavailable
     Host->>Host: Tools view: Not available (reason)
 ```
 

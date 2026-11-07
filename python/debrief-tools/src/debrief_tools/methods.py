@@ -4,8 +4,9 @@ A Method says everything the service needs to know of one method: its name, the
 parameters it takes (a Params model), whether it changes the plot it names, whether it
 needs agent (SUB-24), whether it runs on one plot inside its history, and its handler.
 service.METHODS registers every method; the sets the service and its tests use (known,
-writing, history, agent) are read from it, never kept by hand, and the README's method
-table is printed from it (python -m debrief_tools methods).
+writing, history, agent) are read from it, never kept by hand, the README's method
+table is printed from it (python -m debrief_tools methods), and tools/list offers every
+method in it, each with its input schema (Method.listing).
 
 A Params model refuses what a method cannot take with the words the service has always
 used: each field names its refusal (Refusal), and the first field found wrong says it.
@@ -107,9 +108,7 @@ class Method:
         return self.params.read(params, self.name) if self.params else None
 
     def input_schema(self) -> dict[str, Any]:
-        """A JSON Schema of the parameters this method takes. Not used by tools/list,
-        which lists only tools (TL-17): offering these methods there is the product
-        owner's choice to make."""
+        """A JSON Schema of the parameters this method takes, as tools/list offers it."""
         schema = (
             self.params.model_json_schema() if self.params else {"type": "object", "properties": {}}
         )
@@ -137,6 +136,23 @@ class Method:
             }
             required.append("agent")
         return schema
+
+    def listing(self) -> dict[str, Any]:
+        """The method as tools/list offers it: its name, what it does and its input
+        schema, as a tool's entry has them. _meta["debrief/method"] marks it a method,
+        sent as a JSON-RPC request of its own name, and carries its flags."""
+        return {
+            "name": self.name,
+            "description": self.does,
+            "inputSchema": self.input_schema(),
+            "_meta": {
+                "debrief/method": {
+                    "writes": self.writes,
+                    "agent": self.agent,
+                    "history": self.history,
+                }
+            },
+        }
 
 
 Handler = TypeVar("Handler", bound=Callable[..., dict[str, Any]])

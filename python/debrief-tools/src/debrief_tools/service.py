@@ -470,13 +470,15 @@ def _ping(service: ToolService, params: dict[str, Any], _: None) -> dict[str, An
 
 @METHODS.register(
     "tools/list",
-    "The tools the libraries declare, with each one's input schema, and those unavailable.",
+    "The tools the libraries declare and every method here, each with its input schema, "
+    "and the tools unavailable.",
 )
 def _tools_list(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
-    """The tools the worker's libraries declare, and those unavailable. Only tools: the
-    debrief/ methods are not offered here (TL-17)."""
+    """The tools the worker's libraries declare, then every method the service answers,
+    read from METHODS (each marked _meta["debrief/method"]), and the tools unavailable."""
     return {
-        "tools": [_describe(d, service.raw[n]) for n, d in service.declarations.items()],
+        "tools": [_describe(d, service.raw[n]) for n, d in service.declarations.items()]
+        + [method.listing() for method in METHODS.values()],
         "_meta": {"debrief/unavailable": service.unavailable},
     }
 
