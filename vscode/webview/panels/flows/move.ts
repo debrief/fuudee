@@ -10,6 +10,7 @@ import { confirmNewerSchema } from "./runtool.js";
 import { isRefusal, type FlowHost } from "./host.js";
 import { READ_ONLY } from "../../../src/figures.js";
 import type { Base } from "../../../src/service.js";
+import { registerCommands, type Host } from "./register.js";
 
 export type How = "undo" | "redo" | "goto";
 
@@ -60,4 +61,40 @@ async function moved(host: MoveHost, how: How, step?: number): Promise<string | 
     return (error as Error).message;
   }
   return host.reloadPlot();
+}
+
+export const HISTORY_COMMANDS = {
+  undo: "debrief.undo",
+  redo: "debrief.redo",
+  goToStep: "debrief.goToStep",
+  redoToStep: "debrief.redoToStep",
+  openLatestRevision: "debrief.openLatestRevision",
+} as const;
+
+/** A step, as a command is given it: its number (agents, tests), or a History row (its step's, or its own). */
+export type StepTarget = number | { seq?: number } | { step: { seq: number } } | undefined;
+/** The number of the step a command was given, if any. */
+export const stepOf = (target: StepTarget): number | undefined => (typeof target === "number" ? target : target && "step" in target ? target.step.seq : target?.seq);
+
+/** What a host does for History's commands. */
+export interface HistoryHost {
+  /** Undo, redo or go to a step, one at a time (the shared flow, move above): the problem, if any, said. */
+  move(how: How, step?: number): Promise<unknown>;
+  /** An earlier revision shown read-only: the plot as it now is shown instead. Nothing otherwise. */
+  openLatestRevision(): Promise<unknown>;
+}
+
+/** History's commands, registered once for both hosts (PAR-09): undo, redo, go to (or redo to) a step, and the latest revision. */
+export function registerHistory(host: Host, history: HistoryHost): void {
+  const goTo = (target?: StepTarget) => {
+    const seq = stepOf(target);
+    return seq === undefined ? undefined : history.move("goto", seq);
+  };
+  registerCommands(host, HISTORY_COMMANDS, {
+    undo: () => history.move("undo"),
+    redo: () => history.move("redo"),
+    goToStep: goTo,
+    redoToStep: goTo,
+    openLatestRevision: () => history.openLatestRevision(),
+  });
 }

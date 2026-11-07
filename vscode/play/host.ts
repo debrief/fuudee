@@ -45,7 +45,7 @@ import { ToteControl } from "../webview/totecontrol.js";
 import { TmaControl } from "../webview/tmacontrol.js";
 import { poppedOutSaid } from "../webview/bearingspopout.js";
 import { coverageOf, cutColours, cutRowsOf, FocusOnce, legExtent, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
-import { latencySummary, sameTote, toteMenu, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
+import { latencySummary, sameTote, toteMenu, toteOf, ToteRequests, toteTracks } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
 import { Folds } from "./fold.js";
 import { Dock, MAP_ID, type LayoutStorage } from "./dock.js";
@@ -79,7 +79,12 @@ import { fillTools } from "./toolslist.js";
 import { fillHistory } from "./historylist.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choices, type FlowHost, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
 import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
-import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
+import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
+import { registerPresentation } from "../webview/panels/flows/presentation.js";
+import { registerAnnotations } from "../webview/panels/flows/annotations.js";
+import { registerTote } from "../webview/panels/flows/tote.js";
+import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -578,7 +583,7 @@ const fromMap = receiveMap(
     fixChosen: (id, at) => void openFixes(id, at),
     // One of an ambiguous cut's two lines clicked: that bearing kept, as one step; right-click or press and hold: its menu (CAP-22).
     resolve: (cut, keep) => void resolveSensor({ keep, cut_ids: [cut] }),
-    cutChosen: (cut) => void cutMenu(cut),
+    cutChosen: (cut) => void runCommand("debrief.cutMenu", cut),
     // A TMA solution dragged: the bearing view works its residuals out again as it moves (CAP-21, NFR-04).
     tmaPreview: (id, preview) => bearingsView.preview(id, preview),
     // Two clicks for a first guess made, or cancelled.
@@ -798,6 +803,16 @@ const flowHost: FlowHost = {
     return undefined;
   },
 };
+// --- The shared features' commands (webview/panels/flows/features.ts) -----------------------------
+/** The commands the shared features registered, by id: run from a menu or a toolbar (runAction), given their rows as their Target. */
+const PLAY_COMMANDS = new Map<string, Run>();
+/** What the shared features register their commands with (webview/panels/flows/register.ts): the registry above. */
+const playHost: Host = { command: (id, run) => void PLAY_COMMANDS.set(id, run) };
+/** A registered command run with its own arguments, as VS Code's executeCommand runs one. */
+const runCommand = (id: string, ...args: unknown[]): unknown => (PLAY_COMMANDS.get(id) as ((...a: unknown[]) => unknown) | undefined)?.(...args);
+/** A command that acts on the rows it was run on (its Target's ids), as the action table's did. */
+const onRows = (run: (keys: string[]) => unknown) => (target?: Target) => run(target?.ids ?? []);
+
 /** Python's refusals the flows answer, as they name them. */
 const refusalOf = (outcome: { error?: string; conflict?: unknown; newer_schema?: boolean }): Error =>
   outcome.conflict ? new Refusal("conflict", outcome.error!) : outcome.newer_schema ? new Refusal("newer_schema", outcome.error!) : new Error(outcome.error);
@@ -1760,6 +1775,13 @@ async function moveNow(how: How, step?: number): Promise<void> {
     step,
   );
 }
+// Undo, redo, go to a step and the latest revision: the shared registration (webview/panels/flows/move.ts).
+registerHistory(playHost, {
+  move: (how, step) => move(how, step),
+  openLatestRevision: async () => {
+    if (opened?.revision) await openPlot(opened.item.id);
+  },
+});
 /** Undo or Redo, as its catalogued action: only when it can act (a key does nothing otherwise, as VS Code's keybinding). */
 function undoOrRedo(how: "undo" | "redo"): void {
   const { context, reasons } = playContext();
@@ -2488,75 +2510,19 @@ function playContext(keys: readonly string[] = outlinePicks): { context: Context
 }
 
 type Where = { x: number; y: number; from?: HTMLElement };
-/** The Tote changed for the tracks among these rows, the Tote brought into view. */
-function changeTote(keys: readonly string[], change: (tote: ToteView, tracks: string[]) => ToteView): void {
-  const tracks = keys.filter((k) => !!trackOf(k));
-  showPanel(totePanel.id);
-  void chooseTote(change(toteChoice(), tracks));
-}
+/** A command's rows, run from a menu or a toolbar, and where that menu was: a menu it opens opens there. */
+type RowsTarget = Target & { where?: Where };
 /**
  * What each catalogued action does in the playground, on the rows it was chosen on: those rows are
  * the selection by then. An action that runs an Outline operation (a cut's or a position's) needs no
  * entry here: it runs that operation on its rows.
  */
 const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
-  "debrief.setColour": () => outlineBar?.openColour(),
-  "debrief.hide": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: true }),
-  "debrief.show": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: false }),
-  "debrief.setTrackFrequencies": () => setTrackFrequencies(),
-  "debrief.editAnnotation": (keys) => editAnnotation(keys[0]),
-  "debrief.deleteAnnotation": () => deleteAnnotations(),
-  "debrief.moveTrack": () => moveTrack(),
-  "debrief.rotateTrack": () => rotateTrack(),
-  "debrief.shearTrack": () => shearTrack(),
-  "debrief.stretchTrack": () => stretchTrack(),
-  "debrief.splitTrack": () => splitTrack(),
-  "debrief.mergeTracks": () => mergeTracks(),
-  "debrief.removeJumps": () => findJumps(),
-  "debrief.smoothTrack": () => smoothTrack(),
-  // The fixes listed, to colour, label, comment on or move one.
-  "debrief.markFix": () => listFixes(),
-  "debrief.moveFix": () => listFixes(),
-  "debrief.plottingMode": () => plottingMode(),
-  "debrief.tote.setPrimary": (keys) => changeTote(keys, (tote, tracks) => withPrimary(tote, tracks[0])),
-  "debrief.tote.add": (keys) => changeTote(keys, (tote, tracks) => withSecondaries(tote, tracks)),
-  "debrief.tote.remove": (keys) => changeTote(keys, (tote, tracks) => tracks.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote)),
-  // Which side to keep, then which cuts (the cut at current time, the window, those selected, or all).
-  "debrief.resolveAmbiguity": (keys, at) =>
-    openMenu(
-      KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, at.from ?? $("outline"), at.x, at.y, keys) })),
-      { label: "Ambiguous bearings: keep", x: at.x, y: at.y, from: at.from },
-    ),
-  "debrief.currentCut": (keys) => currentCutMenu(keys[0]),
   "debrief.setArrayOffset": (keys) => arrayOffsetForm(keys[0]),
-  // The Outline's toolbar and its overflow menu.
-  "debrief.selectionHide": () => hideOrShowSelected(),
-  "debrief.selectionShow": () => hideOrShowSelected(),
-  "debrief.selectionShowAll": () => hideOrShowSelected(),
-  "debrief.colourSelection": () => outlineBar?.openColour(),
-  "debrief.selectAll": () => chooseInOutline(outlineListed()),
-  "debrief.selectChildren": () => selectChildrenOfSelection(),
-  "debrief.clearSelection": () => chooseInOutline([]),
-  "debrief.addAnnotation": () => addAnnotation(),
-  "debrief.toggleNorthArrow": () => toggleNorthArrow(),
   // Reading sensor data, exporting an image, finding an image's source and taking new data are the
   // shared features' (registered below, by playHost): a walkthrough's step runs them as VS Code's step
   // runs the command (PAR-14).
 };
-/**
- * What the shared features register their commands with (webview/panels/flows/register.ts): this
- * action table. Run from a menu or a toolbar, a command is given its rows as its Target.
- */
-const playHost: Host = {
-  command: (id, run) => {
-    PLAY_COMMANDS.set(id, run);
-    PLAY_ACTIONS[id] = (keys) => runCommand(id, { ids: keys });
-  },
-};
-/** The commands the shared features registered (webview/panels/flows/features.ts), by id. */
-const PLAY_COMMANDS = new Map<string, Run>();
-/** A registered command run with its own arguments, as VS Code's executeCommand runs one. */
-const runCommand = (id: string, ...args: unknown[]): unknown => (PLAY_COMMANDS.get(id) as ((...a: unknown[]) => unknown) | undefined)?.(...args);
 /** The first of a command's rows. */
 const firstOf = (target?: string | Target) => (typeof target === "string" ? target : (target?.ids?.[0] ?? target?.feature?.id));
 // Bearings and TMA solutions (webview/panels/flows/bearings.ts): this says how the playground shows
@@ -2585,6 +2551,66 @@ registerBearings(playHost, {
 // The Tools' entries' commands (webview/panels/flows/operation.ts), on the rows they were run on.
 registerOperations(playHost, { ...operationHost, rowsOf: (target) => (target as Target | undefined)?.ids });
 
+// Track edits (webview/panels/flows/tracks.ts): run from a row's menu, its rows are selected first, and each asks with its own form.
+registerTrackEdits(playHost, {
+  frequencies: () => setTrackFrequencies(),
+  move: () => moveTrack(),
+  rotate: () => rotateTrack(),
+  shear: () => shearTrack(),
+  stretch: () => stretchTrack(),
+  split: () => splitTrack(),
+  merge: () => mergeTracks(),
+  removeJumps: () => findJumps(),
+  smooth: () => smoothTrack(),
+  // The fixes listed, to colour, label, comment on or move one.
+  markFix: () => listFixes(),
+  moveFix: () => listFixes(),
+  plottingMode: () => plottingMode(),
+});
+// Colour, hiding and the Outline toolbar's selection (webview/panels/flows/presentation.ts).
+registerPresentation(playHost, {
+  setColour: () => outlineBar?.openColour(),
+  hide: onRows((keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: true })),
+  show: onRows((keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: false })),
+  // The Outline's toolbar and its overflow menu.
+  selectionHide: () => hideOrShowSelected(),
+  selectionShow: () => hideOrShowSelected(),
+  selectionShowAll: () => hideOrShowSelected(),
+  colourSelection: () => outlineBar?.openColour(),
+  selectAll: () => chooseInOutline(outlineListed()),
+  selectChildren: () => selectChildrenOfSelection(),
+  clearSelection: () => chooseInOutline([]),
+});
+// Annotations (webview/panels/flows/annotations.ts): the playground's dialog asks.
+registerAnnotations(playHost, {
+  add: () => addAnnotation(),
+  edit: onRows((keys) => editAnnotation(keys[0])),
+  delete: () => deleteAnnotations(),
+  northArrow: () => toggleNorthArrow(),
+});
+// The Tote's entries (webview/panels/flows/tote.ts): the tracks among the rows, the Tote brought into view and the choice made.
+registerTote(playHost, {
+  message: flowHost.message,
+  tracksOf: (target) => ((target as Target | undefined)?.ids ?? []).filter((k) => !!trackOf(k)),
+  change: (change) => {
+    showPanel(totePanel.id);
+    void chooseTote(change(toteChoice()));
+  },
+});
+// Ambiguous cuts, a cut's menu and the cut at current time (webview/panels/flows/cuts.ts): the playground's menus ask.
+registerCuts(playHost, {
+  // Which side to keep, then which cuts (the cut at current time, the window, those selected, or all).
+  resolveAmbiguity: (target?: RowsTarget) => {
+    const keys = target?.ids ?? [];
+    const at = target?.where ?? { x: 0, y: 0 };
+    openMenu(
+      KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, at.from ?? $("outline"), at.x, at.y, keys) })),
+      { label: "Ambiguous bearings: keep", x: at.x, y: at.y, from: at.from },
+    );
+  },
+  cutMenu: (cutId?: unknown) => (typeof cutId === "string" ? cutMenu(cutId) : undefined),
+  currentCut: onRows((keys) => currentCutMenu(keys[0])),
+});
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
 
@@ -2598,7 +2624,7 @@ async function runAction(id: string, keys: string[] = outlinePicks, at: Where = 
   const { context, reasons } = playContext(keys);
   const entry = entryOf(action, undefined, context, reasons);
   if (!entry.enabled) return toast(entry.reason!, "warning");
-  const run = PLAY_ACTIONS[id];
+  const run = PLAY_ACTIONS[id] ?? (PLAY_COMMANDS.has(id) ? (rows: string[], where: Where) => runCommand(id, { ids: rows, where } satisfies RowsTarget) : undefined);
   if (!run) return toast(`${action.title.replace(/…$/, "")}: not in the playground yet.`, "warning");
   // Those that work on the selection (the track edits, the fix list) act on these rows selected first.
   // The Outline's entries (an action with an operation) act on the rows given too.
@@ -2865,12 +2891,9 @@ function renderHistory(): void {
 }
 /** The playground's artwork for History's title bar (cosmetic: VS Code draws the codicons). */
 const HISTORY_ACTION_GLYPHS: Record<string, string> = { discard: "↶", redo: "↷", "arrow-right": "→" };
-/** A catalogued History action: its title bar's, or a step's (by its number). */
+/** A catalogued History action: its title bar's, or a step's (by its number): the shared registration's (flows/move.ts). */
 async function runHistoryAction(id: string, step?: number): Promise<void> {
-  if (id === "debrief.undo") return move("undo");
-  if (id === "debrief.redo") return move("redo");
-  if (id === "debrief.goToStep" || id === "debrief.redoToStep") return move("goto", step);
-  if (id === "debrief.openLatestRevision" && opened?.revision) return openPlot(opened.item.id);
+  await runCommand(id, step);
 }
 /** A step's context menu (right-click, press and hold, Shift+F10 or the menu key), as VS Code's: the action catalogue's for its menu context. */
 function historyRowMenu(li: HTMLElement, x: number, y: number): void {

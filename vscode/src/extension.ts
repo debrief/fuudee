@@ -32,7 +32,7 @@ import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView } from "./panels/coverageview.js";
 import { registerView } from "./panels/webviewhost.js";
 import { startup, type StartupSnapshot } from "./startup.js";
-import { toteMenu, withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
+import { toteMenu, withMapLines, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
@@ -51,7 +51,12 @@ import { hexColour, selectionChildren, selectionColour, selectionVisibility, typ
 import { featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choice, type FlowHost, type ManyQuestion, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Question, type RememberQuestion, type SaveSpec, type SaveTarget, type Severity, type TextQuestion } from "../webview/panels/flows/host.js";
 import { confirmNewerSchema as askNewerSchema, runTool as runToolFlow, type Ran } from "../webview/panels/flows/runtool.js";
-import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
+import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
+import { registerPresentation } from "../webview/panels/flows/presentation.js";
+import { registerAnnotations } from "../webview/panels/flows/annotations.js";
+import { registerTote } from "../webview/panels/flows/tote.js";
+import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
 import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
@@ -1484,8 +1489,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return problem;
   };
   // Ctrl+Z is the plot's history: colour and hiding are steps in it like any change.
-  command("debrief.undo", () => move("undo"));
-  command("debrief.redo", () => move("redo"));
+  // Undo, redo, go to a step and the latest revision: the shared registration (flows/move.ts).
+  registerHistory(host, {
+    move: (how, step) => move(how, step),
+    openLatestRevision: async () => {
+      const opened = session.current;
+      if (!opened?.revision) return undefined;
+      await serially(() => loadPlot(opened.store, opened.item.id));
+      return undefined;
+    },
+  });
 
   // --- Exported images (SUB-25, EXT-05, OUT-04) -------------------------------------
   /** What an export is asked with, by an agent, a test or the tool service for an agent: the choices and the file, nothing asked of the analyst. */
@@ -1686,12 +1699,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   session.onPlot((opened) => void vscode.commands.executeCommand("setContext", "debrief.revisionShown", !!opened?.revision));
 
   /** Leave an earlier revision shown read-only: the plot as it is now, to change. */
-  command("debrief.openLatestRevision", async () => {
-    const opened = session.current;
-    if (!opened?.revision) return undefined;
-    await serially(() => loadPlot(opened.store, opened.item.id));
-    return undefined;
-  });
 
   // Colour and hiding (SUB-22): content, so each is a step in the plot's history.
   // A node from the outline, a list of ids (the map's "Show all"), or else the selection.
@@ -1746,23 +1753,23 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return report(await restyle(button.ids, { colour: chosen.colour, ...(chosen.name && { colour_name: chosen.name }) }));
   }
   // From the Outline's menu with several rows selected, VS Code gives the rows selected second.
-  command("debrief.setColour", (node?: Target, given?: string | OutlineNode[]) => {
+  const setColourCommand = (node?: Target, given?: string | OutlineNode[]) => {
     if (Array.isArray(given) && outline.index) return colourPicks(outlinePicks(keysOf(given)));
     return colourPicks(picksOf(node), typeof given === "string" ? given : undefined);
-  });
+  };
   const features = (ids: string[]) =>
     ids.filter((id) => {
       const feature = session.current?.plot.features.find((f) => f.id === id);
       return !!feature && isFeature(feature);
     });
-  command("debrief.hide", async (node?: Target) => {
+  const hideRowsCommand = async (node?: Target) => {
     const ids = features(targets(node));
     return report(ids.length ? await restyle(ids, { hidden: true }) : "Select what to hide.");
-  });
-  command("debrief.show", async (node?: Target) => {
+  };
+  const showRowsCommand = async (node?: Target) => {
     const ids = features(targets(node));
     return report(ids.length ? await restyle(ids, { hidden: false }) : "Select what to show.");
-  });
+  };
 
   // --- The Outline's toolbar, in its title bar (product owner, 28 Oct 2026) ---------------------
   // Hidden on map in three states, one command each so the title bar's icon shows the state
@@ -1779,9 +1786,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!problem) vscode.window.setStatusBarMessage(`${v.done}.`, 5000);
     return report(problem);
   }
-  for (const name of ["debrief.selectionHide", "debrief.selectionShow", "debrief.selectionShowAll"]) command(name, (node?: Target) => hideOrShow(node));
+  const hideOrShowCommand = (node?: Target) => hideOrShow(node);
   // Colour: the selected that have a colour, from the palette or a custom hex, one step.
-  command("debrief.colourSelection", (colourName?: string) => colourPicks(outlinePicks(), typeof colourName === "string" ? colourName : undefined));
+  const colourSelectionCommand = (colourName?: string) => colourPicks(outlinePicks(), typeof colourName === "string" ? colourName : undefined);
   /** Rows chosen by the toolbar: selected everywhere, the one named (or none) brought into sight. */
   function chooseKeys(keys: string[], reveal: string | null): void {
     const picks = outlinePicks(keys);
@@ -1798,28 +1805,28 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
   }
   // Select all: every row listed (the branches open), as Ctrl+A in the tree.
-  command("debrief.selectAll", () => {
+  const selectAllCommand = () => {
     if (!session.current) return report("Open a plot first.");
     chooseKeys(outline.listedKeys(), null);
     return undefined;
-  });
+  };
   // Select children: the selection replaced by the direct children of what is selected (a track's
   // sensors, a sensor's cuts, every page of them, a solution's legs, a leg's positions); the first brought into sight.
-  command("debrief.selectChildren", () => {
+  const selectChildrenCommand = () => {
     const index = outline.index;
     if (!index || !session.current) return report("Open a plot first.");
     const children = selectionChildren(index, outlinePicks());
     if (children.reason) return report(children.reason);
     chooseKeys(children.keys, children.keys[0]);
     return undefined;
-  });
+  };
   command("debrief.outlineToolbarState", () => ({ ...toolbarKeys }));
   // Labels, symbols and arrows (CAP-32): how often, for every track selected at once, as one step.
   // From the outline's menu (with the others selected beside it), the Command Palette or the selection.
   // With intervals given (agents, keyboard macros, tests), no questions: each a duration such as
   // {value: 10, unit: "min"} or "10 min", "off", "all" (labels and symbols at every fix), or null
   // for the default; one left out is unchanged.
-  command("debrief.setTrackFrequencies", async (target?: string | string[] | Target, given?: unknown) => {
+  const frequenciesCommand = async (target?: string | string[] | Target, given?: unknown) => {
     const others = Array.isArray(given) ? featureIdsOf(given as never) : [];
     const ids = (typeof target === "string" ? [target] : Array.isArray(target) ? target : others.length ? others : targets(target)).filter((id) => trackById(id));
     if (!ids.length) return report("Select one or more tracks to set how often they are labelled, marked and arrowed.");
@@ -1833,7 +1840,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (!Object.keys(changes).length) return undefined; // nothing changed: no step
     }
     return report(await restyle(ids, { frequencies: changes }));
-  });
+  };
   /**
    * The Frequencies form in VS Code's own lists: Labels, then Symbols, then Arrows, each
    * offering what the tracks have now first (or Mixed, left as they are), the default for
@@ -1899,13 +1906,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return chosen;
   }
   // A step's number, a History row (the panel model's), or one of historyRows' (tests, agents).
-  command("debrief.goToStep", async (target?: number | { seq?: number } | { step: { seq: number } }) => {
-    const seq = typeof target === "number" ? target : target && "step" in target ? target.step.seq : target?.seq;
-    return seq === undefined ? undefined : move("goto", seq);
-  });
-  command("debrief.redoToStep", (target?: { seq?: number } | { step: { seq: number } }) =>
-    vscode.commands.executeCommand("debrief.goToStep", target),
-  );
   command("debrief.historySteps", () => history.steps);
   command("debrief.historyRows", () => history.rows());
   command("debrief.showAllHidden", () => {
@@ -1917,7 +1917,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Annotations (CAP-03 to CAP-05). Each command takes what agents and tests give it
   // instead of asking, and returns what happened: { problem } or { feature }.
   const timeRangeOfPlot = () => session.period();
-  command("debrief.addAnnotation", async (spec?: AnnotationSpec) => {
+  const addAnnotationCommand = async (spec?: AnnotationSpec) => {
     if (!session.current) return { problem: report("Open a plot first.") };
     if (spec && typeof spec === "object" && "shape" in spec) {
       const done = await annotate({ kind: "add", annotation: spec });
@@ -1931,7 +1931,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       currentTime: session.time?.current,
     });
     return {};
-  });
+  };
   // Drawn on the map (annotation_drawn): the form, filled in with what was drawn, to name it and
   // add it as one step. Cancel adds nothing. Never changes current time, the window or the selection.
   command("debrief.addDrawnAnnotation", (spec?: AnnotationSpec) => {
@@ -1941,7 +1941,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return {};
   });
   // From the outline's menu (a node), the map (an id), or the selection; with changes, without the form.
-  command("debrief.editAnnotation", async (target?: string | Target, changes?: Partial<AnnotationSpec>) => {
+  const editAnnotationCommand = async (target?: string | Target, changes?: Partial<AnnotationSpec>) => {
     const id = typeof target === "string" ? target : targets(target ?? undefined).find((i) => annotationById(i));
     const feature = annotationById(id);
     if (!feature) return { problem: report("Select an annotation to change.") };
@@ -1952,20 +1952,22 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
     annotationForm.show({ spec: specOfFeature(feature), featureId: feature.id, timeRange: timeRangeOfPlot(), currentTime: session.time?.current });
     return {};
-  });
-  command("debrief.deleteAnnotation", async (target?: string | Target) => {
+  };
+  const deleteAnnotationCommand = async (target?: string | Target) => {
     const ids = (typeof target === "string" ? [target] : targets(target ?? undefined)).filter((i) => annotationById(i));
     if (!ids.length) return { problem: report("Select the annotations to delete.") };
     const done = await annotate({ kind: "delete", features: ids });
     return { problem: report(done.problem) };
-  });
+  };
   // Chart furniture: the north arrow is content, so showing or removing it is a step (CAP-03).
-  command("debrief.toggleNorthArrow", async (shown?: boolean) => {
+  const northArrowCommand = async (shown?: boolean) => {
     if (!session.current) return { problem: report("Open a plot first.") };
     const has = session.current.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
     const done = await annotate({ kind: "north_arrow", shown: shown ?? !has });
     return { problem: report(done.problem) };
-  });
+  };
+  // Annotations: the shared registration (webview/panels/flows/annotations.ts).
+  registerAnnotations(host, { add: addAnnotationCommand, edit: editAnnotationCommand, delete: deleteAnnotationCommand, northArrow: northArrowCommand });
   // Tracks (CAP-01, CAP-02): moved, rotated, split and merged, each one step. Each command takes
   // what agents and tests give it instead of asking, and returns what happened: { problem } or
   // { feature } / { features }.
@@ -2031,7 +2033,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return trackDone(await changeTrack({ kind: "edit", feature: featureId!, edit }));
   });
   // "Move track…": what moves, the distance and the bearing. With a change given, no questions.
-  command("debrief.moveTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const moveCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to move.") };
     const name = track.properties.name;
@@ -2062,9 +2064,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (bearing === undefined || typeof bearing !== "number") return {};
     const edit: TrackEdit = { action: "move", distance: distance as never, bearing: { value: bearing, unit: "deg" }, ...(extent.period && { period: extent.period }) };
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
-  });
+  };
   // "Rotate track…": what turns, about which pivot, and by how much. With a change given, no questions.
-  command("debrief.rotateTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const rotateCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to rotate.") };
     const name = track.properties.name;
@@ -2123,7 +2125,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (angle === undefined || typeof angle !== "number") return {};
     const edit: TrackEdit = { action: "rotate", angle: { value: angle, unit: "deg" }, pivot, ...(extent.period && { period: extent.period }) };
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
-  });
+  };
   /** Which end of what changes a shear or a stretch holds: the other end is the one that moves. Undefined for Escape, or a problem when it cannot be done. */
   async function chooseAnchor(track: TrackFeature, verb: string, period?: TimeRange): Promise<{ anchor: Anchor; now: NonNullable<ReturnType<typeof legNow>> } | { problem: string } | undefined> {
     const times = track.properties.times.map(Date.parse);
@@ -2148,7 +2150,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return meaning(read, () => describeSpeed(read as { value: number; unit: string }, displaySettings));
   };
   // "Shear track…": what changes, which end is held, and the course and speed the rest then makes good. With a change given, no questions.
-  command("debrief.shearTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const shearCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to shear.") };
     const name = track.properties.name;
@@ -2179,9 +2181,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!speed || "problem" in speed) return {};
     const edit: TrackEdit = { action: "shear", anchor: held.anchor, course: { value: course, unit: "deg" }, speed: speed as never, ...(extent.period && { period: extent.period }) };
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
-  });
+  };
   // "Stretch track…": what changes, which end is held, and the speed the rest then makes good, on the same course. With a change given, no questions.
-  command("debrief.stretchTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const stretchCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to stretch.") };
     const name = track.properties.name;
@@ -2202,9 +2204,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!speed || "problem" in speed) return {};
     const edit: TrackEdit = { action: "stretch", anchor: held.anchor, speed: speed as never, ...(extent.period && { period: extent.period }) };
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
-  });
+  };
   // "Split track at current time…": the two parts' names, offered as "X (1)" and "X (2)". With options given, no questions.
-  command("debrief.splitTrack", async (target?: string | Target, options?: { at?: string; names?: [string, string] }) => {
+  const splitCommand = async (target?: string | Target, options?: { at?: string; names?: [string, string] }) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to split.") };
     const at = options?.at ?? session.time?.current;
@@ -2224,11 +2226,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const done = await changeTrack({ kind: "split", feature: track.id, at, ...(names && { names }) });
     if (!done.problem && done.features) session.select(done.features, "command");
     return trackDone(done);
-  });
+  };
   // "Merge selected tracks": the tracks selected, or the ids given, joined in time order. Asked for
   // the merged track's name, and, if speeds, courses or depths would not be kept, asked first
   // whether to merge anyway. With the ids given (agents, tests), no questions; what was not kept comes back.
-  command("debrief.mergeTracks", async (target?: string[] | Target, others?: readonly unknown[] | { name?: string }) => {
+  const mergeCommand = async (target?: string[] | Target, others?: readonly unknown[] | { name?: string }) => {
     const nodes = Array.isArray(others) ? featureIdsOf(others as never) : [];
     const ids = Array.isArray(target) ? target : nodes.length ? nodes : session.selection;
     const tracks = ids.map(trackById).filter((t): t is TrackFeature => !!t);
@@ -2257,7 +2259,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const done = await changeTrack({ kind: "merge", features: tracks.map((t) => t.id), ...(name && { name }) });
     if (!done.problem && done.feature) session.select([done.feature], "command");
     return trackDone(done);
-  });
+  };
 
   // Cleaning tracks (CAP-01, EXT-14): what would change is shown first, on the map and in a
   // list, and changed only when the analyst says, as one step. Each command takes what agents
@@ -2269,7 +2271,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // "Find and remove jumps…": the threshold (offered as the track's default), then the jumps found,
   // ringed on the map and listed, all ticked; those left ticked are removed as one step. Given
   // options, no questions: the times to remove ("all" found), or none, to find them and ring them.
-  command("debrief.removeJumps", async (target?: string | Target, given?: { threshold?: { value: number; unit: string }; times?: string[] | "all" }) => {
+  const removeJumpsCommand = async (target?: string | Target, given?: { threshold?: { value: number; unit: string }; times?: string[] | "all" }) => {
     const track = trackTarget(target);
     const opened = session.current;
     if (!track || !opened) return { problem: report("Select one track to find its jumps.") };
@@ -2336,12 +2338,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     showFixes(undefined);
     report(done.problem);
     return { ...done, found: times, removed: done.problem ? 0 : chosen.length, threshold: found.threshold };
-  });
+  };
 
   // "Smooth track…": what to smooth, over how many fixes, then the track drawn as it would be,
   // with how far fixes would move; Apply makes it one step. Given a window, it is applied, unless
   // apply is false: then the preview stays on the map.
-  command("debrief.smoothTrack", async (target?: string | Target, given?: { window: number; period?: TimeRange; apply?: boolean }) => {
+  const smoothCommand = async (target?: string | Target, given?: { window: number; period?: TimeRange; apply?: boolean }) => {
     const track = trackTarget(target);
     const opened = session.current;
     if (!track || !opened) return { problem: report("Select one track to smooth.") };
@@ -2398,7 +2400,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     showFixes(undefined);
     report(done.problem);
     return { ...done, moved: preview.moved };
-  });
+  };
 
   // "Fixes…": the fix list of a track, to choose one; then its colour, label or comment, each one step.
   // From the map (a right-click on a fix), the fix is given. With a change given, no questions.
@@ -2423,7 +2425,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     quick.dispose();
     return at;
   }
-  command("debrief.markFix", async (target?: string | Target, time?: string, change?: MarkChanges) => {
+  const markFixCommand = async (target?: string | Target, time?: string, change?: MarkChanges) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to mark one of its fixes.") };
     const at = time ?? (await chooseFix(track, "Choose a fix to colour, label or comment on; type a time to find one"));
@@ -2442,7 +2444,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const done = await cleanTrack({ kind: "mark", feature: track.id, time: at, changes: members, ...(colour_name && { colour_name }) });
     report(done.problem);
     return done;
-  });
+  };
   /** What to do to a fix: its colour, label or comment, asked in VS Code's lists and input boxes; or move it. */
   async function askMarkChange(track: TrackFeature, at: string): Promise<MarkChanges | "move" | undefined> {
     const name = track.properties.name;
@@ -2482,7 +2484,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // "Move a fix…": the fix list, then where it goes, typed in any notation Debrief reads. Only that fix moves;
   // its time, its recorded course and speed and its mark stay. From the map's fix menu, the fix is given;
   // with a change given ({position} or {distance, bearing}), no questions.
-  command("debrief.moveFix", async (target?: string | Target, time?: string, given?: Omit<TrackEdit, "action" | "fix_time">) => {
+  const moveFixCommand = async (target?: string | Target, time?: string, given?: Omit<TrackEdit, "action" | "fix_time">) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to move one of its fixes.") };
     const name = track.properties.name;
@@ -2516,12 +2518,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (typed === undefined) return {};
     const p = parsePosition(typed);
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: fixToEdit(track.properties.times[index], [p.longitude, p.latitude]) }));
-  });
+  };
   // "Plot over the ground or by dead reckoning…": the track's plotting mode, chosen as it was
   // imported, changed as one step. With the mode given ("otg" or "dr"), no questions. Over the ground after a
   // change made while plotted by dead reckoning loses that change (decision, product owner, 14 Oct 2026): asked,
   // the analyst confirms in a dialog first; given, it is refused, saying why, unless options say to discard it.
-  command("debrief.plottingMode", async (target?: string | Target, given?: PlottingMode, options?: { discard_dr_changes?: boolean }) => {
+  const plottingModeCommand = async (target?: string | Target, given?: PlottingMode, options?: { discard_dr_changes?: boolean }) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to plot over the ground or by dead reckoning.") };
     const name = track.properties.name;
@@ -2543,7 +2545,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return (await vscode.window.showWarningMessage(message, { modal: true }, go)) === go;
     };
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }, given ? undefined : confirmLoss));
-  });
+  };
+  // Track edits: the shared registration (webview/panels/flows/tracks.ts); VS Code asks with input boxes and QuickPicks.
+  registerTrackEdits(host, { frequencies: frequenciesCommand, move: moveCommand, rotate: rotateCommand, shear: shearCommand, stretch: stretchCommand, split: splitCommand, merge: mergeCommand, removeJumps: removeJumpsCommand, smooth: smoothCommand, markFix: markFixCommand, moveFix: moveFixCommand, plottingMode: plottingModeCommand });
   // What the map rings or previews, for agents and tests; debrief.showFixes with nothing takes it away.
   command("debrief.fixesOnMap", () => map.fixesShown);
   command("debrief.showFixes", (shown?: Parameters<typeof showFixes>[0]) => showFixes(shown));
@@ -2595,7 +2599,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Outline's sensor menu, the Command Palette, or the map (Alt-click on one of a cut's two
   // lines keeps it; a plain click selects the cut and shows its choices). Given a
   // resolution (agents, the map and tests), it asks nothing.
-  command("debrief.resolveAmbiguity", async (target?: Target | AmbiguityResolution, keepGiven?: Keep, scopeGiven?: CutScope) => {
+  const resolveAmbiguityCommand = async (target?: Target | AmbiguityResolution, keepGiven?: Keep, scopeGiven?: CutScope) => {
     const opened = session.current;
     if (!opened) return report("Open a plot first.");
     let resolution: AmbiguityResolution | string;
@@ -2634,7 +2638,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const notes = done.answer?.notes ?? [];
     if (notes.length) void vscode.window.showInformationMessage(notes.join(" "));
     return done;
-  });
+  };
   // --- Bearings and TMA solutions (CAP-21): the shared registration (webview/panels/flows/bearings.ts) ---
   // This says how VS Code shows Bearings and how the service makes each change.
   registerBearings(host, {
@@ -2819,7 +2823,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   });
   // A cut's menu (right-click, or press and hold, on one of its lines on the map): keep
   // either of its bearings, make it ambiguous again, select it, or keep a side for more.
-  command("debrief.cutMenu", async (cutId?: string) => {
+  const cutMenuCommand = async (cutId?: string) => {
     const opened = session.current;
     const entry = opened ? sensorsOf(opened.plot).find((e) => e.cuts.some((c) => c.id === cutId)) : undefined;
     const cut = entry?.cuts.find((c) => c.id === cutId);
@@ -2844,11 +2848,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const picked = await vscode.window.showQuickPick(picks, { title: cutTitle(cut, entry.sensor.properties.name), placeHolder: said });
     if (picked) await picked.run();
     return undefined;
-  });
+  };
   // The cut current time is at, for a sensor (the Outline's sensor menu, the Command
   // Palette): its bearings and sides said, and its menu, so a keyboard reaches every cut
   // the map shows emphasised.
-  command("debrief.currentCut", async (target?: Target | string) => {
+  const currentCutCommand = async (target?: Target | string) => {
     const opened = session.current;
     if (!opened) return report("Open a plot first.");
     const entries = sensorsOf(opened.plot);
@@ -2863,7 +2867,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const now = session.time ? cutNow(entry, Date.parse(session.time.current), range && { start: Date.parse(range.start), end: Date.parse(range.end) }) : undefined;
     if (!now) return report(`${entry.sensor.properties.name} has no cut at or before current time in the time window.`);
     return vscode.commands.executeCommand("debrief.cutMenu", now.id);
-  });
+  };
+  // Ambiguous cuts, a cut's menu and the cut at current time: the shared registration (webview/panels/flows/cuts.ts).
+  registerCuts(host, { resolveAmbiguity: resolveAmbiguityCommand, cutMenu: cutMenuCommand, currentCut: currentCutCommand });
   /** A file named by an agent or a test, as the flows take a file chosen. */
   const fileAt = (file: string): PickedFile => ({ name: path.basename(file), path: file });
   // A .dsf or REP file's sensor lines read into the open plot (CAP-22): the shared flow
@@ -2924,21 +2930,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   }
   session.onSelection(() => updateToteKeys());
   session.onPlot(() => updateToteKeys());
-  command("debrief.tote.setPrimary", async (target?: string | Target, others?: unknown) => {
-    const ids = toteTargets(target, others);
-    if (ids.length !== 1) return report("Select one track to be the Tote's primary.");
-    return chooseTote((tote) => withPrimary(tote, ids[0]));
-  });
-  command("debrief.tote.add", async (target?: string | string[] | Target, others?: unknown) => {
-    const ids = toteTargets(target, others);
-    if (!ids.length) return report("Select the tracks to add to the Tote.");
-    return chooseTote((tote) => withSecondaries(tote, ids));
-  });
-  command("debrief.tote.remove", async (target?: string | string[] | Target, others?: unknown) => {
-    const ids = toteTargets(target, others);
-    if (!ids.length) return report("Select the tracks to remove from the Tote.");
-    return chooseTote((tote) => ids.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote));
-  });
+  // Set as primary, add and remove: the shared registration (webview/panels/flows/tote.ts).
+  registerTote(host, { message: flowHost.message, tracksOf: toteTargets, change: chooseTote });
   // The whole choice at once, for agents, keyboard macros and tests: saved as from the Tote view.
   command("debrief.setTote", async (tote?: ToteChoice) => {
     if (!tote || typeof tote !== "object") return report("Give the Tote's primary and secondaries.");
@@ -2960,7 +2953,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Shared state for agents and keyboard users (SUB-27).
   command("debrief.getState", () => session.state());
   command("debrief.setState", (change: SharedStateChange) => session.apply(change ?? {}, "command"));
-  command("debrief.clearSelection", () => session.select([], "command"));
+  const clearSelectionCommand = () => session.select([], "command");
+  // Colour, hiding and the Outline toolbar's selection: the shared registration (webview/panels/flows/presentation.ts).
+  registerPresentation(host, { setColour: setColourCommand, hide: hideRowsCommand, show: showRowsCommand, selectionHide: hideOrShowCommand, selectionShow: hideOrShowCommand, selectionShowAll: hideOrShowCommand, colourSelection: colourSelectionCommand, selectAll: selectAllCommand, selectChildren: selectChildrenCommand, clearSelection: clearSelectionCommand });
   command("debrief.refresh", async () => {
     catalogues.refresh();
     const problem = await serially(() => reloadPlot(true));
