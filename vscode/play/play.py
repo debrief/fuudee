@@ -139,6 +139,12 @@ def open_plot(item: str) -> str:
     )
 
 
+def plot_file(item: str) -> str:
+    """The plot's file as saved, whole (its content, island and history): what the
+    cross-host parity check compares with VS Code's (vscode/test/parity)."""
+    return (ROOT / _cat().plot_path(item)).read_text(encoding="utf-8")
+
+
 def run(item: str, request_json: str) -> str:
     """Run a tool exactly as the tool service does, and record what it changed."""
     request = json.loads(request_json)

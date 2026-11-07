@@ -27,7 +27,7 @@
  * layout every time, with every panel open, and remembers neither, so a post's demo always shows
  * what the post describes.
  */
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaView, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaView, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
@@ -38,7 +38,7 @@ import { contextTracksOf, displayed, hiddenIds, isFeature, setViewOf, timeWindow
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
-import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorsOf, type Keep, type ResolveContext } from "../webview/sensors.js";
+import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorsOf, type ArrayMode, type CutScope, type Keep, type ResolveContext } from "../webview/sensors.js";
 import type { SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
@@ -112,7 +112,7 @@ import {
   type OutlinePick,
   pickOf,
 } from "../webview/outlinemodel.js";
-import { selectionChildren, selectionColour, selectionSaid, selectionVisibility } from "../webview/outlinetoolbar.js";
+import { colourGiven, selectionChildren, selectionColour, selectionSaid, selectionVisibility } from "../webview/outlinetoolbar.js";
 import { OutlineBar } from "./outlinebar.js";
 import { latestSolution, NO_SOLUTION, SOLUTION } from "../walkthroughs/contribute.mjs";
 import { contentFree } from "../webview/timelinelogic.js";
@@ -1099,13 +1099,16 @@ async function annotate(change: Record<string, unknown>): Promise<string | undef
   return undefined;
 }
 const hasNorthArrow = () => !!opened?.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
-function deleteAnnotations(): void {
-  const ids = selectedAnnotations();
+/** An annotation change, its problem said. */
+const annotated = (change: Record<string, unknown>) => annotate(change).then((problem) => void (problem && toast(problem, "warning")));
+/** The annotations among the rows given (or the selection's), deleted: one step. */
+function deleteAnnotations(ids = selectedAnnotations()): Promise<void> | void {
   if (!ids.length) return toast("Select the annotations to delete.", "warning");
-  void annotate({ kind: "delete", features: ids }).then((problem) => problem && toast(problem, "warning"));
+  return annotated({ kind: "delete", features: ids });
 }
-function toggleNorthArrow(): void {
-  void annotate({ kind: "north_arrow", shown: !hasNorthArrow() }).then((problem) => problem && toast(problem, "warning"));
+/** The north arrow shown or taken off (given, by agents and tests), else turned the other way: one step. */
+function toggleNorthArrow(shown = !hasNorthArrow()): Promise<void> {
+  return annotated({ kind: "north_arrow", shown });
 }
 
 // --- Tracks: moved, rotated, split and merged, each a step (CAP-01, CAP-02) -----------
@@ -1283,9 +1286,26 @@ function extentField(track?: NonNullable<ReturnType<typeof trackOf>>): FormField
 }
 const windowPeriod = (extent: string, track?: NonNullable<ReturnType<typeof trackOf>>) => (extent === "window" && time ? time.range : extent === "leg" ? legOfTrack(track)?.period : undefined);
 
-async function moveTrack(): Promise<void> {
-  const track = oneTrack("move");
+/**
+ * The one track a command acts on: the id given or its Target's (agents, tests), else the one
+ * track selected; or say why there isn't one, as VS Code's trackTarget.
+ */
+function trackGiven(target: string | Target | undefined, verb: string): ReturnType<typeof trackOf> {
+  const ids = typeof target === "string" ? [target] : (target?.ids ?? (target?.feature ? [target.feature.id] : undefined));
+  if (!ids) return oneTrack(verb);
+  const found = ids.map(trackOf).filter((t) => !!t);
+  if (found.length === 1) return found[0];
+  toast(`Select one track to ${verb}.`, "warning");
+  return undefined;
+}
+/** Move a track: as given (agents, tests), nothing asked; else its form. */
+async function moveTrack(target?: string | Target, given?: Record<string, unknown>): Promise<void> {
+  const track = trackGiven(target, "move");
   if (!track) return;
+  if (given && typeof given === "object") {
+    const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { ...given, action: "move" } });
+    return problem ? toast(problem, "warning") : undefined;
+  }
   const values = await trackForm(`Move ${track.properties.name}`, "Move", [
     extentField(track),
     { id: "distance", label: "Distance", value: "", read: (t) => shown(readDistance(t), () => describeDistance(readDistance(t) as { value: number; unit: string })) },
@@ -1943,9 +1963,9 @@ async function hideOrShowSelected(): Promise<void> {
   if (!v.action) return toast(v.title, "warning");
   await restyle(v.ids, { hidden: v.action === "hide" }, v.done);
 }
-/** The selected that have a colour, coloured: one step, named by the palette's name or the hex typed. */
-async function colourSelected(colour: string, name?: string): Promise<void> {
-  const context = operationContext();
+/** The selected (or the rows given) that have a colour, coloured: one step, named by the palette's name or the hex typed. */
+async function colourSelected(colour: string, name?: string, keys?: readonly string[]): Promise<void> {
+  const context = operationContext(keys);
   if (!context) return;
   const c = selectionColour(context.index, context.picks, context.readOnly);
   if (!c.enabled) return toast(c.reason ?? "Nothing selected has a colour.", "warning");
@@ -2595,12 +2615,13 @@ registerBearings(playHost, {
   },
 });
 // The Tools' entries' commands (webview/panels/flows/operation.ts), on the rows they were run on.
-registerOperations(playHost, { ...operationHost, rowsOf: (target) => (target as Target | undefined)?.ids });
+// The keys given (agents, tests), as VS Code's, or a menu's Target.
+registerOperations(playHost, { ...operationHost, rowsOf: (target) => (Array.isArray(target) ? (target as string[]) : (target as Target | undefined)?.ids) });
 
 // Track edits (webview/panels/flows/tracks.ts): run from a row's menu, its rows are selected first, and each asks with its own form.
 registerTrackEdits(playHost, {
   frequencies: () => setTrackFrequencies(),
-  move: () => moveTrack(),
+  move: (target?: string | Target, given?: Record<string, unknown>) => moveTrack(target, given),
   rotate: () => rotateTrack(),
   shear: () => shearTrack(),
   stretch: () => stretchTrack(),
@@ -2615,29 +2636,44 @@ registerTrackEdits(playHost, {
 });
 // Colour, hiding and the Outline toolbar's selection (webview/panels/flows/presentation.ts).
 registerPresentation(playHost, {
-  setColour: () => outlineBar?.openColour(),
+  // Given a colour (a palette name or #rrggbb: agents, tests), nothing is asked, as in VS Code.
+  setColour: (target?: Target, given?: unknown) => (typeof given === "string" ? colourNamed(given, target?.ids) : outlineBar?.openColour()),
   hide: onRows((keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: true })),
   show: onRows((keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: false })),
   // The Outline's toolbar and its overflow menu.
   selectionHide: () => hideOrShowSelected(),
   selectionShow: () => hideOrShowSelected(),
   selectionShowAll: () => hideOrShowSelected(),
-  colourSelection: () => outlineBar?.openColour(),
+  colourSelection: (given?: unknown) => (typeof given === "string" ? colourNamed(given) : outlineBar?.openColour()),
   selectAll: () => chooseInOutline(outlineListed()),
   selectChildren: () => selectChildrenOfSelection(),
   clearSelection: () => chooseInOutline([]),
 });
-// Annotations (webview/panels/flows/annotations.ts): the playground's dialog asks.
+// Annotations (webview/panels/flows/annotations.ts): the playground's dialog asks; given what an
+// agent or a test gives (an annotation, changes, the rows, whether shown), nothing is asked, as in VS Code.
 registerAnnotations(playHost, {
-  add: () => addAnnotation(),
-  edit: onRows((keys) => editAnnotation(keys[0])),
-  delete: () => deleteAnnotations(),
-  northArrow: () => toggleNorthArrow(),
+  add: (spec?: AnnotationSpec) => (spec && typeof spec === "object" && "shape" in spec ? annotated({ kind: "add", annotation: spec }) : addAnnotation()),
+  edit: (target?: string | Target, changes?: Partial<AnnotationSpec>) => {
+    const id = typeof target === "string" ? target : (target?.ids ?? []).find((k) => annotationById(k));
+    return changes && annotationById(id) ? annotated({ kind: "edit", feature: id, annotation: changes }) : editAnnotation(id);
+  },
+  delete: (target?: string | Target) => {
+    const ids = typeof target === "string" ? [target] : target?.ids;
+    return deleteAnnotations(ids ? ids.filter((k) => annotationById(k)) : undefined);
+  },
+  northArrow: (shown?: unknown) => toggleNorthArrow(typeof shown === "boolean" ? shown : undefined),
 });
+/** A colour given by name or hex, for the rows given or the selection: one step, or why not. */
+function colourNamed(given: string, keys?: readonly string[]): Promise<void> | void {
+  const chosen = colourGiven(given);
+  if (typeof chosen === "string") return toast(chosen, "warning");
+  return colourSelected(chosen.colour, chosen.name, keys);
+}
 // The Tote's entries (webview/panels/flows/tote.ts): the tracks among the rows, the Tote brought into view and the choice made.
 registerTote(playHost, {
   message: flowHost.message,
-  tracksOf: (target) => ((target as Target | undefined)?.ids ?? []).filter((k) => !!trackOf(k)),
+  // An id, ids (agents, tests) or the rows a menu was run on, as VS Code's.
+  tracksOf: (target) => (typeof target === "string" ? [target] : Array.isArray(target) ? (target as string[]) : ((target as Target | undefined)?.ids ?? [])).filter((k) => !!trackOf(k)),
   change: (change) => {
     showPanel(totePanel.id);
     void chooseTote(change(toteChoice()));
@@ -2646,8 +2682,14 @@ registerTote(playHost, {
 // Ambiguous cuts, a cut's menu and the cut at current time (webview/panels/flows/cuts.ts): the playground's menus ask.
 registerCuts(playHost, {
   // Which side to keep, then which cuts (the cut at current time, the window, those selected, or all).
-  resolveAmbiguity: (target?: RowsTarget) => {
+  // Given a resolution, or a side and which cuts (agents, the map, tests), nothing is asked, as in VS Code.
+  resolveAmbiguity: (target?: RowsTarget | AmbiguityResolution, keepGiven?: Keep, scopeGiven?: CutScope) => {
+    if (target && "keep" in target) return resolveSensor(target);
     const keys = target?.ids ?? [];
+    if (keepGiven && scopeGiven) {
+      const context = resolveContext(keys.length ? keys : undefined);
+      return context ? resolveSensor(resolutionFor(scopeGiven, keepGiven, context)) : toast("No sensor in this plot has ambiguous cuts.", "warning");
+    }
     const at = target?.where ?? { x: 0, y: 0 };
     openMenu(
       KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, at.from ?? $("outline"), at.x, at.y, keys) })),
@@ -2659,7 +2701,8 @@ registerCuts(playHost, {
 });
 // A towed array's offset: the shared registration (webview/panels/flows/arrayoffset.ts).
 registerArrayOffset(playHost, {
-  setArrayOffset: onRows((keys) => arrayOffsetForm(keys[0])),
+  setArrayOffset: (target?: string | Target, offset?: { value: number; unit: string } | null, mode?: ArrayMode) =>
+    arrayOffsetForm(typeof target === "string" ? target : (target?.ids?.[0] ?? ""), offset, mode),
 });
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
@@ -2770,9 +2813,11 @@ async function resolveSensor(resolution: ReturnType<typeof resolutionFor>): Prom
  * 2026), as debrief/set_array_offset: typed in the analyst's length unit, 0 for at the
  * ship; worm in the hole (legacy's default) or plain. One step.
  */
-async function arrayOffsetForm(id: string): Promise<void> {
+async function arrayOffsetForm(id: string, offsetGiven?: { value: number; unit: string } | null, modeGiven?: ArrayMode): Promise<void> {
   const entry = opened && sensorsOf(opened.plot).find((e) => e.sensor.id === id);
   if (!entry) return;
+  // Given an offset (null for none) and a mode (agents, tests), nothing is asked, as in VS Code.
+  if (offsetGiven !== undefined) return setArrayOffset(entry.sensor.properties.name, id, offsetGiven, modeGiven ?? "worm_in_hole");
   const props = entry.sensor.properties;
   const now = props.array_offset;
   const values = await trackForm(arrayOffsetTitle(props.name, entry.host?.properties.name), "Set", [
@@ -2800,11 +2845,15 @@ async function arrayOffsetForm(id: string): Promise<void> {
   ]);
   if (!values) return;
   const read = readArrayOffset(values.offset) as { value: number; unit: string };
+  await setArrayOffset(props.name, id, read.value === 0 ? null : { value: read.value, unit: read.unit }, values.mode as ArrayMode);
+}
+/** A sensor's array offset and how it follows set: one step, as debrief/set_array_offset. */
+async function setArrayOffset(name: string, id: string, offset: { value: number; unit: string } | null, mode: ArrayMode): Promise<void> {
   status("Saving…", true);
-  const outcome = await sense<{ changed?: boolean }>({ kind: "array_offset", sensor_ids: [id], offset: read.value === 0 ? null : { value: read.value, unit: read.unit }, mode: values.mode });
+  const outcome = await sense<{ changed?: boolean }>({ kind: "array_offset", sensor_ids: [id], offset, mode });
   status("");
   if (outcome.error) return toast(outcome.error, "warning");
-  toast(outcome.notes?.length ? outcome.notes.join(" ") : `${props.name} is so already.`);
+  toast(outcome.notes?.length ? outcome.notes.join(" ") : `${name} is so already.`);
 }
 /** The cut current time is at for a sensor: its bearings said, and its menu, so the keyboard reaches the cut the map emphasises. */
 async function currentCutMenu(id: string): Promise<void> {
@@ -3957,6 +4006,35 @@ function selectedByHand(ids: string[]): void {
 (window as unknown as { debriefTours: () => unknown }).debriefTours = () => ({ tour: tourPanel?.current, events: tourPanel?.events ?? [], copies: Object.fromEntries(tourCopies) });
 /** For the tests: how many steps a plot's history has, read from Python. */
 (window as unknown as { debriefStepsOf: (item: string) => Promise<number> }).debriefStepsOf = async (item) => (await pythonJson<Opened>("open_plot", item)).steps.length;
+/**
+ * For the cross-host parity check (test/parity): a shared feature's command run with its own
+ * arguments, as VS Code's executeCommand runs one, and then settled: every call to Python it
+ * started answered, and the plot shown again. And the open plot's file as saved, whole.
+ */
+async function settled(): Promise<void> {
+  for (let quiet = 0; quiet < 5; ) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await Promise.all([saving, moving]);
+    quiet = waiting.size ? 0 : quiet + 1;
+  }
+}
+/** The command run and settled: the warnings it showed meanwhile (its refusals, as VS Code's commands answer theirs). */
+(window as unknown as { debriefCommand: (id: string, ...args: unknown[]) => Promise<string[]> }).debriefCommand = async (id, ...args) => {
+  if (!PLAY_COMMANDS.has(id)) throw new Error(`${id} is not registered in the playground`);
+  const said: string[] = [];
+  const watch = new MutationObserver((records) => {
+    for (const record of records) for (const node of Array.from(record.addedNodes)) if (node instanceof HTMLElement && node.matches(".toast.warning")) said.push(node.textContent ?? "");
+  });
+  watch.observe(document.body, { childList: true, subtree: true });
+  try {
+    await runCommand(id, ...args);
+    await settled();
+  } finally {
+    watch.disconnect();
+  }
+  return said;
+};
+(window as unknown as { debriefPlotFile: (item: string) => Promise<string> }).debriefPlotFile = (item) => python("plot_file", item);
 /** Coverage on screen, showing the open plot's: a walkthrough's step is to look at it. */
 let coverageOnScreen = false;
 function coverageSeen(): void {

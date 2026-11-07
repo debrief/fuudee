@@ -16,6 +16,7 @@
  *   solution's legs, a leg's positions) and **Clear selection**.
  */
 import { fixKey, legKey, pickOf, type OutlineIndex, type OutlinePick } from "./outlinemodel.js";
+import { TRACK_COLOURS } from "./palette.js";
 
 /** The kinds of feature that can be hidden on the map: their own hidden property (SUB-22). */
 export const HIDEABLE_KINDS: ReadonlySet<string> = new Set(["track", "annotation", "sensor", "sensor_cut", "sensor_observations"]);
@@ -177,6 +178,18 @@ export function hexColour(text: string): string | undefined {
   if (/^[0-9a-f]{6}$/.test(t)) return `#${t}`;
   if (/^[0-9a-f]{3}$/.test(t)) return `#${[...t].map((c) => c + c).join("")}`;
   return undefined;
+}
+
+/**
+ * A colour given by name from the palette ("Red") or as hex ("#rrggbb"), as agents, keyboard macros
+ * and tests give one instead of choosing (both hosts' Change colour): the colour, with the palette's
+ * name if it has one; or why it is not one.
+ */
+export function colourGiven(given: string): { colour: string; name?: string } | string {
+  const named = TRACK_COLOURS.find((c) => c.name.toLowerCase() === given.trim().toLowerCase());
+  if (named) return { colour: named.colour, name: named.name.toLowerCase() };
+  const hex = hexColour(given);
+  return hex ? { colour: hex } : `${given} is not a colour: give one of ${TRACK_COLOURS.map((c) => c.name).join(", ")}, or #rrggbb.`;
 }
 
 // --- Select all, select children, clear --------------------------------------------------------------
