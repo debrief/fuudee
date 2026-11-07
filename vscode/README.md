@@ -61,7 +61,16 @@ The integration test:
 5. checks that each run was recorded in the plot's history;
 6. adds, restyles, undoes and deletes annotations, shows the north arrow, moves current time from the Timeline; adds, changes, deletes and undoes a narrative entry, reads a REP file's narrative and a Word narrative (with the types and a platform's track given) into the plot, and checks the entry current time is at is shown beside its track on the map; opens the form for an area drawn on the map and changes an area as the map's handles do; moves BLUE ONE as its handle does, rotates it, moves part of RED ONE, splits it at a time and merges it again (refusing tracks that overlap); shears BLUE ONE as its end does and through **Shear track…** and **Stretch track…** with values given, and opens the shear form; moves a single fix of RED ONE as its ring does and through **Move a fix…** with a position given, opens the form, plots RED ONE by dead reckoning and over the ground again, imports a REP file with each track's mode given, with the choice remembered (said in the import's notes), and asked again; and imports a legacy plot with styled circles and ellipses; shows the sample's sensors under BLUE ONE in the Outline, keeps port for the Towed array's cuts and makes them ambiguous again, each one step, and reads a .dsf file in, its track given; makes a TMA solution of half an hour of the Bow sonar's cuts with Debrief's first guess, checks its residuals in the Bearings view, leaves a cut out of the RMS and splits it into legs, each one step, and undoes them; chooses the Tote's primary and secondaries by command, checks the choice is in the plot's island and no step, moves current time sixty times a second and reports how long the Tote's values took to show (NFR-04).
 
-CI runs it on every pull request and keeps the screenshots as an artifact.
+Each feature is a Mocha suite of its own, run in this order: `smoke`, `time`, `tote`, `tools`, `history`, `annotations`, `narrative`, `sensors`, `tma`, `tma-outline`, `bearings-pop-out`, `outline-toolbar`, `tracks`, `cleaning`, `shear`, `fixes`, `import`, `labels`, `collation`, `exports`, `dpf` and `walkthroughs`. The short `smoke` suite always runs first: the extension activates (its first walkthrough opening once), the tools are listed, serial 1 opens and shares its state. Each suite after it sets up what it needs, most on a fresh serial 1 as the sample builder made it, so a failure is reported by its test's name and the later suites still run; within a suite, the tests after a failed one are skipped, since each builds on the one before. To run some suites only, name them, after the smoke suite:
+
+```bash
+DEBRIEF_IT_ONLY=tma xvfb-run -a npm run test:integration
+DEBRIEF_IT_ONLY=tracks,cleaning,shear xvfb-run -a npm run test:integration
+```
+
+Each test has five minutes, and the whole run 20 (`DEBRIEF_IT_MINUTES` changes it): a run that never finishes fails, naming the last test and screenshot reached. `VSCODE_VERSION` runs it in another VS Code (1.141.0 if not set).
+
+CI runs it on every pull request, in the newest VS Code and the oldest supported side by side, and keeps each one's screenshots as an artifact.
 
 ## Not yet
 

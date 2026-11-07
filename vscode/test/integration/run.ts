@@ -1,10 +1,12 @@
 /**
  * Integration test: real VS Code, the real extension, the real Python tool
  * service, on a demonstration catalogue. Run under a display (xvfb-run on CI);
- * set DEBRIEF_SCREENSHOTS to a folder to keep screenshots of each step.
+ * set DEBRIEF_SCREENSHOTS to a folder to keep screenshots of each step, and
+ * DEBRIEF_IT_ONLY to a suite's name, or a comma list of them, to run only those
+ * (and the smoke suite).
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { downloadAndUnzipVSCode, runTests } from "@vscode/test-electron";
@@ -32,6 +34,9 @@ execFileSync(
   ],
   { stdio: "inherit" },
 );
+// Serial 1 as built, kept aside: a suite that needs it fresh puts it back.
+const pristine = path.join(work, "pristine", "serial-1");
+cpSync(path.join(catalogue, "serial-1"), pristine, { recursive: true });
 
 // A clean, full-size window, so screenshots show Debrief and nothing else.
 const userData = path.join(work, "user-data");
@@ -74,7 +79,10 @@ async function main(): Promise<void> {
       DEBRIEF_CONFIG: configFile,
       DEBRIEF_PYTHON: python,
       DEBRIEF_SCREENSHOTS: screenshots,
+      DEBRIEF_SAMPLE: catalogue,
+      DEBRIEF_PRISTINE: pristine,
       DEBRIEF_IT_MINUTES: process.env.DEBRIEF_IT_MINUTES ?? "",
+      DEBRIEF_IT_ONLY: process.env.DEBRIEF_IT_ONLY ?? "",
     },
   });
 }

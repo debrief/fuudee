@@ -37,5 +37,5 @@ await build({
   platform: "node",
   format: "cjs",
   target: "node20",
-  external: ["vscode", "@vscode/test-electron"],
+  external: ["vscode", "@vscode/test-electron", "mocha"],
 });
