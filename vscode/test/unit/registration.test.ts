@@ -19,6 +19,7 @@ import { FIND_NO_SERVICE, registerExport } from "../../webview/panels/flows/expo
 import { OPEN_PLOT, registerCollation } from "../../webview/panels/flows/collation.js";
 import { registerHistory } from "../../webview/panels/flows/move.js";
 import { registerImportPlot } from "../../webview/panels/flows/importplot.js";
+import { CHOOSE_CONTEXT, OPEN_PLOT as TIME_OPEN_PLOT, registerTime } from "../../webview/panels/flows/time.js";
 import { ONE_PRIMARY, registerTote, TRACKS_TO_ADD, TRACKS_TO_REMOVE } from "../../webview/panels/flows/tote.js";
 
 const vscodeDir = path.resolve(__dirname, "..", "..");
@@ -278,6 +279,26 @@ describe("the shared features' commands", () => {
     expect(await runOf(registerTote, tote, "debrief.tote.add", { ids: ["annotation"] })).toBe(TRACKS_TO_ADD);
     expect(await runOf(registerTote, tote, "debrief.tote.remove")).toBe(TRACKS_TO_REMOVE);
     expect(said).toEqual([ONE_PRIMARY, TRACKS_TO_ADD, TRACKS_TO_REMOVE]);
+  });
+
+  it("save how context tracks are drawn, from the Time view's menu or a choice given; refusing without a plot or a choice", async () => {
+    const calls: Call[] = [];
+    let open = true;
+    const time = bare(calls, { plotOpen: () => open, saveContextTracks: async (c: string) => (calls.push(["save", c]), c === "hidden" ? "Not saved." : undefined) });
+    expect(await runOf(registerTime, time, "debrief.contextTracks.faint")).toBeUndefined();
+    await runOf(registerTime, time, "debrief.setContextTracks", "visible");
+    expect(await runOf(registerTime, time, "debrief.contextTracks.hidden")).toBe("Not saved.");
+    expect(await runOf(registerTime, time, "debrief.setContextTracks", "bright")).toBe(CHOOSE_CONTEXT);
+    open = false;
+    expect(await runOf(registerTime, time, "debrief.contextTracks.visible")).toBe(TIME_OPEN_PLOT);
+    expect(calls).toEqual([
+      ["save", "faint"],
+      ["save", "visible"],
+      ["save", "hidden"],
+      ["message", "warning", "Not saved."],
+      ["message", "warning", CHOOSE_CONTEXT],
+      ["message", "warning", TIME_OPEN_PLOT],
+    ]);
   });
 
   it("import into the catalogue given, else the Catalogues row's, the file named asked nothing", async () => {

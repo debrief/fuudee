@@ -134,6 +134,7 @@ describe("reading a catalogue Python wrote", () => {
 
 import { parseTime } from "../../src/timeinput.js";
 import { describeChanges } from "../../src/format.js";
+import { TIME_COMMANDS } from "../../webview/panels/flows/time.js";
 
 describe("times as an analyst types them (SUB-04)", () => {
   const range = { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" };
@@ -398,7 +399,9 @@ describe("contributed menus", () => {
       expect(definition.title).toBe(`Context tracks: ${choice[0].toUpperCase()}${choice.slice(1)}`);
       expect(definition.toggled).toEqual({ condition: `debrief.contextTracks == ${choice}` });
     }
-    expect(source).toContain('command(`debrief.contextTracks.${choice}`, () => vscode.commands.executeCommand("debrief.setContextTracks", choice))');
+    // Registered, with debrief.setContextTracks, by the shared time registration, which both hosts call (registration.test.ts).
+    expect(Object.values(TIME_COMMANDS)).toEqual(expect.arrayContaining(["debrief.setContextTracks", ...["visible", "faint", "hidden"].map((c) => `debrief.contextTracks.${c}`)]));
+    expect(source).toContain("registerTime(host, {");
   });
 });
 
