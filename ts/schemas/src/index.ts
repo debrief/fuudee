@@ -20,6 +20,7 @@ import type {
   WebviewMessage,
   Delta,
   HistoryHead,
+  ProvRecord,
 } from "./generated/debrief.js";
 import { SCHEMA_VERSION } from "./generated/schemaVersion.js";
 
@@ -128,8 +129,116 @@ function checkVersion(kind: DocumentKind, document: unknown): void {
   if (!SEMVER.test(found)) {
     throw new DocumentValidationError([`schema version "${found}" is not a semantic version`]);
   }
-  // Before 1.0.0 there is no migration guarantee (SUB-13), so only an exact match opens.
+  // Only the current version is read; an older file is first brought to it by the registered
+  // migrations, if any lead there (see migrated). Before 1.0.0 there is no migration guarantee
+  // (SUB-13) and none is registered.
   if (compareVersions(found, SCHEMA_VERSION) !== 0) throw new SchemaVersionError(found);
+}
+
+// --- Migrations between schema versions (SUB-13) --------------------------------------------
+//
+// The same registry as Python's (debrief_schemas.migrations): a file of an older version opens
+// only if a chain of registered migrations leads from its version to the current one, and is
+// refused otherwise, its version named. It starts empty. Migrating happens in memory, on
+// opening: the document given is never changed. Each migration applied to a plot is recorded
+// in its provenance as an activity of kind "migration". TypeScript reads a plot's content
+// without its history (vscode/src/catalogue.ts) and never writes a history step: the step
+// recording a migration is added by Python, when the plot is first saved, and only then.
+
+/** A file's JSON at one version, given its kind, returned at the next. It may change what it is given. */
+export type MigrateFunction = (kind: DocumentKind, document: Record<string, unknown>) => Record<string, unknown>;
+
+/** One step: a file at fromVersion brought to toVersion, and what changed. */
+export interface Migration {
+  readonly fromVersion: string;
+  readonly toVersion: string;
+  readonly migrate: MigrateFunction;
+  readonly note: string;
+}
+
+/** The software agent named in a migration's provenance record. */
+export const MIGRATION_AGENT = "@debrief/schemas";
+
+/** Registered migrations, by the version they start from. Empty: none yet. */
+export const MIGRATIONS = new Map<string, Migration>();
+
+/** Register a step from one version to a later one; returns a function taking it away again. */
+export function registerMigration(
+  fromVersion: string,
+  toVersion: string,
+  migrate: MigrateFunction,
+  note: string,
+): () => void {
+  if (!SEMVER.test(fromVersion) || !SEMVER.test(toVersion)) {
+    throw new Error(`"${fromVersion}" to "${toVersion}": not a semantic version`);
+  }
+  if (compareVersions(toVersion, fromVersion) <= 0) {
+    throw new Error(`a migration goes forward, not from ${fromVersion} to ${toVersion}`);
+  }
+  if (MIGRATIONS.has(fromVersion)) throw new Error(`a migration from ${fromVersion} is already registered`);
+  if (!note.trim()) throw new Error("a migration says what it changed");
+  const migration: Migration = { fromVersion, toVersion, migrate, note };
+  MIGRATIONS.set(fromVersion, migration);
+  return () => {
+    if (MIGRATIONS.get(fromVersion) === migration) MIGRATIONS.delete(fromVersion);
+  };
+}
+
+/** The migrations leading from found to current, in order, or undefined if none do. */
+export function migrationChain(found: string, current: string = SCHEMA_VERSION): Migration[] | undefined {
+  const steps: Migration[] = [];
+  let version = found;
+  while (version !== current) {
+    const step = MIGRATIONS.get(version);
+    if (!step || compareVersions(step.toVersion, current) > 0) return undefined;
+    steps.push(step);
+    version = step.toVersion;
+  }
+  return steps;
+}
+
+/** The provenance record of one migration applied (a ProvRecord). */
+export function migrationRecord(step: Migration, at: string): ProvRecord {
+  return {
+    id: `migration-${step.fromVersion}-to-${step.toVersion}-${at}`,
+    kind: "migration",
+    started_at: at,
+    ended_at: at,
+    agent: { kind: "software_agent", name: MIGRATION_AGENT },
+    notes: [`Data-file schema ${step.fromVersion} to ${step.toVersion}: ${step.note}`],
+  };
+}
+
+function setVersion(kind: DocumentKind, document: Record<string, unknown>, version: string): void {
+  if (kind === "stac_item") (document.properties as Record<string, unknown>)["debrief:schema_version"] = version;
+  else if (kind === "stac_catalog") document["debrief:schema_version"] = version;
+  else document.schema_version = version;
+}
+
+/**
+ * A file of an older schema version brought to the current one by the registered migrations,
+ * or the document as given when it needs none. Refuses an older version no chain leads from,
+ * naming it. The document given is never changed.
+ */
+function migrated(kind: DocumentKind, document: unknown): unknown {
+  const found = recordedVersion(kind, document);
+  if (typeof found !== "string" || !SEMVER.test(found) || compareVersions(found, SCHEMA_VERSION) >= 0) {
+    return document; // checkVersion says what is wrong, if anything
+  }
+  const steps = migrationChain(found);
+  if (!steps) throw new SchemaVersionError(found);
+  let current = structuredClone(document) as Record<string, unknown>;
+  const records: ProvRecord[] = [];
+  for (const step of steps) {
+    current = step.migrate(kind, current);
+    setVersion(kind, current, step.toVersion);
+    records.push(migrationRecord(step, new Date().toISOString()));
+  }
+  if (kind === "plot") {
+    const provenance = Array.isArray(current.provenance) ? current.provenance : [];
+    current.provenance = [...provenance, ...records];
+  }
+  return current;
 }
 
 // discriminator: a union told apart by a member (WebviewMessage, by kind) is checked against the
@@ -147,11 +256,19 @@ function validatorFor(kind: DocumentKind): ValidateFunction {
   return validate;
 }
 
-/** Validate a parsed document. Never returns a partially valid one (SUB-14). */
+/**
+ * Validate a parsed document. Never returns a partially valid one (SUB-14). A file of an older
+ * schema version is migrated first, when registered migrations lead from its version to the
+ * current one, and refused otherwise (SUB-13); the document returned is then a migrated copy.
+ */
 export function validateDocument<K extends DocumentKind>(
   kind: K,
   document: unknown,
 ): DocumentTypes[K] {
+  return checked(kind, migrated(kind, document));
+}
+
+function checked<K extends DocumentKind>(kind: K, document: unknown): DocumentTypes[K] {
   checkVersion(kind, document);
   const validate = validatorFor(kind);
   if (!validate(document)) {
@@ -166,11 +283,12 @@ export function parseDocument<K extends DocumentKind>(kind: K, text: string): Do
   return validateDocument(kind, JSON.parse(text));
 }
 
+/** Serialise a document, validated first. Writing never migrates: only the current version is written. */
 export function serialiseDocument<K extends DocumentKind>(
   kind: K,
   document: DocumentTypes[K],
 ): string {
-  validateDocument(kind, document as unknown);
+  checked(kind, document as unknown);
   return JSON.stringify(document, null, 2) + "\n";
 }
 
