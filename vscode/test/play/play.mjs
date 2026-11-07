@@ -1146,6 +1146,9 @@ try {
   if (screenshots && page) await page.screenshot({ path: path.join(screenshots, `play-failed${part ? `-${part}` : ""}.png`) });
   const status = await page?.locator("#status").innerText({ timeout: 1000 }).catch(() => "-");
   console.error("status:", status, "| page:", page?.url());
+  // What the pages reported before the failure (refused messages, page errors): a timeout says
+  // only what it waited for, and a message a page refused is often why it never came.
+  if (errors.length) console.error(`collected before the failure (${errors.length}):\n  ${errors.join("\n  ")}`);
   throw error;
 } finally {
   await browser.close();
