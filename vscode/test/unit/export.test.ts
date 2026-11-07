@@ -110,6 +110,16 @@ describe("a plot shown read-only (SUB-25; expert panel, 16 Oct 2026)", () => {
     expect(guardRequest("debrief/tote", { ...shown, time: "t" }, shown)).toEqual({ params: { ...shown, time: "t" } });
     expect(guardRequest("debrief/open", { ...shown }, shown)).toEqual({ params: { ...shown, read_only: true } });
   });
+  it("judges a method run through tools/call as the method itself", () => {
+    for (const method of vectors.changes_plot.filter((m) => m !== "tools/call")) {
+      expect(guardRequest("tools/call", { name: method, arguments: { ...shown } }, shown)).toEqual({ refused: READ_ONLY });
+    }
+    const tote = { name: "debrief/tote", arguments: { ...shown, time: "t" } };
+    expect(guardRequest("tools/call", tote, shown)).toEqual({ params: tote });
+    expect(guardRequest("tools/call", { name: "debrief/open", arguments: { ...shown } }, shown)).toEqual({ params: { name: "debrief/open", arguments: { ...shown, read_only: true } } });
+    const elsewhere = { name: "debrief/set_colour", arguments: { store: "exercise", item: "other" } };
+    expect(guardRequest("tools/call", elsewhere, shown)).toEqual({ params: elsewhere });
+  });
   it("is refused in the tool service's client, before anything is sent", async () => {
     const service = Object.create(ToolService.prototype) as unknown as { shownReadOnly: ToolService["shownReadOnly"]; request: (method: string, params: object) => Promise<unknown> };
     service.shownReadOnly = () => shown;
