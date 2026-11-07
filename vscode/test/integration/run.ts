@@ -3,7 +3,8 @@
  * service, on a demonstration catalogue. Run under a display (xvfb-run on CI);
  * set DEBRIEF_SCREENSHOTS to a folder to keep screenshots of each step, and
  * DEBRIEF_IT_ONLY to a suite's name, or a comma list of them, to run only those
- * (and the smoke suite).
+ * (and the smoke suite). Set DEBRIEF_PARITY_OUT to a folder to keep the cross-host parity
+ * check's result there (test/parity).
  */
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
       DEBRIEF_PRISTINE: pristine,
       DEBRIEF_IT_MINUTES: process.env.DEBRIEF_IT_MINUTES ?? "",
       DEBRIEF_IT_ONLY: process.env.DEBRIEF_IT_ONLY ?? "",
+      DEBRIEF_PARITY_OUT: process.env.DEBRIEF_PARITY_OUT ? path.resolve(process.env.DEBRIEF_PARITY_OUT) : "",
     },
   });
 }

@@ -47,7 +47,7 @@ import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
-import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
+import { colourGiven, hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
 import { featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choice, type FlowHost, type ManyQuestion, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Question, type RememberQuestion, type SaveSpec, type SaveTarget, type Severity, type TextQuestion } from "../webview/panels/flows/host.js";
 import { confirmNewerSchema as askNewerSchema, runTool as runToolFlow, type Ran } from "../webview/panels/flows/runtool.js";
@@ -1711,13 +1711,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // A node from the outline, a list of ids (the map's "Show all"), or else the selection.
   type Target = { feature?: { id: string }; ids?: string[] };
   const targets = (node?: Target) => node?.ids ?? (node?.feature ? [node.feature.id] : session.selection);
-  /** A colour given by name from the palette ("Red") or as hex ("#rrggbb"), or why it is not one. */
-  const colourGiven = (given: string): { colour: string; name?: string } | string => {
-    const named = TRACK_COLOURS.find((c) => c.name.toLowerCase() === given.trim().toLowerCase());
-    if (named) return { colour: named.colour, name: named.name.toLowerCase() };
-    const hex = hexColour(given);
-    return hex ? { colour: hex } : `${given} is not a colour: give one of ${TRACK_COLOURS.map((c) => c.name).join(", ")}, or #rrggbb.`;
-  };
   /**
    * The palette in a QuickPick, the colour the selection shares marked, and a custom colour typed
    * as hex (product owner, 28 Oct 2026). Undefined if the analyst chose none.
@@ -2012,7 +2005,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   /** The rows a command acts on: the keys given (agents, tests), those it was run on from the Outline's menu, or the Outline's selection. */
   const rowsOf = (target?: unknown, nodes?: unknown): string[] | undefined => {
     if (Array.isArray(target) && target.every((k) => typeof k === "string")) return target as string[];
-    const node = target && typeof target === "object" && "kind" in target ? (target as OutlineNode) : undefined;
+    // A Target's keys, as the playground's menus give them (flows/register.ts).
+    const ids = target && typeof target === "object" ? (target as Target).ids : undefined;
+    if (Array.isArray(ids)) return ids;
+    const node =target && typeof target === "object" && "kind" in target ? (target as OutlineNode) : undefined;
     if (!node) return undefined;
     const all = Array.isArray(nodes) ? (nodes as OutlineNode[]) : [];
     return keysOf(all.includes(node) ? all : [node]);

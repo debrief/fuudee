@@ -10,6 +10,7 @@ import { annotations } from "./annotations.js";
 import { bearings } from "./bearings.js";
 import { collation } from "./collation.js";
 import { known, only, reached } from "./fixture.js";
+import { parity } from "./parity.js";
 import { smoke } from "./smoke.js";
 import { time } from "./time.js";
 import { tools } from "./tools.js";
@@ -26,6 +27,7 @@ function register(): void {
   tracks(); // tracks, cleaning, shear, fixes, import, labels
   collation(); // collation, exports, dpf
   walkthroughs(); // walkthroughs
+  parity(); // parity
 }
 
 /**

@@ -113,12 +113,20 @@ jobs:
         env:
           VSCODE_VERSION: ${{ matrix.vscode }}
           DEBRIEF_SCREENSHOTS: ${{ github.workspace }}/screenshots
+          DEBRIEF_PARITY_OUT: ${{ github.workspace }}/parity
         run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:integration
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: vscode-screenshots-${{ matrix.vscode }}
           path: screenshots
+          if-no-files-found: ignore
+      # The cross-host parity check's result in this VS Code, for the parity job.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-vscode-${{ matrix.vscode }}
+          path: parity
           if-no-files-found: ignore
 
   site:
@@ -136,14 +144,15 @@ jobs:
     # The blog's playable demos: Debrief's webviews and Python, in the browser
     # (CON-09). Builds the playground and the site, then plays every demo in
     # Chromium as a reader would, including one started from a blog post. The
-    # demos play in six parts side by side, each from a fresh page (sensor bearings
-    # and TMA are part 6, out of part 3: review of 7 Nov 2026, finding 5).
+    # demos play in seven parts side by side, each from a fresh page (sensor bearings
+    # and TMA are part 6, out of part 3: review of 7 Nov 2026, finding 5; part 7 is
+    # the playground's half of the cross-host parity check).
     name: playground (part ${{ matrix.part }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        part: [1, 2, 3, 4, 5, 6]
+        part: [1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -178,6 +187,7 @@ jobs:
           DEBRIEF_SCREENSHOTS: ${{ github.workspace }}/playground-screenshots
           # On pull requests, only the page as it failed: a screenshot of every step costs minutes.
           DEBRIEF_SCREENSHOTS_ON: ${{ github.event_name == 'pull_request' && 'failure' || 'every-step' }}
+          DEBRIEF_PARITY_OUT: ${{ github.workspace }}/parity
         run: mkdir -p "$DEBRIEF_SCREENSHOTS" && npm run test:play
       - uses: actions/upload-artifact@v4
         if: always()
@@ -185,15 +195,49 @@ jobs:
           name: playground-screenshots-${{ matrix.part }}
           path: playground-screenshots
           if-no-files-found: ignore
+      # The cross-host parity check's result in the playground (part 7), for the parity job.
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.part == 7
+        with:
+          name: parity-playground
+          path: parity
+          if-no-files-found: ignore
 
   playground:
-    # The check pull requests wait on: every part of the playground played (all six
+    # The check pull requests wait on: every part of the playground played (all seven
     # matrix entries of playground-part; any one failed, cancelled or skipped fails it).
     needs: playground-part
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: test "${{ needs.playground-part.result }}" = success
+
+  parity:
+    # The cross-host parity check (vscode/test/parity): the same shared commands run in
+    # VS Code (each version's tracer) and in the playground, from the same plot; the
+    # plot each left, projected, must be the same. Runs whatever the jobs before it did,
+    # so a host whose run failed before writing its result fails this too.
+    needs: [vscode, playground-part]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: parity-*
+          path: parity
+      - name: Compare the plot each host left
+        working-directory: vscode
+        run: |
+          results=()
+          for version in 1.141.0 1.95.0; do results+=("../parity/parity-vscode-$version/vscode.json"); done
+          for file in ../parity/parity-playground/playground.json "${results[@]}"; do
+            test -f "$file" || { echo "::error::$file is missing: that host's run did not finish the parity check"; exit 1; }
+          done
+          node test/parity/compare.mjs ../parity/parity-playground/playground.json "${results[@]}"
 
   pyodide:
     # Python tools must run in the browser for the web build (CON-09). Runs the

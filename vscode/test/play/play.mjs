@@ -30,6 +30,7 @@ import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
 import { mapPlaced, playDock, resizeTo, showPanel } from "./dock.mjs";
 import { playTimePanel, timePanelElsewhere } from "./timepanel.mjs";
+import { playParity } from "./parity.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -55,11 +56,12 @@ const browser = await chromium.launch({
   args: proxy ? [`--proxy-server=https=${new URL(proxy).host}`, "--proxy-bypass-list=<-loopback>"] : [],
 });
 const errors = [];
-// The suite plays in six parts, each on a fresh page with Python started anew, so CI can play
-// them side by side; DEBRIEF_PLAY_PART picks one (1 to 6), and without it all six play in turn.
+// The suite plays in seven parts, each on a fresh page with Python started anew, so CI can play
+// them side by side; DEBRIEF_PLAY_PART picks one (1 to 7), and without it all seven play in turn.
 // Sensor bearings and TMA are part six of their own, out of part three, the longest and flakiest
-// (review of 7 Nov 2026, finding 5).
-const PARTS = 6;
+// (review of 7 Nov 2026, finding 5); part seven is the playground's half of the cross-host parity
+// check (test/parity).
+const PARTS = 7;
 const part = process.env.DEBRIEF_PLAY_PART ? Number(process.env.DEBRIEF_PLAY_PART) : undefined;
 assert.ok(part === undefined || (Number.isInteger(part) && part >= 1 && part <= PARTS), `DEBRIEF_PLAY_PART is 1 to ${PARTS}, not ${process.env.DEBRIEF_PLAY_PART}`);
 const plays = (n) => part === undefined || part === n;
@@ -88,6 +90,7 @@ try {
   if (plays(4)) await playPartFour();
   if (plays(5)) await playPartFive();
   if (plays(6)) await playPartSix();
+  if (plays(7)) await playPartSeven();
   assert.deepEqual(errors, []);
   const played = [
     "map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing",
@@ -96,6 +99,7 @@ try {
     `the VS Code views, CDN blocked, the docked layout${site ? ", from a blog post" : ""}, the Timeline at 60,000 entries`,
     `the walkthroughs and the onboarding speed run${site ? ", and the web demo" : ""}`,
     "sensor bearings, TMA solutions, Select bearings, Bearings popped out",
+    "the cross-host parity check's sequence",
   ];
   console.log(`Playground played${part ? ` (part ${part} of ${PARTS})` : ""}: ${played.filter((_, i) => plays(i + 1)).join("; ")}.`);
 
@@ -415,7 +419,15 @@ try {
     await playOutlineBar(page, shot);
   }
 
-  /** Sensors, TMA, collation, export, import, narrow, the geodesic demo. */
+  /** The cross-host parity check's sequence (test/parity), on serial 1 as the page opens it. */
+  async function playPartSeven() {
+    await freshPage();
+    await page.goto(`${BASE}/index.html`);
+    await ready();
+    await playParity(page);
+    await shot("play-parity");
+  }
+
   /** Sensor bearings and TMA, a part of their own (review of 7 Nov 2026, finding 5). */
   async function playPartSix() {
     await freshStart();
