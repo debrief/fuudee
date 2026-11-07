@@ -86,6 +86,7 @@ import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { registerTote } from "../webview/panels/flows/tote.js";
 import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { registerArrayOffset } from "../webview/panels/flows/arrayoffset.js";
+import { registerTime } from "../webview/panels/flows/time.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { importPlot, registerImportPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -305,7 +306,7 @@ function renderTimeActions(): void {
         groupStart: i > 0 && e.group !== entries[i - 1].group,
         ...(e.checked !== undefined && { checked: e.checked }),
         ...(!e.enabled && { disabled: e.reason }),
-        act: () => void saveView({ context_tracks: e.id.replace("debrief.contextTracks.", "") as ContextTracks }),
+        act: () => void runCommand(e.id),
       })),
       { label: "Time: more actions", x: at.left, y: at.bottom, from: button },
     );
@@ -1690,7 +1691,7 @@ let timelineIds = new Map<string, string>();
 const fromTimeline = receiveTimeline(
   {
     ready: () => undefined,
-    chosen: (id) => goToTime(id),
+    chosen: (id) => void runCommand("debrief.goToTime", id),
     save: (spec, id) => void saveNarrative(spec, id),
     remove: (id) => void narrate({ kind: "delete", features: [id] }).then((outcome) => outcome.error && toast(outcome.error, "warning")),
     // The map's narrative box: the plot's choice, in its island like the Tote's lines; left out when on.
@@ -1701,6 +1702,25 @@ const fromTimeline = receiveTimeline(
   checkMessage,
   refused,
 );
+// Time and the narrative (webview/panels/flows/time.ts): the Timeline's own form and the playground's view.
+registerTime(playHost, {
+  message: flowHost.message,
+  plotOpen: () => !!opened,
+  saveContextTracks: async (choice) => void (await saveView({ context_tracks: choice as ContextTracks })),
+  goToTime: (id?: unknown) => (typeof id === "string" ? goToTime(id) : undefined),
+  setNarrativeOnMap: (on?: unknown) => saveView({ narrative_on_map: on !== false ? undefined : false }),
+  addNarrative: (spec?: NarrativeSpec) => (spec && typeof spec === "object" && "text" in spec ? saveNarrative(spec) : timelineControl.openForm()),
+  editNarrative: (id?: unknown, changes?: Partial<NarrativeSpec>) => {
+    if (typeof id !== "string") return undefined;
+    if (!changes) return timelineControl.openForm(id);
+    return narrate({ kind: "edit", feature: id, entry: changes }).then((outcome) => outcome.error && toast(outcome.error, "warning"));
+  },
+  deleteNarrative: (id?: unknown) => {
+    const ids = Array.isArray(id) ? id : typeof id === "string" ? [id] : [];
+    if (!ids.length) return undefined;
+    return narrate({ kind: "delete", features: ids }).then((outcome) => outcome.error && toast(outcome.error, "warning"));
+  },
+});
 const timelineControl = new TimelineControl(
   $("timeline"),
   timelineEvents(local(fromTimeline)),

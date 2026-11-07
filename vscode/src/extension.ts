@@ -60,6 +60,7 @@ import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { registerArrayOffset } from "../webview/panels/flows/arrayoffset.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
+import { registerTime } from "../webview/panels/flows/time.js";
 import { addPlotFile as addPlotFileFlow, registerImportPlot, type ImportHost } from "../webview/panels/flows/importplot.js";
 import { registerNarrativeImport } from "../webview/panels/flows/narrative.js";
 import { registerSensorImport } from "../webview/panels/flows/sensor.js";
@@ -2555,7 +2556,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   // The Timeline: choosing an entry moves current time to it. Outside the window shown, the
   // window widens or moves to take it in, shown but never saved, as for a tool's time (CAP-28).
-  command("debrief.goToTime", (id?: string) => {
+  const goToTimeCommand = (id?: string) => {
     const entry = timeline.entries.find((e) => e.id === id);
     const range = session.time?.range;
     if (!entry || !range) return report("Choose an entry in the Timeline.");
@@ -2566,34 +2567,34 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     applyToolState({ time }, "timeline", false);
     tickHere("timelineChosen");
     return undefined;
-  });
+  };
   // The plot's Timeline for agents and tests: every entry, and the one current time is at
   // among them all. The reader's filter is their own (decision, product owner, 15 Oct
   // 2026), so it never changes this answer: the row the view marks is the last the reader
   // has listed at or before current time, which is this one unless it is filtered out.
   command("debrief.timelineEntries", () => ({ entries: timeline.entries.map((e) => e.id), current: timeline.currentId }));
   // The map's narrative box off or on, for agents and tests, as the Timeline's box does: view state, never a step.
-  command("debrief.setNarrativeOnMap", async (on?: boolean) => {
+  const setNarrativeOnMapCommand = async (on?: boolean) => {
     if (!session.current) return report("Open a plot first.");
     return report(await saveNarrativeOnMap(on !== false).then(resync));
-  });
+  };
   // Narrative entries (CAP-20): with an entry, added at once (agents, macros, tests); without, the Timeline's form.
-  command("debrief.addNarrative", async (spec?: NarrativeSpec) => {
+  const addNarrativeCommand = async (spec?: NarrativeSpec) => {
     if (!session.current) return report("Open a plot first.");
     if (!spec) return timeline.openForm();
     return narrate({ kind: "add", entry: spec }).then((done) => (report(done.problem), done));
-  });
-  command("debrief.editNarrative", async (id?: string, changes?: Partial<NarrativeSpec>) => {
+  };
+  const editNarrativeCommand = async (id?: string, changes?: Partial<NarrativeSpec>) => {
     const entry = timeline.entries.find((e) => e.id === id && e.kind === "narrative");
     if (!entry) return report("Choose a narrative entry in the Timeline.");
     if (!changes) return timeline.openForm(entry.id);
     return narrate({ kind: "edit", feature: entry.id, entry: changes }).then((done) => (report(done.problem), done));
-  });
-  command("debrief.deleteNarrative", async (id?: string | string[]) => {
+  };
+  const deleteNarrativeCommand = async (id?: string | string[]) => {
     const ids = (Array.isArray(id) ? id : id ? [id] : []).filter((i) => timeline.entries.some((e) => e.id === i && e.kind === "narrative"));
     if (!ids.length) return report("Choose a narrative entry in the Timeline.");
     return narrate({ kind: "delete", features: ids }).then((done) => (report(done.problem), done));
-  });
+  };
   // Sensors (CAP-22). Keeping a side of ambiguous cuts: for the cut at the current time,
   // those in the time window, those selected, or all of a sensor's cuts; port and
   // starboard for every cut, as legacy offered them (product owner, 24 Oct 2026). From the
@@ -2942,16 +2943,19 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return chooseTote(() => choice);
   });
 
-  // How tracks outside the window are drawn, for agents, keyboard macros and tests: saved as from the time controller.
-  command("debrief.setContextTracks", async (contextTracks?: ContextTracksEnum) => {
-    if (!session.current) return report("Open a plot first.");
-    if (!contextTracks || !["visible", "faint", "hidden"].includes(contextTracks)) return report("Choose visible, faint or hidden.");
-    return report(resync(await saveContext(contextTracks)));
+  // Time and the narrative: the shared registration (webview/panels/flows/time.ts). How tracks
+  // outside the window are drawn (agents, keyboard macros, tests, and the Time view's title menu) is
+  // saved as from the time controller.
+  registerTime(host, {
+    message: flowHost.message,
+    plotOpen: () => !!session.current,
+    saveContextTracks: async (contextTracks) => resync(await saveContext(contextTracks)),
+    goToTime: goToTimeCommand,
+    setNarrativeOnMap: setNarrativeOnMapCommand,
+    addNarrative: addNarrativeCommand,
+    editNarrative: editNarrativeCommand,
+    deleteNarrative: deleteNarrativeCommand,
   });
-  // The Time view's title menu: the same choice, the plot's current one checked.
-  for (const choice of ["visible", "faint", "hidden"] as const) {
-    command(`debrief.contextTracks.${choice}`, () => vscode.commands.executeCommand("debrief.setContextTracks", choice));
-  }
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));
   // Shared state for agents and keyboard users (SUB-27).
   command("debrief.getState", () => session.state());
