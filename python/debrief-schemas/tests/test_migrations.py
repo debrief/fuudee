@@ -175,6 +175,37 @@ def test_saving_a_migrated_plot_records_the_migration_in_one_step() -> None:
     assert unrecorded_migration(reopened) == []
 
 
+@pytest.mark.parametrize(
+    "copied",
+    [
+        lambda p: p.model_copy(),
+        lambda p: p.model_copy(deep=True),
+        copy.deepcopy,
+        copy.copy,
+    ],
+    ids=["model_copy", "model_copy-deep", "deepcopy", "copy"],
+)
+def test_a_copy_made_after_opening_records_the_migration_when_saved(copied) -> None:
+    migrations.register_migration(OLDER, SCHEMA_VERSION, lambda _k, d: d, "nothing changed")
+    older = _older_with_history()
+    steps_before = len(older["history"]["steps"])
+
+    plot = load_plot(json.dumps(older))
+    duplicate = copied(plot)
+
+    assert [r.kind for r in unrecorded_migration(duplicate)] == ["migration"]
+    raw = json.loads(dump_document(DocumentKind.PLOT, duplicate))
+    added = raw["history"]["steps"][steps_before:]
+    assert [[r["kind"] for r in s["records"]] for s in added] == [["migration"]]
+    assert chain_problem(raw["history"]["steps"], raw["history"]["head_hash"]) is None
+    # The pending migration is state on the model, never written to the file.
+    assert "unrecorded" not in json.dumps(raw)
+    assert unrecorded_migration(duplicate) == []
+    # Saving the copy leaves the plot it was copied from to record its own.
+    assert len(plot.history.steps) == steps_before
+    assert [r.kind for r in unrecorded_migration(plot)] == ["migration"]
+
+
 def test_older_stac_item_with_a_migration_opens_at_the_current_version() -> None:
     migrations.register_migration(OLDER, SCHEMA_VERSION, lambda _k, d: d, "nothing changed")
     item = _fixture("stac_item", "serial-item")

@@ -26,7 +26,6 @@ import hashlib
 import json
 import math
 import re
-import weakref
 from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -466,25 +465,30 @@ def _migrated(kind: DocumentKind, document: Any) -> _Migrated:
     return _Migrated(migrated, as_read=document, records=records)
 
 
-# Plots migrated on opening whose history does not record the migration yet, by the
-# id of the model loaded: the records the step will hold, added when the plot is
-# first written. Held weakly, so a plot dropped unsaved leaves nothing behind.
-_UNRECORDED: dict[int, tuple[weakref.ref[BaseModel], list[dict[str, Any]]]] = {}
+# A plot migrated on opening whose history does not record the migration yet holds
+# the records the step will hold, added when it is first written, as private state
+# on the model itself (pydantic's __pydantic_private__). Private state is never
+# serialised, and it goes with the plot: model_copy, copy.deepcopy and pickling all
+# carry it, so a copy made after opening records the migration when it is written.
+_UNRECORDED = "_debrief_unrecorded_migration"
+
+
+def _private(plot: BaseModel) -> dict[str, Any]:
+    return getattr(plot, "__pydantic_private__", None) or {}
 
 
 def _mark_unrecorded(plot: BaseModel, records: list[dict[str, Any]]) -> None:
-    key = id(plot)
+    object.__setattr__(plot, "__pydantic_private__", {**_private(plot), _UNRECORDED: records})
 
-    def gone(ref: weakref.ref[BaseModel]) -> None:
-        if key in _UNRECORDED and _UNRECORDED[key][0] is ref:
-            del _UNRECORDED[key]
 
-    _UNRECORDED[key] = (weakref.ref(plot, gone), records)
+def _clear_unrecorded(plot: BaseModel) -> None:
+    private = {k: v for k, v in _private(plot).items() if k != _UNRECORDED}
+    object.__setattr__(plot, "__pydantic_private__", private or None)
 
 
 def _unrecorded(plot: BaseModel) -> list[dict[str, Any]] | None:
-    entry = _UNRECORDED.get(id(plot))
-    return entry[1] if entry is not None and entry[0]() is plot else None
+    records = _private(plot).get(_UNRECORDED)
+    return records if isinstance(records, list) else None
 
 
 def unrecorded_migration(plot: BaseModel) -> list[g.ProvRecord]:
@@ -1643,7 +1647,7 @@ def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
         text = dump_json(document)
         written = _validate(kind, document, text, build=True)
         model.history = written.history  # type: ignore[attr-defined]
-        _UNRECORDED.pop(id(model), None)
+        _clear_unrecorded(model)
         return text
     text = dump_json(document)
     # The rules run on the model given when it is of the kind's own class.
