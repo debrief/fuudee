@@ -1,56 +1,47 @@
-/** Non-spatial results in a temporary panel (TL-13). */
+/** Non-spatial results in a temporary panel (TL-13), kept while its tab is hidden (webviewhost.ts). */
 import * as vscode from "vscode";
 import type { ToolDeclaration, ToolResult } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { receiveResults } from "../../webview/dispatch.js";
-import { webviewHtml } from "./html.js";
+import { WebviewHost } from "./webviewhost.js";
 
 export class ResultsPanel {
-  private panel?: vscode.WebviewPanel;
-  private ready = false;
+  private readonly host: WebviewHost<vscode.WebviewPanel>;
   private pending?: { tool: ToolDeclaration; result: ToolResult };
 
-  constructor(private readonly extension: vscode.Uri) {}
+  constructor(extension: vscode.Uri) {
+    // The shared receiver (webview/dispatch.ts, PAR-13): a message Debrief's page never sends is ignored.
+    const receive = receiveResults(
+      {
+        ready: () => {
+          this.host.readied();
+          this.send();
+        },
+      },
+      checkMessage,
+      () => undefined,
+    );
+    this.host = new WebviewHost(extension, { bundle: "results", receive: (raw) => void receive(raw) });
+  }
 
   show(tool: ToolDeclaration, result: ToolResult): void {
-    const title = tool.title;
+    const title = `Results: ${tool.title}`;
     this.pending = { tool, result };
-    if (!this.panel) {
-      this.panel = vscode.window.createWebviewPanel("debrief.results", `Results: ${title}`, vscode.ViewColumn.Beside, {
-        enableScripts: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
-      });
-      this.ready = false;
-      this.panel.webview.html = webviewHtml(this.panel.webview, this.extension, "results", "Results");
-      this.panel.onDidDispose(() => (this.panel = undefined));
-      // The shared receiver (webview/dispatch.ts, PAR-13): a message Debrief's page never sends is ignored.
-      const receive = receiveResults(
-        {
-          ready: () => {
-            this.ready = true;
-            this.send();
-          },
-        },
-        checkMessage,
-        () => undefined,
-      );
-      this.panel.webview.onDidReceiveMessage((raw) => void receive(raw));
-    } else {
-      this.panel.reveal(undefined, true);
-    }
-    this.panel.title = `Results: ${title}`;
+    const open = this.host.target;
+    // The page's own title is "Results"; the tab's names the tool.
+    const panel = open ?? this.host.open("debrief.results", "Results", vscode.ViewColumn.Beside);
+    if (open) open.reveal(undefined, true);
+    panel.title = title;
     this.send();
   }
 
   private send(): void {
-    if (!this.panel || !this.ready || !this.pending) return;
-    void this.panel.webview.postMessage(
-      checkMessage({
-        kind: "show_results",
-        tool: this.pending.tool,
-        result_title: this.pending.tool.title,
-        result: this.pending.result,
-      }),
-    );
+    if (!this.pending) return;
+    this.host.post({
+      kind: "show_results",
+      tool: this.pending.tool,
+      result_title: this.pending.tool.title,
+      result: this.pending.result,
+    });
   }
 }

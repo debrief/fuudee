@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import type { AnnotationSpec, TimeRange } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { receiveAnnotation } from "../../webview/dispatch.js";
-import { webviewHtml } from "./html.js";
+import { WebviewHost } from "./webviewhost.js";
 
 export interface AnnotationActions {
   /** Add the annotation, or change featureId to it. Returns a problem to show, if any. */
@@ -26,69 +26,63 @@ interface Showing {
 }
 
 export class AnnotationPanel {
-  private panel?: vscode.WebviewPanel;
-  private ready = false;
+  private readonly host: WebviewHost<vscode.WebviewPanel>;
   private showing?: Showing;
   private saved = false;
 
   constructor(
-    private readonly extension: vscode.Uri,
+    extension: vscode.Uri,
     private readonly actions: AnnotationActions,
     private readonly log: (line: string) => void,
-  ) {}
+  ) {
+    this.host = new WebviewHost(extension, {
+      bundle: "annotation",
+      receive: (raw) => void this.receive(raw),
+      disposed: () => this.actions.closed?.(this.saved),
+    });
+  }
 
   /** The annotation whose form is open (or "" while adding one), for tests and agents. */
   get open(): string | undefined {
-    return this.panel ? (this.showing?.featureId ?? "") : undefined;
+    return this.host.target ? (this.showing?.featureId ?? "") : undefined;
   }
 
   /** Open the form: to change featureId, described by spec; or, without featureId, to add one (spec giving its start). */
   show(showing: Showing): void {
     this.showing = showing;
     const title = showing.featureId ? `Annotation: ${showing.spec?.name ?? ""}` : "Add annotation";
-    if (!this.panel) {
-      this.panel = vscode.window.createWebviewPanel("debrief.annotation", title, vscode.ViewColumn.Beside, {
-        enableScripts: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
-      });
-      this.ready = false;
-      this.panel.webview.html = webviewHtml(this.panel.webview, this.extension, "annotation", title);
+    let panel = this.host.target;
+    if (!panel) {
+      panel = this.host.open("debrief.annotation", title, vscode.ViewColumn.Beside);
       this.saved = false;
-      this.panel.onDidDispose(() => {
-        this.panel = undefined;
-        this.actions.closed?.(this.saved);
-      });
-      this.panel.webview.onDidReceiveMessage((raw) => void this.receive(raw));
     } else {
-      this.panel.reveal(undefined, false);
+      panel.reveal(undefined, false);
     }
-    this.panel.title = title;
+    panel.title = title;
     this.send();
   }
 
   close(): void {
-    this.panel?.dispose();
+    this.host.target?.dispose();
   }
 
   private send(): void {
-    if (!this.panel || !this.ready || !this.showing) return;
+    if (!this.showing) return;
     const { spec, featureId, timeRange, currentTime } = this.showing;
-    void this.panel.webview.postMessage(
-      checkMessage({
-        kind: "show_annotation_form",
-        ...(spec && { annotation: spec }),
-        ...(featureId && { feature_id: featureId }),
-        ...(timeRange && { time_range: timeRange }),
-        ...(currentTime && { current_time: currentTime }),
-      }),
-    );
+    this.host.post({
+      kind: "show_annotation_form",
+      ...(spec && { annotation: spec }),
+      ...(featureId && { feature_id: featureId }),
+      ...(timeRange && { time_range: timeRange }),
+      ...(currentTime && { current_time: currentTime }),
+    });
   }
 
   /** The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here. */
   private readonly receive = receiveAnnotation(
     {
       ready: () => {
-        this.ready = true;
+        this.host.readied();
         this.send();
       },
       cancel: () => this.close(),
@@ -103,9 +97,9 @@ export class AnnotationPanel {
   private async saveOrRemove(id: string | undefined, act: () => Promise<string | undefined>): Promise<void> {
     // The form may have been showing another annotation when the message was sent.
     if (id !== this.showing?.featureId) return;
-    void this.panel?.webview.postMessage(checkMessage({ kind: "form_busy", message: "Saving…" }));
+    this.host.post({ kind: "form_busy", message: "Saving…" });
     const problem = await act();
-    if (problem) void this.panel?.webview.postMessage(checkMessage({ kind: "form_error", message: problem }));
+    if (problem) this.host.post({ kind: "form_error", message: problem });
     else {
       this.saved = true;
       this.close();

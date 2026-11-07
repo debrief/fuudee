@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, LineStringGeometry, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
 import type { ListedCut } from "../webview/tma.js";
 import { guardRequest, type ShownReadOnly } from "./figures.js";
 import type { ToolOutcome } from "./diagnostics.js";
@@ -626,7 +626,7 @@ export class ToolService {
     feature: string,
     window: number,
     period?: { start: string; end: string },
-  ): Promise<Opened & SmoothingSummary & { preview: { type: "LineString"; coordinates: number[][] } }> {
+  ): Promise<Opened & SmoothingSummary & { preview: LineStringGeometry }> {
     return this.request("debrief/preview_smoothing", { store, item, base, feature, window, ...(period && { period }) });
   }
 

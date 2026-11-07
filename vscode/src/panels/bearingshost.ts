@@ -22,6 +22,7 @@ import { startup } from "../startup.js";
 import { BEARINGS_VIEW, type BearingsSurface, type BearingsView } from "./bearingsview.js";
 import { placeholderHtml } from "./bearingsplaceholder.js";
 import { webviewHtml } from "./html.js";
+import { createPanel, resourceRoots } from "./webviewhost.js";
 
 /** The popped-out Bearings' editor (WebviewPanel) type. */
 export const BEARINGS_WINDOW = "debrief.bearingsWindow";
@@ -100,13 +101,13 @@ export class BearingsHost implements vscode.WebviewViewProvider, vscode.WebviewP
   private dressView(): void {
     const view = this.view;
     if (!view) return;
-    const root = vscode.Uri.joinPath(this.extension, "dist", "webview");
+    const root = resourceRoots(this.extension);
     if (this.panel) {
       // No script: the buttons are links to the commands, and only those two.
-      view.webview.options = { enableScripts: false, enableCommandUris: ["debrief.bringBackBearings", "debrief.focusBearingsWindow"], localResourceRoots: [root] };
+      view.webview.options = { enableScripts: false, enableCommandUris: ["debrief.bringBackBearings", "debrief.focusBearingsWindow"], localResourceRoots: root };
       view.webview.html = placeholderHtml(this.popped?.where !== "tab");
     } else {
-      view.webview.options = { enableScripts: true, localResourceRoots: [root] };
+      view.webview.options = { enableScripts: true, localResourceRoots: root };
       view.webview.html = this.page(view.webview);
     }
   }
@@ -128,12 +129,7 @@ export class BearingsHost implements vscode.WebviewViewProvider, vscode.WebviewP
       this.panel.reveal(undefined, false);
       return this.popped ?? { where: "tab" };
     }
-    const panel = vscode.window.createWebviewPanel(
-      BEARINGS_WINDOW,
-      "Bearings",
-      { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
-      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")] },
-    );
+    const panel = createPanel(BEARINGS_WINDOW, "Bearings", { viewColumn: vscode.ViewColumn.Active, preserveFocus: false }, this.extension);
     this.adopt(panel);
     const popped = await this.intoWindow(panel);
     this.popped = popped;
