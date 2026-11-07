@@ -56,6 +56,7 @@ from debrief_stac.figures import (
     parse_figure_id,
     prepare_export,
 )
+from debrief_tools.rpc import INVALID_PARAMS, RpcError, agent_ref
 
 if TYPE_CHECKING:
     from debrief_tools.service import ToolService
@@ -129,8 +130,6 @@ class Bridge:
 
 
 def handle(service: ToolService, method: str, params: dict[str, Any]) -> dict[str, Any]:
-    from debrief_tools.service import INVALID_PARAMS, RpcError
-
     try:
         if method == "debrief/figure_id":
             return _figure_id(service, params)
@@ -156,12 +155,10 @@ def handle(service: ToolService, method: str, params: dict[str, Any]) -> dict[st
 
 
 def _plot(service: ToolService, params: dict[str, Any]) -> tuple[models.KnownStore, Catalogue, str]:
-    from debrief_tools.service import INVALID_PARAMS, RpcError
-
     item = params.get("item")
     if not isinstance(item, str):
         raise RpcError(INVALID_PARAMS, "this needs a store and an item")
-    store = service._store(params.get("store"), writing=False)
+    store = service.store(params.get("store"), writing=False)
     catalogue = Catalogue.open(Path(store.location))
     if item not in catalogue.item_ids():
         raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.")
@@ -190,8 +187,6 @@ def _stamp_and_log(service: ToolService, params: dict[str, Any]) -> dict[str, An
     preset, theme, width, height, viewport, time and tote, and agent.
     {id, short, revision, image, recorded, logged, note?}: logged is where the export is
     recorded: "plot", "user" (the analyst's own log) or none."""
-    from debrief_tools.service import INVALID_PARAMS, RpcError, _agent
-
     store, catalogue, item = _plot(service, params)
     figure, image, file = params.get("id"), params.get("image"), params.get("file")
     if not isinstance(figure, str) or not isinstance(image, str):
@@ -200,7 +195,7 @@ def _stamp_and_log(service: ToolService, params: dict[str, Any]) -> dict[str, An
     if image_format not in SUFFIXES:
         raise RpcError(INVALID_PARAMS, "format must be png or svg")
     data = _image_bytes(image, image_format)
-    agent = _agent(params)
+    agent = agent_ref(params)
     details = {k: params.get(k) for k in EXPORT_MEMBERS}
     details.update(
         file=Path(file).name if isinstance(file, str) and file else None,
@@ -239,8 +234,6 @@ def _ask_map(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
     store, item, file (ending .png or .svg), preset, theme, footer (default on),
     overwrite, agent. Refused if no map is open; the host refuses if it shows another
     plot. Drawing resizes the analyst's map for a moment."""
-    from debrief_tools.service import INVALID_PARAMS, RpcError, _agent
-
     _plot(service, params)
     file = params.get("file")
     if not isinstance(file, str) or not Path(file).is_absolute():
@@ -258,7 +251,7 @@ def _ask_map(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
         )
     if not service.bridge.host_present():
         raise RpcError(INVALID_PARAMS, NO_MAP)
-    agent = _agent(params)
+    agent = agent_ref(params)
     request: dict[str, Any] = {
         "kind": "export_image",
         "store": params.get("store"),
@@ -280,8 +273,6 @@ def _ask_map(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _host_answer(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
-    from debrief_tools.service import INVALID_PARAMS, RpcError
-
     key = params.get("id")
     if not isinstance(key, str):
         raise RpcError(INVALID_PARAMS, "host_answer needs the request's id")
@@ -307,7 +298,7 @@ def _now_ms() -> int:
 
 def _catalogues(service: ToolService) -> list[tuple[str | None, str | None, Catalogue]]:
     out = []
-    for store in service._config().stores:
+    for store in service.config().stores:
         try:
             out.append((store.id, store.title, Catalogue.open(Path(store.location))))
         except (CatalogueError, OSError, ValueError):
@@ -329,8 +320,6 @@ def _find(service: ToolService, params: dict[str, Any]) -> dict[str, Any]:
     from a footer. A source for each export the ID names: a footer's short form can name
     more than one export of a revision, each listed for the analyst to choose. skipped:
     the pictures that could not be read, each with why."""
-    from debrief_tools.service import INVALID_PARAMS, RpcError
-
     file, typed = params.get("file"), params.get("id")
     skipped: list[dict[str, str]] = []
     if isinstance(typed, str):
@@ -388,8 +377,6 @@ def _open_revision(service: ToolService, params: dict[str, Any]) -> dict[str, An
     """{plot, step, current, latest, revision, export?}: the plot as it was at a revision,
     rebuilt by replay and checked; with the export log entry for the image id names, from
     the plot's export log or the analyst's own."""
-    from debrief_tools.service import INVALID_PARAMS, RpcError
-
     revision = params.get("revision")
     if not isinstance(revision, str):
         raise RpcError(INVALID_PARAMS, "open_revision needs the revision")
