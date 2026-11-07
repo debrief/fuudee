@@ -60,14 +60,25 @@ export interface ShownReadOnly {
  * shown read-only: a method aimed at that plot (its store and item, or a tool's arguments'
  * store and item) that is not in LEAVES_PLOT is refused; debrief/open of it is sent with
  * read_only, so an interrupted change is not recovered, which would write to it. A method
- * run through tools/call (tools/list offers them) is judged as the method itself, on its
- * arguments; any other tool aimed at the plot is refused. Methods aimed at other plots are
+ * run through tools/call (tools/list offers them, under their tool names: methodOfTool) is
+ * judged as the method itself, on its arguments; any other tool aimed at the plot is
+ * refused. Methods aimed at other plots are
  * sent as they are.
  */
+/**
+ * The tool service method a tool name names, as Python's methods.tool_name makes it (the
+ * method's slash a dot: debrief.set_hidden is debrief/set_hidden); undefined for a library's
+ * tool, or a name given with its slash, which tools/call refuses.
+ */
+export function methodOfTool(name: string): string | undefined {
+  return name.startsWith("debrief.") ? `debrief/${name.slice("debrief.".length)}` : undefined;
+}
+
 export function guardRequest(method: string, params: Record<string, unknown>, shown: ShownReadOnly | undefined): { refused: string } | { params: Record<string, unknown> } {
   if (!shown) return { params };
-  if (method === "tools/call" && typeof params.name === "string" && LEAVES_PLOT.has(params.name)) {
-    const inner = guardRequest(params.name, (params.arguments as Record<string, unknown> | undefined) ?? {}, shown);
+  const named = method === "tools/call" && typeof params.name === "string" ? methodOfTool(params.name) : undefined;
+  if (named && LEAVES_PLOT.has(named)) {
+    const inner = guardRequest(named, (params.arguments as Record<string, unknown> | undefined) ?? {}, shown);
     return "refused" in inner ? inner : { params: { ...params, arguments: inner.params } };
   }
   const target = (method === "tools/call" ? (params.arguments as Record<string, unknown> | undefined) : params) ?? {};

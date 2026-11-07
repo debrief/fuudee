@@ -11,7 +11,7 @@ describe("the tool service's tools/list", () => {
       return {
         tools: [
           { name: "core.range_rings", _meta: { "debrief/declaration": declaration } },
-          { name: "debrief/stores", inputSchema: { type: "object" }, _meta: { "debrief/method": { writes: false, agent: false, history: false } } },
+          { name: "debrief.stores", inputSchema: { type: "object" }, _meta: { "debrief/method": { method: "debrief/stores", writes: false, agent: false, history: false } } },
         ],
         _meta: { "debrief/unavailable": unavailable },
       };
