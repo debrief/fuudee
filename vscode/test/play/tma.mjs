@@ -1107,31 +1107,76 @@ export async function playSelectBearings(page, shot) {
   assert.match(await view.locator(".tma-legend li").first().textContent(), /BLUE ONE \(ownship\): course solid, speed dashed/);
   await picture("select-bearings-01-before");
 
-  // In page pixels: a box over a pane, from values and times.
+  // A box over a pane, from values and times, drawn as the analyst draws it. The box is turned into
+  // times and values with the plot's geometry as the button is let go, so the geometry its pixels
+  // were worked out from must still be the plot's then. The plot's height follows the select hint
+  // (shown while Select bearings is on) and the status line (one line or two); its ResizeObserver
+  // redraws it a frame after either changes, and on a busy machine some frames later. Its pixels were
+  // read before that redraw, and the box then covered other times: on CI (31 Oct 2026, jobs
+  // 124648660288, 124612606674, 124604119493, 124608302072, 124599995443), 23 cuts from 09:18 kept
+  // for 27 from 09:46, the earliest 7 of 13 missed, or no step at all; here, under load, the pointer
+  // went into the plot 12 ms after Select bearings was turned off and the plot grew 78 px 3 ms later.
+  // So the pixels are read once the plot has kept still (nothing being saved, the same view, the same
+  // geometry) for half a second of frames from the wait's start, and the geometry as the button goes
+  // down and up is checked to be the one read.
   const canvas = view.locator(".tma-canvas");
-  const at = async (pane, value, time) => {
-    const box = await canvas.boundingBox();
-    const p = await page.evaluate(({ pane, value, time }) => {
-      const st = window.debriefTma.plotState;
-      const b = st.boxes[pane];
-      const [lo, hi] = st.axes[pane];
-      const [t0, t1] = st.span;
-      return { x: b.x + ((value - lo) / (hi - lo)) * b.w, y: b.top + b.height - ((time - t0) / (t1 - t0)) * b.height };
-    }, { pane, value, time });
-    return { x: box.x + p.x, y: box.y + p.y };
+  const geometry = () => {
+    const c = document.querySelector("#bearings .tma-canvas")?.getBoundingClientRect();
+    const st = window.debriefTma.plotState;
+    return JSON.stringify({ canvas: c && [c.x, c.y, c.width, c.height], boxes: st.boxes, axes: st.axes, span: st.span });
   };
-  const drag = async (a, b) => {
+  // In the page: its geometry now, and as the button goes down and up (heard before the plot hears it).
+  await page.evaluate(`window.__plotGeometry = ${geometry}; window.__boxGeometry = []; for (const kind of ["pointerdown", "pointerup"]) document.querySelector("#bearings .tma-canvas").addEventListener(kind, () => window.__boxGeometry.push(window.__plotGeometry()), true);`);
+  // Still from now: each wait starts afresh, so a change made just before it (the hint shown, a
+  // status rewrapped) and not yet drawn is seen when it is drawn, a frame or more later.
+  let waits = 0;
+  const plotStill = () =>
+    page.waitForFunction(
+      (wait) => {
+        const now = performance.now();
+        const key = window.__plotGeometry();
+        const busy = document.getElementById("status")?.classList.contains("busy");
+        const still = window.__plotStill;
+        if (still?.wait !== wait || busy || still.key !== key || still.shown !== window.debriefTma.shown) {
+          window.__plotStill = { wait, key, shown: window.debriefTma.shown, since: now };
+          return false;
+        }
+        return now - still.since >= 500;
+      },
+      ++waits,
+      { polling: "raf", timeout: 30000 },
+    );
+  const drag = async ([pane0, value0, time0], [pane1, value1, time1]) => {
+    await plotStill();
+    const { box, read } = await page.evaluate(
+      (points) => {
+        const st = window.debriefTma.plotState;
+        const c = document.querySelector("#bearings .tma-canvas").getBoundingClientRect();
+        const box = points.map(([pane, value, time]) => {
+          const b = st.boxes[pane];
+          const [lo, hi] = st.axes[pane];
+          const [t0, t1] = st.span;
+          return { x: c.x + b.x + ((value - lo) / (hi - lo)) * b.w, y: c.y + b.top + b.height - ((time - t0) / (t1 - t0)) * b.height };
+        });
+        return { box, read: window.__plotGeometry() };
+      },
+      [[pane0, value0, time0], [pane1, value1, time1]],
+    );
+    const [a, b] = box;
+    await page.evaluate(() => window.__boxGeometry.splice(0));
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
     await page.mouse.move(b.x, b.y, { steps: 4 });
     await page.mouse.up();
+    const seen = await page.evaluate(() => window.__boxGeometry.splice(0));
+    assert.deepEqual(seen, [read, read], "the plot kept still under the box, as the button went down and up");
   };
 
   // Select bearings off: a box zooms, as before.
   const [t0, t1] = s.span;
   const [b0, b1] = s.axes.bearing;
-  await drag(await at("bearing", b0 + (b1 - b0) * 0.02, t0 + (t1 - t0) * 0.95), await at("bearing", b1 - (b1 - b0) * 0.02, t0 + (t1 - t0) * 0.05));
+  await drag(["bearing", b0 + (b1 - b0) * 0.02, t0 + (t1 - t0) * 0.95], ["bearing", b1 - (b1 - b0) * 0.02, t0 + (t1 - t0) * 0.05]);
   await page.waitForFunction(() => window.debriefTma.plotState.zoomed);
   const zoom = JSON.stringify((await state()).zoom);
 
@@ -1203,7 +1248,7 @@ export async function playSelectBearings(page, shot) {
   // longer than that to make the step on a busy machine.
   const said = () => view.locator(".tma-status").textContent();
   let before = await steps();
-  await drag(await at("bearing", run.split, run.to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+  await drag(["bearing", run.split, run.to], ["bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from]);
   const keptSaid = await said();
   await stepAdded(before);
   assert.equal(await steps(), before + 1, "one step");
@@ -1234,7 +1279,7 @@ export async function playSelectBearings(page, shot) {
   const settledTo = (ids, n) => page.waitForFunction(({ ids, n }) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).length === n, { ids, n }, { timeout: 60000 });
   const boxRun = async (to) => {
     const steps0 = await steps();
-    await drag(await at("bearing", run.split, to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+    await drag(["bearing", run.split, to], ["bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from]);
     const saidNow = await said();
     await stepAdded(steps0);
     assert.equal(await steps(), steps0 + 1, "one step");
@@ -1292,7 +1337,7 @@ export async function playSelectBearings(page, shot) {
   assert.ok(run.quiet, "a quiet stretch of unresolved pairs");
   before = await steps();
   const [b0now, b1now] = (await state()).axes.bearing;
-  await drag(await at("bearing", b0now + 0.01 * (b1now - b0now), run.quiet[1]), await at("bearing", b1now - 0.01 * (b1now - b0now), run.quiet[0]));
+  await drag(["bearing", b0now + 0.01 * (b1now - b0now), run.quiet[1]], ["bearing", b1now - 0.01 * (b1now - b0now), run.quiet[0]]);
   await page.waitForFunction(() => /^Nothing to change/.test(document.querySelector("#bearings .tma-status")?.textContent ?? ""));
   assert.match(await view.locator(".tma-status").textContent(), /^Nothing to change: \d+ cuts? boxed on both sides, left as (it was|they were)\.$/);
   await page.waitForTimeout(500);
@@ -1302,7 +1347,7 @@ export async function playSelectBearings(page, shot) {
   await toggle.click();
   assert.equal(await toggle.getAttribute("aria-pressed"), "false");
   s = await state();
-  await drag(await at("bearing", s.axes.bearing[0] + 1, run.to), await at("bearing", s.axes.bearing[1] - 1, run.from));
+  await drag(["bearing", s.axes.bearing[0] + 1, run.to], ["bearing", s.axes.bearing[1] - 1, run.from]);
   await page.waitForFunction((z) => JSON.stringify(window.debriefTma.plotState.zoom) !== z, zoom);
 
   // A solution of the towed array's cuts: the Course/Speed pane draws BLUE ONE and the solution, each in its colour.
