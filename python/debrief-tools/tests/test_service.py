@@ -536,6 +536,32 @@ def test_colour_and_hiding_are_recorded_steps_undone_like_any_other(client, cata
     assert steps[-1]["notes"] == [f"Colour of {said} set to #00a000"]
 
 
+def test_a_change_without_agent_is_refused_and_one_with_it_is_recorded_as_theirs(
+    client, catalogue
+) -> None:
+    """Every change names who made it (SUB-24): a write with no agent is refused before
+    anything is read, never attributed to the analyst by default."""
+    where = {"store": "exercise", "item": "serial"}
+    for method in service_module.AGENT_METHODS:
+        error = rpc(client, method, {**where, "features": ["track-nelson"]}).json()["error"]
+        assert error["code"] == -32602, method
+        assert error["message"].startswith(f"{method} needs agent"), error["message"]
+    assert len(catalogue.history("serial").steps()) == 1
+    # Reading needs no agent.
+    assert "base" in rpc(client, "debrief/open", where).json()["result"]
+    agent = {"kind": "software_agent", "name": "Planner", "model": "test"}
+    coloured = rpc(
+        client,
+        "debrief/set_colour",
+        {**where, "agent": agent, "features": ["track-nelson"], "colour": "#00a000"},
+    ).json()["result"]
+    assert coloured["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert steps[-1]["agent"] == "Planner"
+    [record] = catalogue.history("serial").steps()[-1].records
+    assert (record.agent.kind, record.agent.name) == ("software_agent", "Planner")
+
+
 def test_annotations_are_added_restyled_and_deleted_as_recorded_steps(client, catalogue) -> None:
     where = {"store": "exercise", "item": "serial", "agent": AGENT}
     base = rpc(client, "debrief/open", where).json()["result"]["base"]

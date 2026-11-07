@@ -185,6 +185,7 @@ def test_what_is_refused_and_said(client, tmp_path: Path) -> None:
             "image": "bm90IGEgcG5n",
             "format": "png",
             "footer": True,
+            "agent": AGENT,
         },
     )
     assert "not the PNG" in fake["error"]["message"]
@@ -342,7 +343,7 @@ def test_an_agents_export_is_drawn_by_the_open_map(
         )
         drawing.start()
         with pytest.raises(RpcError, match="Another plot"):
-            service.handle("debrief/export_image", {**WHERE, "file": target})
+            service.handle("debrief/export_image", {**WHERE, "file": target, "agent": AGENT})
         drawing.join(5)
     finally:
         worker.close()

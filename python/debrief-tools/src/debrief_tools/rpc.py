@@ -31,12 +31,22 @@ NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, the
 NEEDS_CONFIRMATION = -32003
 
 
-def agent_ref(params: dict[str, Any]) -> models.AgentRef:
-    """Who is making a change, for its provenance record (SUB-24)."""
-    agent = params.get("agent") or {"kind": "person", "name": "analyst"}
+def agent_ref(params: dict[str, Any], method: str | None = None) -> models.AgentRef:
+    """Who is making a change, for its provenance record (SUB-24). Required: a change
+    with no agent is refused, never attributed to anyone by default, so a record never
+    names the analyst for what an agent did."""
+    agent = params.get("agent")
+    if agent is None:
+        raise RpcError(INVALID_PARAMS, f"{method or 'This change'} {AGENT_NEEDED}")
     if not isinstance(agent, dict):
         raise RpcError(INVALID_PARAMS, "agent must be {kind, name}")
     try:
         return models.AgentRef(**agent)
     except ValueError:
         raise RpcError(INVALID_PARAMS, "agent must be {kind, name}") from None
+
+
+AGENT_NEEDED = (
+    "needs agent: say who is making the change, with kind (person or software_agent) "
+    "and a name, which provenance records (SUB-24)."
+)

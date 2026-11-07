@@ -257,6 +257,15 @@ WRITING_METHODS = (
     + COLLATION_VIEW_METHODS
 )
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
+# Every method whose change is recorded with who made it: refused without agent, never
+# attributed to the analyst by default (SUB-24). Undo, redo and goto record no one: they
+# return to steps that already name theirs.
+AGENT_METHODS = tuple(m for m in WRITING_METHODS if m not in STEP_METHODS) + (
+    "debrief/import",
+    "debrief/import_rep",
+    "debrief/add_plot_file",
+    "debrief/export_image",
+)
 # The Tote reads a plot at one time; it never changes it, and is asked again at each time.
 TOTE_METHODS = ("debrief/tote", "debrief/measure_groups")
 # Exported images (SUB-25): an ID for an export, the image stamped, written and logged in the
@@ -387,6 +396,8 @@ class ToolService:
         self.unavailable = described["unavailable"]
 
     def handle(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method in AGENT_METHODS:
+            agent_ref(params, method)  # refused before anything is read (SUB-24)
         if method == "initialize":
             requested = params.get("protocolVersion")
             return {
@@ -623,12 +634,14 @@ class ToolService:
     def _open(
         self, catalogue: Catalogue, store: models.KnownStore, item: str, params: dict[str, Any]
     ) -> dict[str, Any]:
-        """Opening a plot that still has a retired presentation.json: a writer makes it
-        one recorded step and deletes it; where that cannot be done (a read-only
-        store, say) the plot comes back with it applied in memory, for display."""
+        """Opening a plot that still has a retired presentation.json: a writer that says
+        who it is (agent) makes it one recorded step and deletes it; where that cannot
+        be done (a read-only store, or no agent) the plot comes back with it applied in
+        memory, for display."""
         if catalogue.legacy_presentation(item) is None:
             return {}
-        if not store.read_only:
+        # Migrating is a change, recorded with who made it: only with an agent (SUB-24).
+        if not store.read_only and params.get("agent") is not None:
             try:
                 return {"migrated": catalogue.migrate_presentation(item, agent_ref(params))}
             except (NewerSchemaError, OSError):
