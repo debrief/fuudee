@@ -1,0 +1,108 @@
+/* The bearing view (tmacontrol.ts): interface colours only from the theme (CON-06, DEV-07);
+   each cut's swatch and dots are its own data colour, the solution's line its own. */
+.tma { display: flex; flex-direction: column; gap: 4px; min-height: 0; height: 100%; font-size: var(--vscode-font-size, 13px); color: var(--vscode-foreground); }
+.tma [hidden] { display: none !important; }
+.tma button { font: inherit; color: var(--vscode-foreground); background: var(--vscode-button-secondaryBackground, transparent); border: 1px solid var(--vscode-button-border, var(--vscode-widget-border, transparent)); border-radius: 2px; padding: 2px 8px; cursor: pointer; }
+.tma button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
+.tma button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+.tma button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.tma button:disabled { opacity: .5; cursor: default; }
+.tma button:focus-visible, .tma select:focus-visible, .tma input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.tma-empty { margin: 4px 0; color: var(--vscode-descriptionForeground); }
+/* Chosen, its bearings not to hand yet (the playground while Python starts): busy. */
+.tma-waiting::before { content: "⟳"; display: inline-block; margin-right: 6px; animation: tma-spin 1.2s linear infinite; }
+@keyframes tma-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tma-waiting::before { animation: none; } }
+
+/* What is shown, in one line (product owner, 27 Oct 2026): the Outline's selection chooses it. */
+.tma-title { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; min-width: 0; }
+.tma-title:empty { display: none; }
+
+/* VS Code's panel: the view as tall as the panel gives it, so the plot takes the height. */
+html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
+.tma-root { box-sizing: border-box; height: 100%; }
+.tma-root > .tma { height: 100%; }
+
+/* No lists (product owner, 27 Oct 2026): the title, the toolbar, ⋯, the plot taking the height, the
+   status line and, when open, the first guess's form. */
+.tma-body { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-height: 0; }
+.tma-left { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.tma-below { display: flex; flex-direction: column; gap: 4px; flex: none; min-height: 0; }
+
+/* One row: the panes, the scale held, the zoom undone, ⋯ for the cut-off, the key and the notes
+   (product owner, 25 Oct 2026). Narrower than it needs, it wraps. */
+.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; flex: none; }
+.tma-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; flex: none; }
+.tma-more .tma-key, .tma-more .tma-notes { flex: 1 1 100%; }
+.tma-statusline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; flex: none; min-width: 0; }
+.tma-statusline > p { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.tma-panes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.tma .tma-tools button { padding: 1px 4px; }
+.tma .tma-tools button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-contrastActiveBorder, var(--vscode-button-background)); }
+.tma-cutoff { display: inline-flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); }
+.tma-cutoff input { width: 4em; height: 20px; background: var(--vscode-input-background); color: var(--vscode-input-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent)); font: inherit; padding: 0 3px; }
+
+/* Legacy's Stacked Dots, as it stood: time up the left, the panes side by side. One canvas, and
+   one laid over it for the crosshair and a box being dragged, so pointing never redraws the plot.
+   The canvases are laid over the plot's box, never sizing it: the panel lays it out. */
+.tma-plot { position: relative; flex: 1 1 auto; min-height: 220px; overflow: hidden; }
+/* Short (Bearings above the walkthroughs at a laptop's height): the plot keeps the room, the key goes,
+   and what does not fit scrolls rather than being cut off. */
+.tma-short .tma-plot { min-height: 160px; }
+.tma-short { overflow-y: auto; }
+/* Controls on top at any size (product owner, 26 Oct 2026), unless on top they would leave the
+   plot under 220 px (tmacontrol.ts's placeControls sets tma-side, with hysteresis): then, wide (VS
+   Code's default bottom panel), the plot the whole height on the left and the title, the toolbar,
+   ⋯, the status line and the form in a column beside it. */
+.tma-wide.tma-side .tma-left { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 28%); grid-template-rows: auto auto auto auto minmax(0, 1fr); column-gap: 12px; row-gap: 4px; align-content: stretch; }
+.tma-wide.tma-side .tma-plot { grid-column: 1; grid-row: 1 / -1; min-height: 0; }
+.tma-wide.tma-side .tma-title { grid-column: 2; grid-row: 1; white-space: normal; }
+.tma-wide.tma-side .tma-tools { grid-column: 2; grid-row: 2; }
+.tma-wide.tma-side .tma-more { grid-column: 2; grid-row: 3; }
+.tma-wide.tma-side .tma-statusline { grid-column: 2; grid-row: 4; }
+.tma-wide.tma-side .tma-below { grid-column: 2; grid-row: 5; overflow-y: auto; }
+.tma-canvas, .tma-overlay { position: absolute; left: 0; top: 0; display: block; }
+.tma-canvas { cursor: crosshair; touch-action: none; }
+/* Select bearings on (product owner, 28 Oct 2026): a box keeps sides, so the pointer says so. */
+.tma-selecting .tma-canvas { cursor: cell; }
+.tma-select-hint { margin: 0; color: var(--vscode-descriptionForeground); }
+.tma-legend { flex: 1 1 100%; margin: 0; padding: 0; list-style: none; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.tma-legend-swatch { font-weight: bold; letter-spacing: 1px; }
+.tma-canvas:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.tma-overlay { pointer-events: none; }
+/* The time and value under the pointer, laid over the panes' names while pointing: it takes no line of its own. */
+.tma-readout { position: absolute; left: 0; right: 0; top: 0; margin: 0; padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); color: var(--vscode-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tma-readout:empty { display: none; }
+/* The cut-off's state in words and a mark, not colour alone: in a high-contrast theme too. */
+.tma-cue { margin: 0; flex: none; font-variant-numeric: tabular-nums; }
+.tma-cue-mark { display: inline-block; min-width: 1.1em; text-align: center; font-weight: 700; border: 1px solid currentColor; border-radius: 2px; }
+.tma-cue[data-state="within"] .tma-cue-mark { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
+.tma-cue[data-state="beyond"] .tma-cue-mark { color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground)); }
+.tma-key { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tma-short .tma-key { display: none; }
+.tma-offscale { margin: 0; color: var(--vscode-descriptionForeground); }
+.tma-offscale:empty { display: none; }
+.tma-rms { margin: 0; flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tma-cuts-shown .tma-rms { font-weight: normal; color: var(--vscode-descriptionForeground); }
+.tma-notes { margin: 0; padding-left: 16px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tma-key-other { opacity: 0.55; }
+
+/* The first guess, for the cuts TMA solution from cuts… names (in the Tools). */
+.tma-form { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 6px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); background: var(--vscode-editorWidget-background, transparent); }
+.tma-form-title, .tma-form-problem, .tma-form-buttons { grid-column: 1 / -1; margin: 0; }
+.tma-form-title { font-weight: 600; }
+.tma-field { display: contents; }
+.tma-field > span { color: var(--vscode-descriptionForeground); }
+.tma-field input, .tma-field select { min-width: 0; height: 22px; background: var(--vscode-input-background); color: var(--vscode-input-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent)); font: inherit; padding: 0 4px; }
+.tma-field input[aria-invalid="true"] { border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
+.tma-means { grid-column: 2; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.tma-means.tma-problem, .tma-form-problem { color: var(--vscode-errorForeground); }
+.tma-form-problem:empty { display: none; }
+.tma-form-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+/* A line kept for what is said, said or not: the plot above never moves when a message comes or goes. */
+.tma-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; min-height: 1lh; }
+
+/* Forced colours (Windows High Contrast): a pressed toggle in the system's Highlight, never only a theme colour it drops. */
+@media (forced-colors: active) {
+  .tma .tma-tools button[aria-pressed="true"], .tma .tma-more-button[aria-expanded="true"] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; }
+}
