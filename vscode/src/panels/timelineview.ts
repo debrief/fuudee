@@ -13,19 +13,18 @@
  * extension through the tool service (save, remove).
  */
 import * as vscode from "vscode";
-import type { NarrativeSpec, TimelineEntry } from "@debrief/schemas";
+import type { MessageOf, NarrativeSpec, TimelineEntry } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { receiveTimeline } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { currentEntry, narrativeOnMapOf, timelineEntries, timelineTracks } from "../timeline.js";
 import { startup } from "../startup.js";
-import { webviewHtml } from "./html.js";
+import { WebviewHost } from "./webviewhost.js";
 
 export const TIMELINE_VIEW = "debrief.timeline";
 
 export class TimelineView implements vscode.WebviewViewProvider {
-  private view?: vscode.WebviewView;
-  private ready = false;
+  private readonly host: WebviewHost<vscode.WebviewView>;
   /** The open plot's entries, in the Timeline's order, for commands, tests and agents. */
   entries: TimelineEntry[] = [];
   private starts: number[] = [];
@@ -37,7 +36,7 @@ export class TimelineView implements vscode.WebviewViewProvider {
   private formWanted?: { feature?: string };
 
   constructor(
-    private readonly extension: vscode.Uri,
+    extension: vscode.Uri,
     private readonly session: Session,
     private readonly goTo: (id: string) => void,
     private readonly save: (spec: NarrativeSpec, id?: string) => Promise<{ problem?: string; feature?: string }>,
@@ -60,11 +59,12 @@ export class TimelineView implements vscode.WebviewViewProvider {
     session.onState((change) => {
       if (change.time && this.session.time) this.post({ kind: "set_time", time: this.session.time });
     });
+    this.host = new WebviewHost(extension, { bundle: "timeline", marks: TIMELINE_VIEW, receive: (raw) => this.receive(raw) });
   }
 
   /** Whether the page has loaded, for tests and agents. */
   get showing(): boolean {
-    return this.ready && !!this.view;
+    return this.host.ready;
   }
 
   /** The entry current time is at (the last at or before it), for tests and agents. */
@@ -75,31 +75,17 @@ export class TimelineView implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
-    startup.mark(TIMELINE_VIEW, "resolve");
-    this.view = view;
-    this.ready = false;
-    view.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
-    };
-    view.webview.html = webviewHtml(view.webview, this.extension, "timeline", "Timeline");
-    startup.mark(TIMELINE_VIEW, "html");
-    view.onDidDispose(() => {
-      if (this.view === view) this.view = undefined;
-    });
-    view.webview.onDidReceiveMessage((raw) => this.receive(raw));
+    this.host.resolve(view, "Timeline");
   }
 
   /** A message from the page. Tests send one as the page would: they cannot press a key in it. The shared receiver (webview/dispatch.ts, PAR-13). */
   receive(raw: unknown): void {
-    if (startup.fromPage(TIMELINE_VIEW, raw)) return;
     void this.receiver(raw);
   }
   private readonly receiver = receiveTimeline(
     {
       ready: () => {
-        startup.mark(TIMELINE_VIEW, "ready");
-        this.ready = true;
+        this.host.readied();
         this.showAll();
         if (this.playingNow) this.post({ kind: "playing_changed", playing: true });
         if (this.formWanted) this.openForm(this.formWanted.feature);
@@ -123,11 +109,12 @@ export class TimelineView implements vscode.WebviewViewProvider {
   /** Open the page's form: to add an entry, or change one. Shows the view first. */
   openForm(feature?: string): void {
     this.formWanted = { feature };
-    if (!this.view || !this.ready) {
+    const view = this.host.target;
+    if (!view || !this.host.ready) {
       void vscode.commands.executeCommand(`${TIMELINE_VIEW}.focus`);
       return;
     }
-    this.view.show?.(true);
+    view.show?.(true);
     this.formWanted = undefined;
     this.post({ kind: "open_narrative_form", ...(feature && { feature_id: feature }) });
   }
@@ -160,9 +147,8 @@ export class TimelineView implements vscode.WebviewViewProvider {
     });
   }
 
-  private post(message: Record<string, unknown>): void {
-    if (!this.view || !this.ready) return;
-    void this.view.webview.postMessage(checkMessage(message));
-    if (message.kind === "show_timeline") startup.shown(TIMELINE_VIEW, !!message.timeline_entries);
+  /** What the Timeline's page is sent. */
+  private post(message: MessageOf<"show_timeline" | "set_time" | "playing_changed" | "narrative_saved" | "open_narrative_form">): void {
+    if (this.host.post(message) && message.kind === "show_timeline") startup.shown(TIMELINE_VIEW, !!message.timeline_entries);
   }
 }

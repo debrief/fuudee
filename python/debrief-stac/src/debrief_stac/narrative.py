@@ -31,6 +31,7 @@ from typing import Any
 from debrief_kernel.formatting import DEFAULT_SETTINGS, format_time
 from debrief_kernel.time import parse_utc
 from debrief_schemas import DebriefFeatureCollection, models
+from debrief_stac.errors import DomainError
 
 KIND = "narrative"
 ID_PREFIX = "narrative-"
@@ -38,7 +39,7 @@ SPEC_MEMBERS = ("time", "source", "entry_type", "text", "track_id")
 DATED = DEFAULT_SETTINGS.model_copy(update={"time_style": "date_time"})
 
 
-class NarrativeError(ValueError):
+class NarrativeError(DomainError):
     """An entry that cannot be made as described, said in plain words."""
 
 

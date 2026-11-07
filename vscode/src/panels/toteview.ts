@@ -14,13 +14,13 @@
  * never overwritten (SUB-28). Only while the view is showing is anything asked for.
  */
 import * as vscode from "vscode";
-import type { ToteResult, ToteView as ToteChoice } from "@debrief/schemas";
+import type { MessageOf, ToteResult, ToteView as ToteChoice } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { receiveTote } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks } from "../../webview/totelogic.js";
 import { startup } from "../startup.js";
-import { webviewHtml } from "./html.js";
+import { WebviewHost } from "./webviewhost.js";
 
 export const TOTE_VIEW = "debrief.tote";
 
@@ -31,8 +31,7 @@ interface Asked {
 }
 
 export class ToteView implements vscode.WebviewViewProvider {
-  private view?: vscode.WebviewView;
-  private ready = false;
+  private readonly host: WebviewHost<vscode.WebviewView>;
   /** A choice the analyst made that is being saved: shown at once, before the save returns. */
   private choosing?: ToteChoice;
   private readonly requests: ToteRequests<Asked>;
@@ -40,7 +39,7 @@ export class ToteView implements vscode.WebviewViewProvider {
   last?: ToteResult;
 
   constructor(
-    private readonly extension: vscode.Uri,
+    extension: vscode.Uri,
     private readonly session: Session,
     ask: (plot: string, time: string, tote: ToteChoice) => Promise<ToteResult | undefined>,
     private readonly save: (tote: ToteChoice) => Promise<string | undefined>,
@@ -69,11 +68,24 @@ export class ToteView implements vscode.WebviewViewProvider {
     session.onState((change) => {
       if (change.time) this.refresh();
     });
+    // The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here.
+    const receive = receiveTote(
+      {
+        ready: () => {
+          this.host.readied();
+          this.showAll();
+        },
+        toteChanged: (tote) => void this.choose(tote),
+      },
+      checkMessage,
+      (panel) => this.log(`webview_message_refused panel=${panel}`),
+    );
+    this.host = new WebviewHost(extension, { bundle: "tote", marks: TOTE_VIEW, receive: (raw) => void receive(raw) });
   }
 
   /** Whether the Tote view has loaded, for tests and agents. */
   get showing(): boolean {
-    return this.ready && !!this.view;
+    return this.host.ready;
   }
 
   /** How long each answer took, from asking to showing; for the latency checks. */
@@ -82,36 +94,8 @@ export class ToteView implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
-    startup.mark(TOTE_VIEW, "resolve");
-    this.view = view;
-    this.ready = false;
-    view.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
-    };
-    view.webview.html = webviewHtml(view.webview, this.extension, "tote", "Tote");
-    startup.mark(TOTE_VIEW, "html");
-    view.onDidDispose(() => {
-      if (this.view === view) this.view = undefined;
-    });
+    this.host.resolve(view, "Tote");
     view.onDidChangeVisibility(() => view.visible && this.refresh());
-    // The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here.
-    const receive = receiveTote(
-      {
-        ready: () => {
-          startup.mark(TOTE_VIEW, "ready");
-          this.ready = true;
-          this.showAll();
-        },
-        toteChanged: (tote) => void this.choose(tote),
-      },
-      checkMessage,
-      (panel) => this.log(`webview_message_refused panel=${panel}`),
-    );
-    view.webview.onDidReceiveMessage((raw) => {
-      if (startup.fromPage(TOTE_VIEW, raw)) return;
-      void receive(raw);
-    });
   }
 
   /** The choice shown: one being saved, else the plot's. */
@@ -145,15 +129,13 @@ export class ToteView implements vscode.WebviewViewProvider {
   refresh(): void {
     const opened = this.session.current;
     const time = this.session.time?.current;
-    if (!opened || !time || !this.view?.visible || !this.ready) return;
+    if (!opened || !time || !this.host.target?.visible || !this.host.ready) return;
     const tote = this.choice();
     if (!tote.primary && !tote.secondaries?.length) return;
     this.requests.request({ plot: opened.item.id, time, tote });
   }
 
-  private post(message: Record<string, unknown>): void {
-    if (!this.view || !this.ready) return;
-    void this.view.webview.postMessage(checkMessage(message));
-    if (message.kind === "show_tote") startup.shown(TOTE_VIEW, !!message.tote_tracks);
+  private post(message: MessageOf<"show_tote">): void {
+    if (this.host.post(message)) startup.shown(TOTE_VIEW, !!message.tote_tracks);
   }
 }

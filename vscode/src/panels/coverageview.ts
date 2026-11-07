@@ -12,12 +12,12 @@
  * data aside and clearing a review flag are view state in its island.
  */
 import * as vscode from "vscode";
-import type { CoverageReport } from "@debrief/schemas";
+import type { CoverageReport, MessageOf } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { receiveCoverage } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
-import { webviewHtml } from "./html.js";
+import { WebviewHost } from "./webviewhost.js";
 
 export const COVERAGE_VIEW = "debrief.coverage";
 
@@ -26,15 +26,14 @@ import type { CoverageAsk } from "../../webview/panels/flows/collation.js";
 export type { CoverageAsk };
 
 export class CoverageView implements vscode.WebviewViewProvider {
-  private view?: vscode.WebviewView;
-  private ready = false;
+  private readonly host: WebviewHost<vscode.WebviewView>;
   /** The coverage last shown, for tests and agents. */
   report?: CoverageReport;
   /** Told when the analyst can see a plot's coverage: the view on screen, showing it (a walkthrough's step, CAP-25). */
   shown?: () => void;
 
   constructor(
-    private readonly extension: vscode.Uri,
+    extension: vscode.Uri,
     private readonly session: Session,
     /** Make what the analyst asked: a problem to say if it was not done. */
     private readonly act: (ask: CoverageAsk) => Promise<string | undefined>,
@@ -43,16 +42,17 @@ export class CoverageView implements vscode.WebviewViewProvider {
     session.onState((change) => {
       if (change.time && this.session.time) this.post({ kind: "set_time", time: this.session.time });
     });
+    this.host = new WebviewHost(extension, { bundle: "coverage", marks: COVERAGE_VIEW, receive: (raw) => this.receive(raw) });
   }
 
   /** Whether the page has loaded, for tests and agents. */
   get showing(): boolean {
-    return this.ready && !!this.view;
+    return this.host.ready;
   }
 
   /** Whether the view is on screen: coverage is asked for only then. */
   get visible(): boolean {
-    return !!this.view?.visible;
+    return !!this.host.target?.visible;
   }
 
   /** The open plot's coverage, or none. */
@@ -62,31 +62,18 @@ export class CoverageView implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
-    startup.mark(COVERAGE_VIEW, "resolve");
-    this.view = view;
-    this.ready = false;
-    view.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
-    };
-    view.webview.html = webviewHtml(view.webview, this.extension, "coverage", "Coverage");
-    view.onDidDispose(() => {
-      if (this.view === view) this.view = undefined;
-    });
+    this.host.resolve(view, "Coverage");
     view.onDidChangeVisibility(() => view.visible && this.show(this.report));
-    view.webview.onDidReceiveMessage((raw) => this.receive(raw));
   }
 
   /** A message from the page; tests may pass one as if the page had sent it. The shared receiver (webview/dispatch.ts, PAR-13). */
   receive(raw: unknown): void {
-    if (startup.fromPage(COVERAGE_VIEW, raw)) return;
     void this.receiver(raw);
   }
   private readonly receiver = receiveCoverage(
     {
       ready: () => {
-        startup.mark(COVERAGE_VIEW, "ready");
-        this.ready = true;
+        this.host.readied();
         this.show(this.report);
       },
       asked: (ask) =>
@@ -99,10 +86,9 @@ export class CoverageView implements vscode.WebviewViewProvider {
     (panel) => this.log(`webview_message_refused panel=${panel}`),
   );
 
-  private post(message: Record<string, unknown>): void {
-    if (!this.view || !this.ready) return;
-    void this.view.webview.postMessage(checkMessage(message));
-    if (message.kind === "show_coverage" && !("message" in message)) startup.shown(COVERAGE_VIEW, !!message.coverage);
-    if (message.kind === "show_coverage" && message.coverage && this.view.visible) this.shown?.();
+  private post(message: MessageOf<"show_coverage" | "set_time">): void {
+    if (!this.host.post(message) || message.kind !== "show_coverage") return;
+    if (!("message" in message)) startup.shown(COVERAGE_VIEW, !!message.coverage);
+    if (message.coverage && this.host.target?.visible) this.shown?.();
   }
 }

@@ -30,6 +30,7 @@ from debrief_kernel.sensors import KEEPS, Place, cut_place, kept_for, side_of
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DebriefFeatureCollection, models
+from debrief_stac.errors import DomainError
 
 SENSOR = "sensor"
 CUT = "sensor_cut"
@@ -40,7 +41,7 @@ SIDES = {"port": "port", "starboard": "starboard"}
 DATED = DEFAULT_SETTINGS.model_copy(update={"time_style": "date_time"})
 
 
-class SensorError(ValueError):
+class SensorError(DomainError):
     """A change to sensors or cuts that cannot be made as asked, said in plain words."""
 
 

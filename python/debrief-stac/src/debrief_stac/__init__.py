@@ -14,6 +14,7 @@ from debrief_stac.catalogue import (
     with_plot_details,
 )
 from debrief_stac.composite import CompositeCatalogue
+from debrief_stac.errors import DomainError
 from debrief_stac.history import Base, Changes, Conflict, Head, History, HistoryError, Step
 from debrief_stac.store import FileStore, Store, StoreBusy, StoreError
 
@@ -30,6 +31,7 @@ __all__ = [
     "CatalogueError",
     "ConfirmationNeeded",
     "CompositeCatalogue",
+    "DomainError",
     "Extent",
     "FileStore",
     "ItemSummary",
