@@ -10,3 +10,9 @@ Background documents for Debrief v4, exported from their live Claude Docs on 11 
 | Decision log, 25 Sep 2026 (SRD framing) | [decision-log-2026-09-25.md](decision-log-2026-09-25.md) | https://claude.ai/artifact/HnvbkhCzbzxyuNayHjAvCS |
 
 Requirement identifiers (SUB-, CAP-, TL-, DEV- and so on) used across the codebase refer to the SRD.
+
+Reviews:
+
+| Review | File |
+| --- | --- |
+| Health check before the analysis-tools phase, 7 Nov 2026 | [review-2026-11-07.md](review-2026-11-07.md) |
