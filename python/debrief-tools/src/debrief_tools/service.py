@@ -354,12 +354,12 @@ class ToolService:
 
     def call(self, params: dict[str, Any], _args: None = None) -> dict[str, Any]:
         """tools/call: run one tool in the worker (TL-02, TL-03), or a method tools/list
-        offers, by its name, with the arguments as its parameters."""
+        offers, by its tool name (debrief.x), with the arguments as its parameters."""
         name, arguments = params.get("name"), params.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
             raise RpcError(INVALID_PARAMS, "tools/call needs a name and arguments")
-        method = METHODS.get(name)
-        if method is not None and not method.protocol:
+        method = METHODS.tool(name)  # by its tool name only: debrief.x, not debrief/x
+        if method is not None:
             return self._call_method(method, arguments)
         if name not in self.declarations:
             raise RpcError(INVALID_PARAMS, f"There is no tool called {name}.")
@@ -1644,7 +1644,8 @@ def _named(message: dict[str, Any]) -> Any:
     """The method a request runs: its own, or the one tools/call names."""
     params = message.get("params")
     if message.get("method") == "tools/call" and isinstance(params, dict):
-        return params.get("name")
+        method = METHODS.tool(params.get("name")) if isinstance(params.get("name"), str) else None
+        return method.name if method else None
     return message.get("method")
 
 

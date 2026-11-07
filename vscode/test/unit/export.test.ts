@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { FigureSource } from "@debrief/schemas";
 import { clipIdFor, escapeXml, fileNameFor, fitText, footerFontSize, footerPlace, haloColour, layoutFor, pixelsOf, PRESETS, svgFrame, textStyleAttributes } from "../../webview/exportlogic.js";
-import { DEFAULT_EXPORT, describeExport, describeExported, describeSource, guardRequest, insideFolders, LEAVES_PLOT, READ_ONLY, rememberedOf, revisionOf, startingChoice } from "../../src/figures.js";
+import { DEFAULT_EXPORT, describeExport, describeExported, describeSource, guardRequest, insideFolders, methodOfTool, LEAVES_PLOT, READ_ONLY, rememberedOf, revisionOf, startingChoice } from "../../src/figures.js";
 import { READ_ONLY_CODE, ToolService } from "../../src/service.js";
 import { checkMessage } from "../../src/messages.js";
 
@@ -112,12 +112,16 @@ describe("a plot shown read-only (SUB-25; expert panel, 16 Oct 2026)", () => {
   });
   it("judges a method run through tools/call as the method itself", () => {
     for (const method of vectors.changes_plot.filter((m) => m !== "tools/call")) {
-      expect(guardRequest("tools/call", { name: method, arguments: { ...shown } }, shown)).toEqual({ refused: READ_ONLY });
+      expect(guardRequest("tools/call", { name: method.replace("/", "."), arguments: { ...shown } }, shown)).toEqual({ refused: READ_ONLY });
     }
-    const tote = { name: "debrief/tote", arguments: { ...shown, time: "t" } };
+    const tote = { name: "debrief.tote", arguments: { ...shown, time: "t" } };
     expect(guardRequest("tools/call", tote, shown)).toEqual({ params: tote });
-    expect(guardRequest("tools/call", { name: "debrief/open", arguments: { ...shown } }, shown)).toEqual({ params: { name: "debrief/open", arguments: { ...shown, read_only: true } } });
-    const elsewhere = { name: "debrief/set_colour", arguments: { store: "exercise", item: "other" } };
+    expect(guardRequest("tools/call", { name: "debrief.open", arguments: { ...shown } }, shown)).toEqual({ params: { name: "debrief.open", arguments: { ...shown, read_only: true } } });
+    // By its slashed name it is no tool (the service refuses it): refused here too, as any tool aimed at the plot.
+    expect(guardRequest("tools/call", { name: "debrief/tote", arguments: { ...shown, time: "t" } }, shown)).toEqual({ refused: READ_ONLY });
+    expect(methodOfTool("debrief.set_hidden")).toBe("debrief/set_hidden");
+    expect(methodOfTool("core.range_rings")).toBeUndefined();
+    const elsewhere = { name: "debrief.set_colour", arguments: { store: "exercise", item: "other" } };
     expect(guardRequest("tools/call", elsewhere, shown)).toEqual({ params: elsewhere });
   });
   it("is refused in the tool service's client, before anything is sent", async () => {
