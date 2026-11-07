@@ -46,21 +46,21 @@ import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
-import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
+import { ToolsProvider } from "./views/tools.js";
 import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
 import { featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choice, type FlowHost, type ManyQuestion, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Question, type RememberQuestion, type SaveSpec, type SaveTarget, type Severity, type TextQuestion } from "../webview/panels/flows/host.js";
 import { confirmNewerSchema as askNewerSchema, runTool as runToolFlow, type Ran } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
-import { clearReviewFlag, collate as collateFlow, dismissNewData, linkTrack, sayReviewFlags, takeNewData, unlinkTrack, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
-import { plotTargetOf, trackTargetOf, type CataloguesNode } from "../webview/panels/catalogues.js";
+import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
+import type { CataloguesNode } from "../webview/panels/catalogues.js";
 import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
-import { importNarrative as importNarrativeFlow } from "../webview/panels/flows/narrative.js";
-import { importSensor as importSensorFlow } from "../webview/panels/flows/sensor.js";
-import { exportImage as exportFlow, findImageSource as findSourceFlow, type ExportHost } from "../webview/panels/flows/exportimage.js";
+import { registerNarrativeImport } from "../webview/panels/flows/narrative.js";
+import { registerSensorImport } from "../webview/panels/flows/sensor.js";
+import { exportImage as exportFlow, registerExport, type ExportHost } from "../webview/panels/flows/exportimage.js";
 import { registerBearings } from "../webview/panels/flows/bearings.js";
 import type { Host } from "../webview/panels/flows/register.js";
-import { operationContext as contextOf, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
+import { operationContext as contextOf, registerOperations, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import { AFTER_OPEN, BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 import { doneLabel, nextLabel, NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
@@ -1499,7 +1499,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * nothing, but may write only into the workspace's folders or the exports folder set, and never
    * over a file without the analyst's say. Returns what was exported, or why not.
    */
-  command("debrief.exportImage", (given?: ExportAsk) => exportMap(given, true));
+  // Registered with finding an image's source, below: the shared registration (flows/exportimage.ts).
 
   async function exportMap(given?: ExportAsk, say = false): Promise<ExportedImage | string | undefined> {
     const refuse = (problem: string) => (say && void vscode.window.showWarningMessage(`The image was not exported: ${problem}`), problem);
@@ -1640,17 +1640,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * typed from its footer; then that plot shown as it was when the image was exported, read-only.
    * Agents and tests pass the file or the ID, and, having seen the list, which to choose.
    */
-  command("debrief.findImageSource", (given?: { file?: string; id?: string; choose?: number }) =>
-    findSourceFlow(
-      {
-        ...flowHost,
-        findImageSource: (where) => service!.findImageSource("file" in where ? { file: where.file.path! } : where),
-        showRevision: (source, image) => serially(() => showRevision(source, image)),
-        openLatestRevision: async () => void (await vscode.commands.executeCommand("debrief.openLatestRevision")),
-      },
-      { ...(given?.file && { file: { name: path.basename(given.file), path: given.file } }), ...(given?.id && { id: given.id }), ...(given?.choose !== undefined && { choose: given.choose }) },
-    ),
-  );
+  registerExport(host, {
+    exportImage: (given) => exportMap(given as ExportAsk | undefined, true),
+    find: {
+      ...flowHost,
+      findImageSource: (where) => service!.findImageSource("file" in where ? { file: where.file.path! } : where),
+      showRevision: (source, image) => serially(() => showRevision(source, image)),
+      openLatestRevision: async () => void (await vscode.commands.executeCommand("debrief.openLatestRevision")),
+    },
+    fileAt: (file) => fileAt(file),
+  });
 
   /** Show a plot as it was when an image was exported: rebuilt by replay, read-only, at the view and time exported. */
   async function showRevision(source: FigureSource, image: TracedImage): Promise<{ title: string } | { problem: string }> {
@@ -2703,11 +2702,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     },
   };
   const runOperation = (id: OperationId, keys?: string[]) => runOperationFlow(operationHost, id, keys);
-  for (const [id, name] of Object.entries(OPERATION_COMMANDS)) command(name, (target?: unknown, nodes?: unknown) => runOperation(id as OperationId, rowsOf(target, nodes)));
-  // Split before and after a cut, on the Outline's cut menu: the solution Bearings shows (else the
-  // one the cut is rooted in) split at the cut's time, as at its position then (product owner, 29 Oct 2026).
-  command("debrief.splitBeforeCut", (target?: unknown, nodes?: unknown) => runOperation("split-before", rowsOf(target, nodes)));
-  command("debrief.splitAfterCut", (target?: unknown, nodes?: unknown) => runOperation("split-after", rowsOf(target, nodes)));
+  // Their commands, and split before and after a cut: the shared registration (flows/operation.ts).
+  registerOperations(host, { ...operationHost, rowsOf });
   // A dot right-clicked in Bearings (product owner, 29 Oct 2026): the same entries as the Outline's
   // menu for that cut, or that position of the solution, each disabled with its reason; and
   // selecting it, as a click does. A cut's splits split the solution shown at its time.
@@ -2873,34 +2869,26 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // A .dsf or REP file's sensor lines read into the open plot (CAP-22): the shared flow
   // (webview/panels/flows/sensor.ts). Given a path (agents and tests), it asks nothing:
   // hosts and again, if given, say.
-  command("debrief.importSensor", (given?: string, hostsGiven?: Record<string, string | null>, againGiven?: boolean) =>
-    importSensorFlow(
-      {
-        ...flowHost,
-        previewSensor: (file, plot) => service!.previewSensor(file.path!, { store: plot.store, item: plot.item }),
-        readSensor: (plot, file, hosts, again, allow) => service!.importSensor(plot.store, plot.item, plot.base!, agent, file.path!, hosts, again, allow).catch(refusing),
-      },
-      { ...(given && { file: fileAt(given), quiet: true }), ...(hostsGiven && { hosts: hostsGiven }), ...(againGiven !== undefined && { again: againGiven }) },
-    ),
-  );
+  registerSensorImport(host, {
+    ...flowHost,
+    fileAt,
+    previewSensor: (file, plot) => service!.previewSensor(file.path!, { store: plot.store, item: plot.item }),
+    readSensor: (plot, file, hosts, again, allow) => service!.importSensor(plot.store, plot.item, plot.base!, agent, file.path!, hosts, again, allow).catch(refusing),
+  });
   // A platform's log read into the open plot: a REP file's ;NARRATIVE: lines, or a Word or
   // PDF document's entries in legacy Debrief's dialects (CAP-19); the shared flow
   // (webview/panels/flows/narrative.ts). Given a path (agents and tests), it asks nothing:
   // choices, if given, say.
-  command("debrief.importNarrative", (given?: string, choices?: NarrativeChoices) =>
-    importNarrativeFlow(
-      {
-        ...flowHost,
-        previewNarrative: (file, plot) => service!.previewNarrative(file.path!, { store: plot.store, item: plot.item }),
-        // The answers given last time for a dialect: user state in debrief-config, never in the plot.
-        narrativeAnswers: async (dialect) => narrativeAnswers(loadConfig(configFile), dialect),
-        rememberNarrativeAnswers: async (dialect, answers) => void updateConfig((c) => withNarrativeAnswers(c, dialect, answers), configFile),
-        plotTracks: () => (session.current?.plot.features ?? []).filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id, name: (f.properties as { name: string }).name })),
-        readNarrative: (plot, file, chosen, allow) => service!.narrate(plot.store, plot.item, plot.base!, agent, { kind: "import", path: file.path!, ...(chosen && { choices: chosen }) }, allow).catch(refusing),
-      },
-      { ...(given && { file: fileAt(given), quiet: true }), ...(choices && { choices }) },
-    ),
-  );
+  registerNarrativeImport(host, {
+    ...flowHost,
+    fileAt,
+    previewNarrative: (file, plot) => service!.previewNarrative(file.path!, { store: plot.store, item: plot.item }),
+    // The answers given last time for a dialect: user state in debrief-config, never in the plot.
+    narrativeAnswers: async (dialect) => narrativeAnswers(loadConfig(configFile), dialect),
+    rememberNarrativeAnswers: async (dialect, answers) => void updateConfig((c) => withNarrativeAnswers(c, dialect, answers), configFile),
+    plotTracks: () => (session.current?.plot.features ?? []).filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id, name: (f.properties as { name: string }).name })),
+    readNarrative: (plot, file, chosen, allow) => service!.narrate(plot.store, plot.item, plot.base!, agent, { kind: "import", path: file.path!, ...(chosen && { choices: chosen }) }, allow).catch(refusing),
+  });
   command("debrief.annotationFormOpen", () => annotationForm.open);
 
   // The time window, for agents, keyboard macros and tests: saved as when the analyst lets go of it.
@@ -2981,14 +2969,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   command("debrief.restartTools", () => startService());
 
   // --- Collation from the Catalogues tree and the Command Palette (CAP-08 to CAP-12) -----
-  // The shared flows (webview/panels/flows/collation.ts): a tree row names the plot or track; agents and tests may name the item.
-  const plotRow = (node?: CataloguesNode) => plotTargetOf(node);
-  command("debrief.takeNewData", (node?: CataloguesNode, given?: { catalogue: string; item: string; revision?: string }) => takeNewData(collationHost, given ?? plotRow(node)));
-  command("debrief.dismissNewData", (node?: CataloguesNode) => dismissNewData(collationHost, plotRow(node)));
-  // Clear a review flag (CAP-12): on the open plot, or the product the tree names.
-  command("debrief.clearReviewFlag", (node?: CataloguesNode) => clearReviewFlag(collationHost, plotRow(node)));
-  command("debrief.linkTrack", (node?: CataloguesNode, feature?: string) => linkTrack(collationHost, trackTargetOf(node), feature));
-  command("debrief.unlinkTrack", (node?: CataloguesNode) => unlinkTrack(collationHost, trackTargetOf(node)));
+  // The shared registration (webview/panels/flows/collation.ts): a tree row names the plot or track; agents and tests may name the item.
+  registerCollation(host, collationHost);
   command("debrief.showCoverage", () => vscode.commands.executeCommand(`${COVERAGE_VIEW}.focus`));
   // For agents and tests: anything Coverage can ask, without the page.
   command("debrief.collate", (ask: CoverageAsk) => collate(ask));

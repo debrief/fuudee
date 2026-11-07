@@ -111,6 +111,8 @@ export interface PickedFile {
   path?: string;
   data?: Uint8Array;
 }
+/** A file named by an agent or a test, by its path, as the flows take a file chosen. */
+export type FileAt = (path: string) => PickedFile;
 /** Where to save a file (PAR-09): VS Code's save dialog; the playground's download, named (§5). */
 export interface SaveSpec {
   title: string;

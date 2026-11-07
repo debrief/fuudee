@@ -12,6 +12,11 @@ import type { TmaRequest } from "@debrief/schemas";
 import { FEATURE_COMMANDS, FEATURES, type Feature } from "../../webview/panels/flows/features.js";
 import { BEARINGS_COMMANDS, CHOOSE_CUTS, registerBearings, SELECT_SOLUTION, SET_TIME, type TmaHost } from "../../webview/panels/flows/bearings.js";
 import { commandsOf, type Host, type Run } from "../../webview/panels/flows/register.js";
+import { NOT_OFFERED, registerOperations } from "../../webview/panels/flows/operation.js";
+import { registerSensorImport } from "../../webview/panels/flows/sensor.js";
+import { registerNarrativeImport } from "../../webview/panels/flows/narrative.js";
+import { FIND_NO_SERVICE, registerExport } from "../../webview/panels/flows/exportimage.js";
+import { OPEN_PLOT, registerCollation } from "../../webview/panels/flows/collation.js";
 
 const vscodeDir = path.resolve(__dirname, "..", "..");
 const read = (file: string) => readFileSync(path.join(vscodeDir, file), "utf8");
@@ -163,5 +168,77 @@ describe("Bearings and TMA's commands", () => {
       ["exclude", "solution-1", ["cut-1"], false],
       ["message", "warning", CHOOSE_CUTS],
     ]);
+  });
+});
+
+// --- The other features: what each passes on from its arguments ------------------------------------
+
+/** A feature's host that records the calls made of it, refusing for want of a plot open. */
+function bare(record: Call[], extra: Record<string, unknown> = {}): never {
+  const said =
+    (name: string) =>
+    (...args: unknown[]) => (record.push([name, ...args]), undefined);
+  const own: Record<string, unknown> = {
+    plot: () => undefined,
+    serviceReady: () => true,
+    operationState: () => ({ keys: [] }),
+    message: (severity: string, text: string) => (record.push(["message", severity, text]), Promise.resolve(undefined)),
+    ...extra,
+  };
+  return new Proxy(own, { get: (target, key: string) => (key in target ? target[key] : said(key)) }) as never;
+}
+const runOf = async (feature: (host: Host, impl: never) => void, impl: never, id: string, ...args: unknown[]) => {
+  const host = recording();
+  feature(host, impl);
+  return (host.runs.get(id) as (...a: unknown[]) => unknown)(...args);
+};
+
+describe("the shared features' commands", () => {
+  it("run the Tools' entries on the rows they were run on, a cut's split as a position's", async () => {
+    const calls: Call[] = [];
+    const rowsOf = (target?: unknown, nodes?: unknown) => (calls.push(["rowsOf", target, nodes]), ["k"]);
+    await runOf(registerOperations, bare(calls, { rowsOf }), "debrief.hideCuts", { ids: ["k"] }, [1]);
+    await runOf(registerOperations, bare(calls, { rowsOf }), "debrief.splitBeforeCut", "node");
+    expect(calls).toEqual([
+      ["rowsOf", { ids: ["k"] }, [1]],
+      ["message", "warning", NOT_OFFERED],
+      ["rowsOf", "node", undefined],
+      ["message", "warning", NOT_OFFERED],
+    ]);
+  });
+
+  it("read a file named by an agent without asking for one, else ask", async () => {
+    const calls: Call[] = [];
+    const fileAt = (path: string) => (calls.push(["fileAt", path]), { name: path });
+    await runOf(registerSensorImport, bare(calls, { fileAt }), "debrief.importSensor", "/data/towed.dsf");
+    await runOf(registerSensorImport, bare(calls, { fileAt }), "debrief.importSensor", { ids: ["k"] });
+    await runOf(registerNarrativeImport, bare(calls, { fileAt }), "debrief.importNarrative", "/data/log.docx");
+    expect(calls.filter((c) => c[0] === "fileAt")).toEqual([
+      ["fileAt", "/data/towed.dsf"],
+      ["fileAt", "/data/log.docx"],
+    ]);
+  });
+
+  it("export through the host's own export, and find an image's source by the file given", async () => {
+    const calls: Call[] = [];
+    const exporting = {
+      exportImage: (given?: unknown) => calls.push(["exportImage", given]),
+      find: bare(calls, { serviceReady: () => false }),
+      fileAt: (path: string) => (calls.push(["fileAt", path]), { name: path }),
+    } as never;
+    await runOf(registerExport, exporting, "debrief.exportImage", { file: "/tmp/a.png" });
+    await runOf(registerExport, exporting, "debrief.findImageSource", { file: "/tmp/a.png" });
+    expect(calls).toEqual([
+      ["exportImage", { file: "/tmp/a.png" }],
+      ["fileAt", "/tmp/a.png"],
+      ["message", "warning", FIND_NO_SERVICE],
+    ]);
+  });
+
+  it("take new data from the Catalogues row it was run on, or the item given", async () => {
+    const calls: Call[] = [];
+    await runOf(registerCollation, bare(calls), "debrief.takeNewData", undefined, { catalogue: "c", item: "i" });
+    await runOf(registerCollation, bare(calls), "debrief.unlinkTrack", { ids: ["k"] });
+    expect(calls.filter((c) => c[0] === "message").map((c) => c[2])).toEqual([OPEN_PLOT, OPEN_PLOT]);
   });
 });
