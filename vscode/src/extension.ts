@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, LineStringGeometry, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, formatTime, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { legExtent } from "../webview/tma.js";
@@ -30,6 +30,7 @@ import { BEARINGS_VIEW, BearingsView, type BearingsPosted, type BearingsWhere } 
 import { BEARINGS_WINDOW, BearingsHost, type PoppedOut } from "./panels/bearingshost.js";
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView } from "./panels/coverageview.js";
+import { registerView } from "./panels/webviewhost.js";
 import { startup, type StartupSnapshot } from "./startup.js";
 import { toteMenu, withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
@@ -464,11 +465,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const coverageView = new CoverageView(context.extensionUri, session, (ask) => collate(ask), log);
   coverageView.shown = () => tickHere("coverageShown");
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(COVERAGE_VIEW, coverageView),
-    vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
-    vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
-    vscode.window.registerWebviewViewProvider(TOTE_VIEW, toteView, { webviewOptions: { retainContextWhenHidden: true } }),
-    vscode.window.registerWebviewViewProvider(BEARINGS_VIEW, bearingsHost, { webviewOptions: { retainContextWhenHidden: true } }),
+    registerView(COVERAGE_VIEW, coverageView),
+    registerView(TIMELINE_VIEW, timeline),
+    registerView(TIME_VIEW, timeView),
+    registerView(TOTE_VIEW, toteView),
+    registerView(BEARINGS_VIEW, bearingsHost),
     vscode.window.registerWebviewPanelSerializer(BEARINGS_WINDOW, bearingsHost),
   );
   const results = new ResultsPanel(context.extensionUri);
@@ -2259,7 +2260,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // list, and changed only when the analyst says, as one step. Each command takes what agents
   // and tests give it instead of asking, and returns what happened.
   /** Ring fixes on the map for the analyst to check, or draw a change previewed; nothing to take them away. */
-  const showFixes = (shown?: { feature_id: string; fix_times?: string[]; preview?: { type: "LineString"; coordinates: number[][] }; message?: string }) => map.showFixes(shown);
+  const showFixes = (shown?: { feature_id: string; fix_times?: string[]; preview?: LineStringGeometry; message?: string }) => map.showFixes(shown);
   const colourName = (colour: string) => FIX_COLOURS.find((c) => c.colour === colour)?.name.toLowerCase();
 
   // "Find and remove jumps…": the threshold (offered as the track's default), then the jumps found,

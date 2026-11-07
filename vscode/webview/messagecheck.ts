@@ -40,7 +40,7 @@ export function checkMessageWith(validate: (raw: unknown) => WebviewMessage, raw
   if (edit) problems.push(...trackEditProblems(edit));
   const tote = member(message, "tote_view");
   if (tote) problems.push(...toteViewProblems(tote));
-  if (message.kind === "resolve_asked" && message.keep !== "bearing" && message.keep !== "ambiguous_bearing") problems.push("resolve_asked keeps the bearing clicked: bearing or ambiguous_bearing");
+  if (message.kind === "resolve_asked" && message.keep !== "bearing" && message.keep !== "ambiguous_bearing" && message.keep !== "ambiguous") problems.push("resolve_asked keeps the bearing clicked (bearing or ambiguous_bearing) or makes the cut ambiguous again (ambiguous)");
   const request = member(message, "tma_request");
   if (request) problems.push(...tmaRequestProblems(request));
   if (message.kind === "tma_exclude" && !message.cut_ids.length) problems.push("tma_exclude names the cuts to leave out or count again");

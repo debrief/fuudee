@@ -1182,8 +1182,11 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     if member("track_edit") is not None:
         problems += track_edit_problems(m.track_edit)
     problems += tote_view_problems(member("tote_view"))
-    if kind == "resolve_asked" and str(m.keep) not in ("bearing", "ambiguous_bearing"):
-        problems.append("resolve_asked keeps the bearing clicked: bearing or ambiguous_bearing")
+    if kind == "resolve_asked" and str(m.keep) not in ("bearing", "ambiguous_bearing", "ambiguous"):
+        problems.append(
+            "resolve_asked keeps the bearing clicked (bearing or ambiguous_bearing)"
+            " or makes the cut ambiguous again (ambiguous)"
+        )
     request = member("tma_request")
     if request is not None:
         problems += tma_request_problems(request)
