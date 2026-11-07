@@ -28,10 +28,11 @@ from debrief_schemas import (
     load_document,
     models,
 )
-from debrief_stac import Base, Catalogue
+from debrief_stac import Catalogue
 from debrief_tools import diagnostics
 from debrief_tools.entries import unavailable_tools
 from debrief_tools.registry import Registry
+from debrief_tools.rpc import BASE_SHAPE, base_of
 from debrief_tools.run import ToolRunConflict, ToolRunError, ToolRunNewerSchema, run_tool
 
 log = logging.getLogger("debrief_tools")
@@ -68,15 +69,10 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             raise ToolRunError(
                 f"There is no store {arguments.get('store')!r} in your Debrief configuration."
             )
-        base = arguments.get("base")
-        if base is not None:
-            if not (
-                isinstance(base, dict)
-                and type(base.get("current")) is int
-                and isinstance(base.get("plot_hash"), str)
-            ):
-                raise ToolRunError("base must be {current, plot_hash}, as debrief/open returns.")
-            base = Base(base["current"], base["plot_hash"])
+        try:
+            base = base_of(arguments.get("base"))
+        except ValueError:
+            raise ToolRunError(f"{BASE_SHAPE}, as debrief/open returns.") from None
         state = arguments.get("state")
         if state is not None:
             try:
