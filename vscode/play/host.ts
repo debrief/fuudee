@@ -87,7 +87,7 @@ import { registerTote } from "../webview/panels/flows/tote.js";
 import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { registerArrayOffset } from "../webview/panels/flows/arrayoffset.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
-import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
+import { importPlot, registerImportPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
 import { importSensor, registerSensorImport, type SensorHost, type SensorRead } from "../webview/panels/flows/sensor.js";
 import { exportImage, registerExport, type ExportHost, type FindHost, type Traced } from "../webview/panels/flows/exportimage.js";
@@ -3179,7 +3179,7 @@ async function runCatalogueAction(id: string, key?: string): Promise<void> {
     case "debrief.unlinkTrack":
       return void (await runCommand(id, node));
     case "debrief.importRep":
-      return void (await importPlot(importHost));
+      return void (await runCommand(id, node));
     case "debrief.findImageSource":
       return void (await runCommand(id));
     case "debrief.showCoverage":
@@ -3776,7 +3776,7 @@ async function showImportMode(): Promise<void> {
   $("ask-again").hidden = mode === "ask";
 }
 $("ask-again").onclick = async () => {
-  await askAgain(importHost);
+  await runCommand("debrief.askTrackImportMode");
 };
 /** A file chosen in the Import menu, as the flows take one: read in the browser, never uploaded. */
 const uploaded = async (input: HTMLInputElement): Promise<PickedFile | undefined> => {
@@ -3851,6 +3851,9 @@ const importHost: ImportHost = {
   showNotImported: async (file, omitted) => showImported(file.name, omitted),
   openPlotIn: (_store, item) => openPlot(item),
 };
+// Importing a plot and asking again how imported tracks are plotted (webview/panels/flows/importplot.ts):
+// files are uploaded, never named by a path.
+registerImportPlot(playHost, { ...importHost, fileAt: (name) => ({ name }) });
 $<HTMLInputElement>("file").onchange = async (e) => {
   const file = await uploaded(e.target as HTMLInputElement);
   if (file) await importPlot(importHost, { file });

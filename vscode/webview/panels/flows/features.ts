@@ -15,6 +15,7 @@ import { ANNOTATION_COMMANDS, registerAnnotations } from "./annotations.js";
 import { registerTote, TOTE_COMMANDS } from "./tote.js";
 import { CUT_COMMANDS, registerCuts } from "./cuts.js";
 import { ARRAY_OFFSET_COMMANDS, registerArrayOffset } from "./arrayoffset.js";
+import { IMPORT_COMMANDS, registerImportPlot } from "./importplot.js";
 import { OPERATION_FEATURE_COMMANDS, registerOperations } from "./operation.js";
 import { registerSensorImport, SENSOR_COMMANDS } from "./sensor.js";
 import { commandsOf, type CommandIds, type Host } from "./register.js";
@@ -40,6 +41,7 @@ export const FEATURES: readonly Feature[] = [
   { name: "The Tote's entries", commands: TOTE_COMMANDS, register: registerTote },
   { name: "Ambiguous cuts and the cut at current time", commands: CUT_COMMANDS, register: registerCuts },
   { name: "A towed array's offset", commands: ARRAY_OFFSET_COMMANDS, register: registerArrayOffset },
+  { name: "Importing a plot", commands: IMPORT_COMMANDS, register: registerImportPlot },
 ];
 
 /** Every command the shared features register, in each host. */

@@ -18,6 +18,7 @@ import { registerNarrativeImport } from "../../webview/panels/flows/narrative.js
 import { FIND_NO_SERVICE, registerExport } from "../../webview/panels/flows/exportimage.js";
 import { OPEN_PLOT, registerCollation } from "../../webview/panels/flows/collation.js";
 import { registerHistory } from "../../webview/panels/flows/move.js";
+import { registerImportPlot } from "../../webview/panels/flows/importplot.js";
 import { ONE_PRIMARY, registerTote, TRACKS_TO_ADD, TRACKS_TO_REMOVE } from "../../webview/panels/flows/tote.js";
 
 const vscodeDir = path.resolve(__dirname, "..", "..");
@@ -277,5 +278,22 @@ describe("the shared features' commands", () => {
     expect(await runOf(registerTote, tote, "debrief.tote.add", { ids: ["annotation"] })).toBe(TRACKS_TO_ADD);
     expect(await runOf(registerTote, tote, "debrief.tote.remove")).toBe(TRACKS_TO_REMOVE);
     expect(said).toEqual([ONE_PRIMARY, TRACKS_TO_ADD, TRACKS_TO_REMOVE]);
+  });
+
+  it("import into the catalogue given, else the Catalogues row's, the file named asked nothing", async () => {
+    const calls: Call[] = [];
+    const imports = bare(calls, {
+      chooseCatalogue: async (purpose: string, given?: string) => (calls.push(["catalogue", purpose, given]), undefined),
+      fileAt: (path: string) => (calls.push(["fileAt", path]), { name: path }),
+    });
+    await runOf(registerImportPlot, imports, "debrief.importRep", { kind: "catalogue", catalogue: { store: "row" } });
+    await runOf(registerImportPlot, imports, "debrief.importRep", { kind: "catalogue", catalogue: { store: "row" } }, { store: "given", path: "/data/a.rep" });
+    await runOf(registerImportPlot, imports, "debrief.importRep", { ids: ["k"] });
+    expect(calls).toEqual([
+      ["catalogue", "import", "row"],
+      ["fileAt", "/data/a.rep"],
+      ["catalogue", "import", "given"],
+      ["catalogue", "import", undefined],
+    ]);
   });
 });
