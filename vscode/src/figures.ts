@@ -59,11 +59,17 @@ export interface ShownReadOnly {
  * What the extension sends, or why it sends nothing, while an earlier revision of a plot is
  * shown read-only: a method aimed at that plot (its store and item, or a tool's arguments'
  * store and item) that is not in LEAVES_PLOT is refused; debrief/open of it is sent with
- * read_only, so an interrupted change is not recovered, which would write to it. Methods
- * aimed at other plots are sent as they are.
+ * read_only, so an interrupted change is not recovered, which would write to it. A method
+ * run through tools/call (tools/list offers them) is judged as the method itself, on its
+ * arguments; any other tool aimed at the plot is refused. Methods aimed at other plots are
+ * sent as they are.
  */
 export function guardRequest(method: string, params: Record<string, unknown>, shown: ShownReadOnly | undefined): { refused: string } | { params: Record<string, unknown> } {
   if (!shown) return { params };
+  if (method === "tools/call" && typeof params.name === "string" && LEAVES_PLOT.has(params.name)) {
+    const inner = guardRequest(params.name, (params.arguments as Record<string, unknown> | undefined) ?? {}, shown);
+    return "refused" in inner ? inner : { params: { ...params, arguments: inner.params } };
+  }
   const target = (method === "tools/call" ? (params.arguments as Record<string, unknown> | undefined) : params) ?? {};
   const aimed = target.store === shown.store && target.item === shown.item;
   if (!aimed) return { params };
