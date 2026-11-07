@@ -79,6 +79,17 @@ describe("migrations", () => {
     expect(JSON.parse(serialisePlot(plot)).schema_version).toBe(SCHEMA_VERSION);
   });
 
+  it("leaves an older plot's history as read: the step recording a migration is added on saving, by Python", () => {
+    register(OLDER, SCHEMA_VERSION, same, "nothing changed");
+    const older = fixture("plot", "history-undone-and-abandoned");
+    older.schema_version = OLDER;
+
+    const plot = parsePlot(JSON.stringify(older)) as DebriefFeatureCollection & { history?: unknown };
+
+    expect(plot.provenance.at(-1)!.kind).toBe("migration");
+    expect(plot.history).toEqual(older.history);
+  });
+
   it("follows a chain of migrations, recording each", () => {
     register(OLDER, MIDDLE, titleToName, "a track's title is its name");
     register(MIDDLE, SCHEMA_VERSION, same, "nothing else");

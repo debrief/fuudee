@@ -10,6 +10,7 @@ from debrief_schemas.documents import (
     load_document,
     load_plot,
     load_view,
+    unrecorded_migration,
 )
 from debrief_schemas.generated import debrief as models
 from debrief_schemas.generated.debrief import DebriefFeatureCollection
@@ -32,4 +33,5 @@ __all__ = [
     "load_view",
     "models",
     "register_migration",
+    "unrecorded_migration",
 ]

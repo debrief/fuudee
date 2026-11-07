@@ -10,10 +10,13 @@ A migration is a function from a file's JSON, as read, to its JSON at the next
 version. It never sets the recorded version: the registry does, after each
 step. Each migration applied to a plot is recorded in its provenance as an
 activity of kind ``migration`` (SUB-13): one record a step, naming both
-versions and what changed. A plot that carries its history also gains a step
-holding those records, as any recorded change does, so its hash chain and its
-current step's result_hash stay whole; the earlier steps are left as they
-were, since rewriting them would break the chain. A migration that changes a
+versions and what changed. Migrating happens in memory, on opening: opening
+changes neither the file nor its history, whose current step is checked
+against the content as read. A plot that carries its history gains a step
+holding those records only when it is first written (dump_document), as any
+recorded change does, so its hash chain and its current step's result_hash
+stay whole; the earlier steps are left as they were, since rewriting them
+would break the chain. A migration that changes a
 feature's shape must therefore also say how earlier steps are read: that is the
 first such migration's to design, not this registry's.
 

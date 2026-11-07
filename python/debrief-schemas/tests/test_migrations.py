@@ -18,8 +18,15 @@ from debrief_schemas import (
     load_document,
     load_plot,
     migrations,
+    unrecorded_migration,
 )
-from debrief_schemas.chain import chain_problem
+from debrief_schemas.chain import (
+    GENESIS_HASH,
+    chain_problem,
+    content_text_of,
+    step_hash,
+    text_hash,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / "schemas" / "fixtures"
@@ -102,24 +109,70 @@ def test_a_chain_of_migrations_is_followed_and_each_recorded() -> None:
     ]
 
 
-def test_older_plot_with_history_gains_a_step_holding_the_migration() -> None:
-    migrations.register_migration(OLDER, SCHEMA_VERSION, lambda _k, d: d, "nothing changed")
+def _older_with_history() -> dict:
+    """A plot whose history has a step undone, written at OLDER, as Debrief wrote it then:
+    the current step's result_hash is the content's, version included."""
     older = _fixture("plot", "history-undone-and-abandoned")
-    steps_before = len(older["history"]["steps"])
     older["schema_version"] = OLDER
+    history = older["history"]
+    current = history["steps"][history["current"] - 1]
+    current["result_hash"] = text_hash(content_text_of(older))
+    previous = GENESIS_HASH
+    for step in history["steps"]:
+        step["step_hash"] = step_hash(step, previous)
+        previous = step["step_hash"]
+    history["head_hash"] = previous
+    return older
 
-    plot = load_plot(older)  # its history whole: the chain and the current step's hash
 
-    history = plot.history
-    assert history.current == steps_before + 1
-    step = history.steps[-1]
-    assert step.after == 4 and str(step.state) == "applied"
-    assert [r.kind for r in step.records] == ["migration"]
-    assert step.records == plot.provenance[-1:]
+def test_opening_an_older_plot_leaves_its_file_and_history_untouched(tmp_path: Path) -> None:
+    migrations.register_migration(OLDER, SCHEMA_VERSION, _title_to_name, "nothing changed")
+    path = tmp_path / "plot.json"
+    path.write_text(json.dumps(_older_with_history(), indent=2))
+    on_disk = path.read_bytes()
+    history_as_read = json.loads(on_disk)["history"]
+
+    plot = load_plot(path.read_text())  # migrated in memory, its history checked as read
+
+    assert path.read_bytes() == on_disk  # opening writes nothing
+    assert plot.schema_version == SCHEMA_VERSION
+    assert plot.provenance[-1].kind == "migration"
+    # The history is the file's, step for step: the migration is not recorded yet.
+    assert plot.history.current == history_as_read["current"]
+    assert plot.history.head_hash == history_as_read["head_hash"]
+    assert [(s.step_hash, str(s.state)) for s in plot.history.steps] == [
+        (s["step_hash"], s["state"]) for s in history_as_read["steps"]
+    ]
+    assert [r.kind for r in unrecorded_migration(plot)] == ["migration"]
+
+
+def test_saving_a_migrated_plot_records_the_migration_in_one_step() -> None:
+    migrations.register_migration(OLDER, SCHEMA_VERSION, lambda _k, d: d, "nothing changed")
+    older = _older_with_history()
+    steps_before = len(older["history"]["steps"])
+
+    plot = load_plot(json.dumps(older))
+    first = dump_document(DocumentKind.PLOT, plot)  # the first save records it
+    second = dump_document(DocumentKind.PLOT, plot)  # and a later one does not again
+
+    assert first == second
+    raw = json.loads(first)
+    assert len(raw["history"]["steps"]) == steps_before + 1
+    assert raw["history"]["current"] == steps_before + 1
+    step = raw["history"]["steps"][-1]
+    assert step["after"] == 4 and step["state"] == "applied"
+    assert [r["kind"] for r in step["records"]] == ["migration"]
+    assert step["records"] == raw["provenance"][-1:]
+    assert step["result_hash"] == text_hash(content_text_of(raw))
     # The step undone before the migration is now replaced by it (SUB-21).
-    assert str(history.steps[4].state) == "abandoned"
-    raw = json.loads(dump_document(DocumentKind.PLOT, plot))
+    assert raw["history"]["steps"][4]["state"] == "abandoned"
     assert chain_problem(raw["history"]["steps"], raw["history"]["head_hash"]) is None
+    # The model holds what was written; the saved file opens with nothing to migrate.
+    assert len(plot.history.steps) == steps_before + 1
+    assert unrecorded_migration(plot) == []
+    reopened = load_plot(first)
+    assert len(reopened.history.steps) == steps_before + 1
+    assert unrecorded_migration(reopened) == []
 
 
 def test_older_stac_item_with_a_migration_opens_at_the_current_version() -> None:

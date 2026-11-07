@@ -139,10 +139,11 @@ function checkVersion(kind: DocumentKind, document: unknown): void {
 //
 // The same registry as Python's (debrief_schemas.migrations): a file of an older version opens
 // only if a chain of registered migrations leads from its version to the current one, and is
-// refused otherwise, its version named. It starts empty. Each migration applied to a plot is
-// recorded in its provenance as an activity of kind "migration". TypeScript reads a plot's
-// content without its history (vscode/src/catalogue.ts), so the history step Python adds for
-// the migration is Python's alone.
+// refused otherwise, its version named. It starts empty. Migrating happens in memory, on
+// opening: the document given is never changed. Each migration applied to a plot is recorded
+// in its provenance as an activity of kind "migration". TypeScript reads a plot's content
+// without its history (vscode/src/catalogue.ts) and never writes a history step: the step
+// recording a migration is added by Python, when the plot is first saved, and only then.
 
 /** A file's JSON at one version, given its kind, returned at the next. It may change what it is given. */
 export type MigrateFunction = (kind: DocumentKind, document: Record<string, unknown>) => Record<string, unknown>;
