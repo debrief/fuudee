@@ -1,0 +1,23 @@
+{
+ "shots": [
+  {
+   "source": "guides/interaction-models/annotations.md",
+   "url": "guides/interaction-models/annotations/",
+   "title": "Annotations",
+   "file": "guides-interaction-models-annotations.png"
+  },
+  {
+   "source": "guides/interaction-models/conflicts.md",
+   "url": "guides/interaction-models/conflicts/",
+   "title": "Conflicts",
+   "file": "guides-interaction-models-conflicts.png"
+  },
+  {
+   "source": "guides/interaction-models/track-operations.md",
+   "url": "guides/interaction-models/track-operations/",
+   "title": "Track operations",
+   "file": "guides-interaction-models-track-operations.png"
+  }
+ ],
+ "more": 0
+}
