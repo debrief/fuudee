@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from debrief_schemas import models
+from debrief_stac import CatalogueError, Conflict, HistoryError, NewerSchemaError, StoreBusy
 
 
 class RpcError(Exception):
@@ -29,6 +30,37 @@ NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, the
 # narrative file into a plot it was read into before, or entries the plot has already:
 # ask, then send again with duplicates "skip" or "add" (product owner, 15 Oct 2026)
 NEEDS_CONFIRMATION = -32003
+# The store is busy (another process is saving the plot) or could not be read or written
+# (StoreBusy, OSError): nothing was changed; the same request may succeed if sent again.
+RETRY = -32004
+# The plot's history refused the request or cannot be trusted (HistoryError): damaged, or
+# not where the caller thought (nothing to undo, a step it does not hold). Open the plot
+# again to see where it stands before asking again.
+REOPEN = -32005
+
+# The errors a method's work raises that are the analyst's to read, each mapped by
+# rpc_error; anything else is an internal error.
+MAPPED = (CatalogueError, HistoryError, StoreBusy, OSError, ValueError)
+
+
+def rpc_error(error: Exception, message: str | None = None) -> RpcError:
+    """The JSON-RPC error for what a method's work raised, so a caller can tell whether to
+    send it again (RETRY), open the plot again (REOPEN, CONFLICT), ask the analyst
+    (NEWER_SCHEMA) or correct the request (INVALID_PARAMS). The message is the error's own
+    unless one is given; it is the same whatever the code."""
+    text = str(error) if message is None else message
+    if isinstance(error, Conflict):
+        return RpcError(CONFLICT, text)
+    if isinstance(error, HistoryError):
+        return RpcError(REOPEN, text)
+    if isinstance(error, NewerSchemaError):
+        return RpcError(NEWER_SCHEMA, text)
+    # A file that is not there will not appear by asking again: the request named it.
+    if isinstance(error, StoreBusy) or (
+        isinstance(error, OSError) and not isinstance(error, FileNotFoundError)
+    ):
+        return RpcError(RETRY, text)
+    return RpcError(INVALID_PARAMS, text)
 
 
 def agent_ref(params: dict[str, Any], method: str | None = None) -> models.AgentRef:

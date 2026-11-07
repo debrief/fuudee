@@ -46,7 +46,7 @@ from debrief_config import ConfigError
 from debrief_config.exports import append_export, export_log_path, read_export_log
 from debrief_kernel.time import format_utc
 from debrief_schemas import DocumentKind, dump_document, models
-from debrief_stac import Catalogue, CatalogueError, HistoryError
+from debrief_stac import Catalogue, CatalogueError
 from debrief_stac.figures import (
     FigureIdError,
     figure_for,
@@ -56,7 +56,7 @@ from debrief_stac.figures import (
     parse_figure_id,
     prepare_export,
 )
-from debrief_tools.rpc import INVALID_PARAMS, RpcError, agent_ref
+from debrief_tools.rpc import INVALID_PARAMS, MAPPED, RpcError, agent_ref, rpc_error
 
 if TYPE_CHECKING:
     from debrief_tools.service import ToolService
@@ -150,8 +150,8 @@ def handle(service: ToolService, method: str, params: dict[str, Any]) -> dict[st
         raise RpcError(INVALID_PARAMS, str(error)) from None
     except FileNotFoundError as error:
         raise RpcError(INVALID_PARAMS, f"There is no file {error.filename}.") from None
-    except (CatalogueError, HistoryError, OSError, ValueError) as error:
-        raise RpcError(INVALID_PARAMS, str(error)) from None
+    except MAPPED as error:
+        raise rpc_error(error) from None
 
 
 def _plot(service: ToolService, params: dict[str, Any]) -> tuple[models.KnownStore, Catalogue, str]:

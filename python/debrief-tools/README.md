@@ -48,6 +48,8 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
 
 Every method that changes a plot or records something in it (each change listed above, `debrief/import`, `debrief/add_plot_file`, `debrief/export_image`) takes `agent`, `{"kind": "person" or "software_agent", "name"}`, which its record names. It is required: a change without it is refused with -32602 and a message naming `agent`, never attributed to the analyst by default (SUB-24). Reading methods, and `debrief/undo`, `debrief/redo` and `debrief/goto` (which return to steps that already name theirs), need none; `debrief/open` given one also turns a retired `presentation.json` into a step.
 
+**Errors.** A refused request is a JSON-RPC error whose message is for the analyst and whose code says what the caller does next (`debrief_tools.rpc`): -32602, correct the request (a parameter missing or wrong, or a change the plot cannot take); -32001, the plot changed since `base`: open it again (SUB-28); -32002, ask the analyst, then send again with `allow_newer_schema` (SUB-35); -32003, ask, then send again confirming; -32004, the store is busy (another process saving the plot) or could not be read or written: nothing changed, send it again; -32005, the plot's history refused it (nothing to undo, a step it does not hold) or is damaged: open the plot again to see where it stands.
+
 A test drives the service with the official MCP Python client, so any MCP-capable agent can use the same tools (TL-17).
 
 `tools/call` arguments:

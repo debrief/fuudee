@@ -318,7 +318,8 @@ def test_history_open_list_undo_redo_and_goto(client, catalogue) -> None:
     assert history("debrief/redo", base=undone)["result"]["base"]["current"] == 2
     assert history("debrief/goto", step=1)["result"]["base"]["current"] == 1
     origin = history("debrief/undo")["error"]
-    assert origin["code"] == -32602 and "as it was imported" in origin["message"]
+    # The history refuses: the caller opens the plot again to see where it stands.
+    assert origin["code"] == -32005 and "as it was imported" in origin["message"]
     assert history("debrief/history", item="nothing")["error"]["code"] == -32602
 
 
@@ -867,7 +868,7 @@ def test_a_plot_file_from_a_colleague_is_added_with_its_history(
     raw["history"]["steps"][1]["records"][0]["agent"]["name"] = "someone else"
     received.write_text(json.dumps(raw))
     error = rpc(client, "debrief/add_plot_file", params).json()["error"]
-    assert error["code"] == -32602
+    assert error["code"] == -32005  # a damaged history
     assert "history has been changed outside Debrief" in error["message"]
 
 

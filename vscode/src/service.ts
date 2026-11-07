@@ -174,6 +174,10 @@ export const CONFLICT = -32001;
 export const NEWER_SCHEMA = -32002;
 /** The JSON-RPC error for a change that would lose what the analyst made, until they confirm: a track changed while plotted by dead reckoning, plotted over the ground (discard_dr_changes). */
 export const NEEDS_CONFIRMATION = -32003;
+/** The JSON-RPC error when the store is busy (another process saving the plot) or could not be read or written: nothing changed, and the same request may succeed if sent again. Its message is shown as any other. */
+export const RETRY = -32004;
+/** The JSON-RPC error when the plot's history refused the request or is damaged (nothing to undo, a step it does not hold, checksums that do not match): open the plot again to see where it stands. Its message is shown as any other. */
+export const REOPEN = -32005;
 
 export interface ServiceOptions {
   python: string;

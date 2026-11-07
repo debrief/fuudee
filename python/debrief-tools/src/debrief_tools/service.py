@@ -130,6 +130,7 @@ from debrief_stac import (
     Conflict,
     HistoryError,
     NewerSchemaError,
+    StoreBusy,
     frequencies,
     narrative,
     sensors,
@@ -145,12 +146,14 @@ from debrief_tools.rpc import (
     INTERNAL,
     INVALID_PARAMS,
     INVALID_REQUEST,
+    MAPPED,
     METHOD_NOT_FOUND,
     NEEDS_CONFIRMATION,
     NEWER_SCHEMA,
     PARSE_ERROR,
     RpcError,
     agent_ref,
+    rpc_error,
 )
 from debrief_tools.worker import ToolWorker
 
@@ -484,8 +487,8 @@ class ToolService:
             )
         except FileNotFoundError:
             raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.") from None
-        except (CatalogueError, HistoryError, OSError, ValueError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except MAPPED as error:
+            raise rpc_error(error) from None
 
     def config(self) -> models.UserConfig:
         return load_config(self.config_path) if self.config_path else load_config()
@@ -511,8 +514,8 @@ class ToolService:
                 return changed
 
             update_config(add, Path(self.config_path) if self.config_path else None)
-        except (CatalogueError, ConfigError, OSError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except (CatalogueError, ConfigError, StoreBusy, OSError) as error:
+            raise rpc_error(error) from None
         return {"store": store["id"]}
 
     def store(self, store_id: Any, *, writing: bool) -> models.KnownStore:
@@ -628,8 +631,8 @@ class ToolService:
                 NEEDS_CONFIRMATION,
                 f"{error} Nothing was changed. {CONFIRM_HOW}",
             ) from None
-        except (CatalogueError, HistoryError, OSError, ValueError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except MAPPED as error:
+            raise rpc_error(error) from None
 
     def _open(
         self, catalogue: Catalogue, store: models.KnownStore, item: str, params: dict[str, Any]
@@ -1257,9 +1260,7 @@ class ToolService:
         try:
             return {"tracks": rep_track_names(Path(path))}
         except (OSError, ValueError) as error:
-            raise RpcError(
-                INVALID_PARAMS, f"{Path(path).name} could not be read: {error}"
-            ) from None
+            raise rpc_error(error, f"{Path(path).name} could not be read: {error}") from None
 
     def _preview_narrative(self, params: dict[str, Any]) -> dict[str, Any]:
         """What a narrative file holds, before it is read, so the host can ask the analyst
@@ -1281,12 +1282,12 @@ class ToolService:
             try:
                 catalogue = Catalogue.open(Path(store.location))
                 catalogue.read_item(item)
-            except (CatalogueError, OSError) as error:
-                raise RpcError(INVALID_PARAMS, str(error)) from None
+            except (CatalogueError, StoreBusy, OSError) as error:
+                raise rpc_error(error) from None
         try:
             return preview_narrative(Path(path), catalogue=catalogue, item_id=item)
-        except (NoNarrativeError, OSError, CatalogueError, HistoryError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except (NoNarrativeError, CatalogueError, HistoryError, StoreBusy, OSError) as error:
+            raise rpc_error(error) from None
 
     def _preview_sensor(self, params: dict[str, Any]) -> dict[str, Any]:
         """What a .dsf or REP file's sensor lines hold, before they are read into a plot
@@ -1305,8 +1306,8 @@ class ToolService:
             catalogue = Catalogue.open(Path(store.location))
             catalogue.read_item(item)
             return preview_sensor(Path(path), catalogue=catalogue, item_id=item)
-        except (CatalogueError, OSError, HistoryError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except (CatalogueError, HistoryError, StoreBusy, OSError) as error:
+            raise rpc_error(error) from None
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01), a legacy plot file, .dpf (EXT-14, EXT-15), or a Word
@@ -1356,11 +1357,11 @@ class ToolService:
                 )
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
-        except (CatalogueError, OSError, ValueError) as error:
+        except MAPPED as error:
             message = str(error)
             if not message.startswith(Path(path).name):
                 message = f"{Path(path).name} could not be imported: {message}"
-            raise RpcError(INVALID_PARAMS, message) from None
+            raise rpc_error(error, message) from None
         return {
             "item": report.item_id,
             "tracks": report.tracks,
@@ -1390,11 +1391,11 @@ class ToolService:
             title = catalogue.read_item(item).properties.title or item
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
-        except (CatalogueError, HistoryError, OSError, ValueError) as error:
+        except MAPPED as error:
             message = str(error)
             if not message.startswith(Path(path).name):
                 message = f"{Path(path).name} could not be added: {message}"
-            raise RpcError(INVALID_PARAMS, message) from None
+            raise rpc_error(error, message) from None
         return {"item": item, "title": title, "steps": steps}
 
     def _log_run(
