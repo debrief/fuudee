@@ -57,6 +57,7 @@ import { registerPresentation } from "../webview/panels/flows/presentation.js";
 import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { registerTote } from "../webview/panels/flows/tote.js";
 import { registerCuts } from "../webview/panels/flows/cuts.js";
+import { registerArrayOffset } from "../webview/panels/flows/arrayoffset.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
 import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
@@ -2772,7 +2773,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // 24 Oct 2026): typed in the analyst's length unit, 0 for at the ship, then worm in the
   // hole (back along the ship's own track, legacy's default) or plain. One step. Given an
   // offset (null for none) and a mode (agents and tests), it asks nothing.
-  command("debrief.setArrayOffset", async (target?: Target | string, offsetGiven?: { value: number; unit: string } | null, modeGiven?: ArrayMode) => {
+  const setArrayOffsetCommand = async (target?: Target | string, offsetGiven?: { value: number; unit: string } | null, modeGiven?: ArrayMode) => {
     const opened = session.current;
     if (!opened) return report("Open a plot first.");
     const entries = sensorsOf(opened.plot);
@@ -2820,7 +2821,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (done.problem) return (report(done.problem), done);
     if (done.answer && !done.answer.changed) void vscode.window.showInformationMessage(`${sensorWords} is so already.`);
     return done;
-  });
+  };
+  // A towed array's offset: the shared registration (webview/panels/flows/arrayoffset.ts).
+  registerArrayOffset(host, { setArrayOffset: setArrayOffsetCommand });
   // A cut's menu (right-click, or press and hold, on one of its lines on the map): keep
   // either of its bearings, make it ambiguous again, select it, or keep a side for more.
   const cutMenuCommand = async (cutId?: string) => {

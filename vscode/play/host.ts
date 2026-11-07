@@ -85,6 +85,7 @@ import { registerPresentation } from "../webview/panels/flows/presentation.js";
 import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { registerTote } from "../webview/panels/flows/tote.js";
 import { registerCuts } from "../webview/panels/flows/cuts.js";
+import { registerArrayOffset } from "../webview/panels/flows/arrayoffset.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -2518,7 +2519,6 @@ type RowsTarget = Target & { where?: Where };
  * entry here: it runs that operation on its rows.
  */
 const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
-  "debrief.setArrayOffset": (keys) => arrayOffsetForm(keys[0]),
   // Reading sensor data, exporting an image, finding an image's source and taking new data are the
   // shared features' (registered below, by playHost): a walkthrough's step runs them as VS Code's step
   // runs the command (PAR-14).
@@ -2610,6 +2610,10 @@ registerCuts(playHost, {
   },
   cutMenu: (cutId?: unknown) => (typeof cutId === "string" ? cutMenu(cutId) : undefined),
   currentCut: onRows((keys) => currentCutMenu(keys[0])),
+});
+// A towed array's offset: the shared registration (webview/panels/flows/arrayoffset.ts).
+registerArrayOffset(playHost, {
+  setArrayOffset: onRows((keys) => arrayOffsetForm(keys[0])),
 });
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
