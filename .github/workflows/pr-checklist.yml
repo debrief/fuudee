@@ -1,0 +1,51 @@
+name: PR checklist
+
+# Fails unless the pull request description's checklist (.github/pull_request_template.md)
+# is filled in: one Blog post box, all three Guides boxes and the Sensitivity box ticked.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+            // A box is ticked when its line reads "- [x] <text>" (x or X).
+            const ticked = (text) => body.split(/\r?\n/).some((line) => {
+              const m = line.match(/^\s*[-*]\s*\[([ xX])\]\s*(.*)$/);
+              return m !== null && m[1] !== " " && m[2].startsWith(text);
+            });
+            const problems = [];
+            const blog = [
+              "A post is needed, and it is in this pull request",
+              "No post is needed, because",
+            ].filter(ticked).length;
+            if (blog !== 1) {
+              problems.push(`Blog post: tick exactly one of the two boxes (${blog} ticked).`);
+            }
+            for (const text of [
+              "User-facing text follows the style guide's language section",
+              "Any new or changed interaction follows, or extends, an interaction model",
+              "Guides updated in this pull request where the change needs it, or not applicable",
+            ]) {
+              if (!ticked(text)) problems.push(`Guides: tick "${text}".`);
+            }
+            if (!ticked("The post, screenshots, sample data and guides contain nothing sensitive")) {
+              problems.push("Sensitivity: tick the sensitivity box.");
+            }
+            if (problems.length > 0) {
+              core.setFailed(
+                "The pull request checklist is not complete. Edit the description:\n- " +
+                  problems.join("\n- "),
+              );
+            } else {
+              core.info("Checklist complete.");
+            }
