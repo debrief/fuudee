@@ -774,6 +774,7 @@ try {
     const files = serve(webview);
     const view = await browser.newPage({ viewport: { width: 290, height: 188 }, colorScheme: "dark" });
     view.on("pageerror", (e) => errors.push(String(e)));
+    view.on("console", (m) => m.text().startsWith("webview_message_refused") && errors.push(m.text())); // a message the page refused (CON-08)
     const posted = [];
     await view.exposeFunction("tellTest", (message) => posted.push(message));
     // VS Code's own fonts and sizes, and the theme tokens the page uses for its colours: Dark Modern, or High Contrast.
@@ -800,7 +801,8 @@ try {
     await open();
     const period = { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" };
     const showTime = (range, saved) =>
-      view.evaluate(([range, saved]) => window.postMessage({ kind: "show_time", time: { current: "2023-06-15T09:21:17.000Z", range }, time_range: { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" }, saved_window: saved, context_tracks: "faint" }, "*"), [range, saved]);
+      // Current time within the window, as the host keeps it (a page refuses one outside, CON-08).
+      view.evaluate(([range, saved]) => window.postMessage({ kind: "show_time", time: { current: range.end < "2023-06-15T09:21:17.000Z" ? range.end : "2023-06-15T09:21:17.000Z", range }, time_range: { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" }, saved_window: saved, context_tracks: "faint" }, "*"), [range, saved]);
     const allShown = async (state) => {
       const box = await view.evaluate(() => {
         const bottom = (selector) => document.querySelector(selector).getBoundingClientRect().bottom;
@@ -909,6 +911,7 @@ try {
     const files = serve(path.join(extension, "dist", "webview")); // built by vscodeTimeView
     const view = await browser.newPage({ viewport: { width: 290, height: 300 }, colorScheme: "dark" });
     view.on("pageerror", (e) => errors.push(String(e)));
+    view.on("console", (m) => m.text().startsWith("webview_message_refused") && errors.push(m.text())); // a message the page refused (CON-08)
     const posted = [];
     await view.exposeFunction("tellTest", (message) => posted.push(message));
     await view.route("**/tote-view.html", (route) =>
@@ -988,6 +991,7 @@ try {
     for (const scheme of ["dark", "light"]) {
       const on = await browser.newPage({ viewport: { width: 1366, height: 820 }, colorScheme: scheme });
       on.on("pageerror", (e) => errors.push(String(e)));
+      on.on("console", (m) => m.text().startsWith("webview_message_refused") && errors.push(m.text())); // a message the page refused (CON-08)
       await on.goto(url);
       await openOnFirstLoad(on, `${name}, ${scheme}`);
       const wide = await guidanceAccent(on, scheme);
