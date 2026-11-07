@@ -6,7 +6,8 @@ needs agent (SUB-24), whether it runs on one plot inside its history, and its ha
 service.METHODS registers every method; the sets the service and its tests use (known,
 writing, history, agent) are read from it, never kept by hand, the README's method
 table is printed from it (python -m debrief_tools methods), and tools/list offers every
-method in it, each with its input schema (Method.listing).
+method in it but the protocol's own, each with its input schema (Method.listing), which
+tools/call then runs by name.
 
 A Params model refuses what a method cannot take with the words the service has always
 used: each field names its refusal (Refusal), and the first field found wrong says it.
@@ -102,6 +103,10 @@ class Method:
     history: bool = False
     # May send a request over MAX_BODY_BYTES (an exported image).
     large: bool = False
+    # Part of the protocol, not a tool: MCP's own (initialize, ping, tools/list,
+    # tools/call) and the host's bridge to an open map (host_poll, host_answer). Not
+    # offered in tools/list, so not run through tools/call.
+    protocol: bool = False
 
     def read(self, params: dict[str, Any]) -> Params | None:
         """The method's parameters, checked; None for a method that takes none of its own."""
@@ -140,7 +145,8 @@ class Method:
     def listing(self) -> dict[str, Any]:
         """The method as tools/list offers it: its name, what it does and its input
         schema, as a tool's entry has them. _meta["debrief/method"] marks it a method,
-        sent as a JSON-RPC request of its own name, and carries its flags."""
+        run by tools/call with its parameters as the arguments (or sent as a JSON-RPC
+        request of its own name), and carries its flags."""
         return {
             "name": self.name,
             "description": self.does,
@@ -196,7 +202,7 @@ class Methods(Mapping[str, Method]):
         return len(self._methods)
 
     def names(self, **flags: bool) -> frozenset[str]:
-        """The methods whose flags (writes, agent, history, large) are as given."""
+        """The methods whose flags (writes, agent, history, large, protocol) are as given."""
         return frozenset(
             name
             for name, method in self._methods.items()
@@ -206,13 +212,15 @@ class Methods(Mapping[str, Method]):
 
 def table(methods: Methods) -> str:
     """The README's method table: every method, whether it changes the plot it names,
-    whether it needs agent, and what it does."""
+    whether it needs agent, whether tools/list offers it (and tools/call runs it), and
+    what it does."""
     rows = [
-        "| Method | Changes the plot | Needs `agent` | Does |",
-        "| --- | --- | --- | --- |",
+        "| Method | Changes the plot | Needs `agent` | A tool | Does |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for method in methods.values():
         writes = "yes" if method.writes else ""
         agent = "yes" if method.agent else ""
-        rows.append(f"| `{method.name}` | {writes} | {agent} | {method.does} |")
+        tool = "" if method.protocol else "yes"
+        rows.append(f"| `{method.name}` | {writes} | {agent} | {tool} | {method.does} |")
     return "\n".join(rows) + "\n"

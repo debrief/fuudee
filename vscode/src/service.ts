@@ -354,8 +354,8 @@ export class ToolService {
       _meta: { "debrief/unavailable": Unavailable[] };
     }>("tools/list");
     return {
-      // Only the libraries' tools: tools/list also offers every debrief/ method, marked
-      // _meta["debrief/method"], which the extension calls by name instead.
+      // Only the libraries' tools: tools/list also offers the debrief/ methods, marked
+      // _meta["debrief/method"], for agents; the extension sends those by name.
       tools: result.tools.flatMap((t) => t._meta?.["debrief/declaration"] ?? []),
       unavailable: result._meta["debrief/unavailable"],
     };

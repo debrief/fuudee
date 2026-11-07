@@ -353,10 +353,14 @@ class ToolService:
         )
 
     def call(self, params: dict[str, Any], _args: None = None) -> dict[str, Any]:
-        """tools/call: run one tool in the worker (TL-02, TL-03)."""
+        """tools/call: run one tool in the worker (TL-02, TL-03), or a method tools/list
+        offers, by its name, with the arguments as its parameters."""
         name, arguments = params.get("name"), params.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
             raise RpcError(INVALID_PARAMS, "tools/call needs a name and arguments")
+        method = METHODS.get(name)
+        if method is not None and not method.protocol:
+            return self._call_method(method, arguments)
         if name not in self.declarations:
             raise RpcError(INVALID_PARAMS, f"There is no tool called {name}.")
         problem = _argument_problem(arguments)
@@ -392,6 +396,32 @@ class ToolService:
             "structuredContent": structured,
             "isError": False,
             "_meta": meta,
+        }
+
+    def _call_method(self, method: Method, arguments: dict[str, Any]) -> dict[str, Any]:
+        """A method run through tools/call: handled exactly as its own request would be
+        (agent, the store's being writable, the plot's history and base all checked as
+        they are there), its result as a tool's, a refusal as a tool's error, with the
+        JSON-RPC code the request would have had in _meta["debrief/code"]."""
+        try:
+            result = self.handle(method.name, arguments)
+        except RpcError as error:
+            meta: dict[str, Any] = {"debrief/outcome": "refused", "debrief/code": error.code}
+            if error.code == CONFLICT:
+                meta["debrief/outcome"] = "conflict"
+            elif error.code == NEWER_SCHEMA:
+                meta["debrief/outcome"] = "needs_newer_schema_confirmed"
+                meta["debrief/newer_schema"] = True
+            return {**_tool_error(str(error)), "_meta": meta}
+        except Exception:  # noqa: BLE001 - as the request would be: logged, never said
+            log.exception("rpc_error method=%s", method.name)
+            meta = {"debrief/outcome": "failed", "debrief/code": INTERNAL}
+            return {**_tool_error(INTERNAL_MESSAGE), "_meta": meta}
+        return {
+            # Agents that read only text still get the whole result.
+            "content": [{"type": "text", "text": json.dumps(result)}],
+            "structuredContent": result,
+            "isError": False,
         }
 
 
@@ -449,7 +479,7 @@ def _changes_plot(
 # Methods the service answers itself: (service, params, the params checked) -> result.
 
 
-@METHODS.register("initialize", "Negotiates the protocol version.")
+@METHODS.register("initialize", "Negotiates the protocol version.", protocol=True)
 def _initialize(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
     requested = params.get("protocolVersion")
     return {
@@ -463,27 +493,33 @@ def _initialize(service: ToolService, params: dict[str, Any], _: None) -> dict[s
     }
 
 
-@METHODS.register("ping", "Answers `{}`.")
+@METHODS.register("ping", "Answers `{}`.", protocol=True)
 def _ping(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
     return {}
 
 
 @METHODS.register(
     "tools/list",
-    "The tools the libraries declare and every method here, each with its input schema, "
-    "and the tools unavailable.",
+    "The tools the libraries declare and every method not the protocol's, each with its "
+    "input schema, and the tools unavailable.",
+    protocol=True,
 )
 def _tools_list(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
-    """The tools the worker's libraries declare, then every method the service answers,
-    read from METHODS (each marked _meta["debrief/method"]), and the tools unavailable."""
+    """The tools the worker's libraries declare, then every method in METHODS that is not
+    the protocol's (each marked _meta["debrief/method"]), and the tools unavailable. Each
+    one runs through tools/call."""
     return {
         "tools": [_describe(d, service.raw[n]) for n, d in service.declarations.items()]
-        + [method.listing() for method in METHODS.values()],
+        + [method.listing() for method in METHODS.values() if not method.protocol],
         "_meta": {"debrief/unavailable": service.unavailable},
     }
 
 
-@METHODS.register("tools/call", "Runs a tool on a plot, in the worker; it may change the plot.")
+@METHODS.register(
+    "tools/call",
+    "Runs a tool on a plot, in the worker, or a method tools/list offers; it may change the plot.",
+    protocol=True,
+)
 def _tools_call(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
     return service.call(params)
 
@@ -1512,8 +1548,14 @@ for _method in (
         "debrief/host_poll",
         "A host waits here for what the service asks of it.",
         figures.host_poll,
+        protocol=True,
     ),
-    Method("debrief/host_answer", "A host's answer to one such request.", figures.host_answer),
+    Method(
+        "debrief/host_answer",
+        "A host's answer to one such request.",
+        figures.host_answer,
+        protocol=True,
+    ),
 ):
     METHODS.add(_method)
 
@@ -1574,7 +1616,7 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
             return _error(None, PARSE_ERROR, "Parse error")
         if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
             return _error(None, INVALID_REQUEST, "Not a JSON-RPC 2.0 request")
-        if len(body) > MAX_BODY_BYTES and message.get("method") not in IMAGE_METHODS:
+        if len(body) > MAX_BODY_BYTES and _named(message) not in IMAGE_METHODS:
             return Response("Request too large.", status_code=413)
         if "id" not in message or "method" not in message:
             return Response(status_code=202)  # a notification, or a response to us
@@ -1596,6 +1638,14 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
         return JSONResponse({"jsonrpc": "2.0", "id": message["id"], "result": result})
 
     return Starlette(routes=[Route("/mcp", mcp, methods=["POST"])])
+
+
+def _named(message: dict[str, Any]) -> Any:
+    """The method a request runs: its own, or the one tools/call names."""
+    params = message.get("params")
+    if message.get("method") == "tools/call" and isinstance(params, dict):
+        return params.get("name")
+    return message.get("method")
 
 
 INTERNAL_MESSAGE = (
