@@ -79,7 +79,7 @@ import { fillTools } from "./toolslist.js";
 import { fillHistory } from "./historylist.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choices, type FlowHost, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
 import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
-import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -798,6 +798,14 @@ const flowHost: FlowHost = {
     return undefined;
   },
 };
+// --- The shared features' commands (webview/panels/flows/features.ts) -----------------------------
+/** The commands the shared features registered, by id: run from a menu or a toolbar (runAction), given their rows as their Target. */
+const PLAY_COMMANDS = new Map<string, Run>();
+/** What the shared features register their commands with (webview/panels/flows/register.ts): the registry above. */
+const playHost: Host = { command: (id, run) => void PLAY_COMMANDS.set(id, run) };
+/** A registered command run with its own arguments, as VS Code's executeCommand runs one. */
+const runCommand = (id: string, ...args: unknown[]): unknown => (PLAY_COMMANDS.get(id) as ((...a: unknown[]) => unknown) | undefined)?.(...args);
+
 /** Python's refusals the flows answer, as they name them. */
 const refusalOf = (outcome: { error?: string; conflict?: unknown; newer_schema?: boolean }): Error =>
   outcome.conflict ? new Refusal("conflict", outcome.error!) : outcome.newer_schema ? new Refusal("newer_schema", outcome.error!) : new Error(outcome.error);
@@ -1760,6 +1768,13 @@ async function moveNow(how: How, step?: number): Promise<void> {
     step,
   );
 }
+// Undo, redo, go to a step and the latest revision: the shared registration (webview/panels/flows/move.ts).
+registerHistory(playHost, {
+  move: (how, step) => move(how, step),
+  openLatestRevision: async () => {
+    if (opened?.revision) await openPlot(opened.item.id);
+  },
+});
 /** Undo or Redo, as its catalogued action: only when it can act (a key does nothing otherwise, as VS Code's keybinding). */
 function undoOrRedo(how: "undo" | "redo"): void {
   const { context, reasons } = playContext();
@@ -2543,20 +2558,6 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   // shared features' (registered below, by playHost): a walkthrough's step runs them as VS Code's step
   // runs the command (PAR-14).
 };
-/**
- * What the shared features register their commands with (webview/panels/flows/register.ts): this
- * action table. Run from a menu or a toolbar, a command is given its rows as its Target.
- */
-const playHost: Host = {
-  command: (id, run) => {
-    PLAY_COMMANDS.set(id, run);
-    PLAY_ACTIONS[id] = (keys) => runCommand(id, { ids: keys });
-  },
-};
-/** The commands the shared features registered (webview/panels/flows/features.ts), by id. */
-const PLAY_COMMANDS = new Map<string, Run>();
-/** A registered command run with its own arguments, as VS Code's executeCommand runs one. */
-const runCommand = (id: string, ...args: unknown[]): unknown => (PLAY_COMMANDS.get(id) as ((...a: unknown[]) => unknown) | undefined)?.(...args);
 /** The first of a command's rows. */
 const firstOf = (target?: string | Target) => (typeof target === "string" ? target : (target?.ids?.[0] ?? target?.feature?.id));
 // Bearings and TMA solutions (webview/panels/flows/bearings.ts): this says how the playground shows
@@ -2598,7 +2599,7 @@ async function runAction(id: string, keys: string[] = outlinePicks, at: Where = 
   const { context, reasons } = playContext(keys);
   const entry = entryOf(action, undefined, context, reasons);
   if (!entry.enabled) return toast(entry.reason!, "warning");
-  const run = PLAY_ACTIONS[id];
+  const run = PLAY_ACTIONS[id] ?? (PLAY_COMMANDS.has(id) ? (rows: string[]) => runCommand(id, { ids: rows }) : undefined);
   if (!run) return toast(`${action.title.replace(/…$/, "")}: not in the playground yet.`, "warning");
   // Those that work on the selection (the track edits, the fix list) act on these rows selected first.
   // The Outline's entries (an action with an operation) act on the rows given too.
@@ -2865,12 +2866,9 @@ function renderHistory(): void {
 }
 /** The playground's artwork for History's title bar (cosmetic: VS Code draws the codicons). */
 const HISTORY_ACTION_GLYPHS: Record<string, string> = { discard: "↶", redo: "↷", "arrow-right": "→" };
-/** A catalogued History action: its title bar's, or a step's (by its number). */
+/** A catalogued History action: its title bar's, or a step's (by its number): the shared registration's (flows/move.ts). */
 async function runHistoryAction(id: string, step?: number): Promise<void> {
-  if (id === "debrief.undo") return move("undo");
-  if (id === "debrief.redo") return move("redo");
-  if (id === "debrief.goToStep" || id === "debrief.redoToStep") return move("goto", step);
-  if (id === "debrief.openLatestRevision" && opened?.revision) return openPlot(opened.item.id);
+  await runCommand(id, step);
 }
 /** A step's context menu (right-click, press and hold, Shift+F10 or the menu key), as VS Code's: the action catalogue's for its menu context. */
 function historyRowMenu(li: HTMLElement, x: number, y: number): void {

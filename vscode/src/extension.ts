@@ -51,7 +51,7 @@ import { hexColour, selectionChildren, selectionColour, selectionVisibility, typ
 import { featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choice, type FlowHost, type ManyQuestion, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Question, type RememberQuestion, type SaveSpec, type SaveTarget, type Severity, type TextQuestion } from "../webview/panels/flows/host.js";
 import { confirmNewerSchema as askNewerSchema, runTool as runToolFlow, type Ran } from "../webview/panels/flows/runtool.js";
-import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
 import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
@@ -1484,8 +1484,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return problem;
   };
   // Ctrl+Z is the plot's history: colour and hiding are steps in it like any change.
-  command("debrief.undo", () => move("undo"));
-  command("debrief.redo", () => move("redo"));
+  // Undo, redo, go to a step and the latest revision: the shared registration (flows/move.ts).
+  registerHistory(host, {
+    move: (how, step) => move(how, step),
+    openLatestRevision: async () => {
+      const opened = session.current;
+      if (!opened?.revision) return undefined;
+      await serially(() => loadPlot(opened.store, opened.item.id));
+      return undefined;
+    },
+  });
 
   // --- Exported images (SUB-25, EXT-05, OUT-04) -------------------------------------
   /** What an export is asked with, by an agent, a test or the tool service for an agent: the choices and the file, nothing asked of the analyst. */
@@ -1686,12 +1694,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   session.onPlot((opened) => void vscode.commands.executeCommand("setContext", "debrief.revisionShown", !!opened?.revision));
 
   /** Leave an earlier revision shown read-only: the plot as it is now, to change. */
-  command("debrief.openLatestRevision", async () => {
-    const opened = session.current;
-    if (!opened?.revision) return undefined;
-    await serially(() => loadPlot(opened.store, opened.item.id));
-    return undefined;
-  });
 
   // Colour and hiding (SUB-22): content, so each is a step in the plot's history.
   // A node from the outline, a list of ids (the map's "Show all"), or else the selection.
@@ -1899,13 +1901,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return chosen;
   }
   // A step's number, a History row (the panel model's), or one of historyRows' (tests, agents).
-  command("debrief.goToStep", async (target?: number | { seq?: number } | { step: { seq: number } }) => {
-    const seq = typeof target === "number" ? target : target && "step" in target ? target.step.seq : target?.seq;
-    return seq === undefined ? undefined : move("goto", seq);
-  });
-  command("debrief.redoToStep", (target?: { seq?: number } | { step: { seq: number } }) =>
-    vscode.commands.executeCommand("debrief.goToStep", target),
-  );
   command("debrief.historySteps", () => history.steps);
   command("debrief.historyRows", () => history.rows());
   command("debrief.showAllHidden", () => {

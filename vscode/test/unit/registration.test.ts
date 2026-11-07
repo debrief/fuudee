@@ -17,6 +17,7 @@ import { registerSensorImport } from "../../webview/panels/flows/sensor.js";
 import { registerNarrativeImport } from "../../webview/panels/flows/narrative.js";
 import { FIND_NO_SERVICE, registerExport } from "../../webview/panels/flows/exportimage.js";
 import { OPEN_PLOT, registerCollation } from "../../webview/panels/flows/collation.js";
+import { registerHistory } from "../../webview/panels/flows/move.js";
 
 const vscodeDir = path.resolve(__dirname, "..", "..");
 const read = (file: string) => readFileSync(path.join(vscodeDir, file), "utf8");
@@ -240,5 +241,18 @@ describe("the shared features' commands", () => {
     await runOf(registerCollation, bare(calls), "debrief.takeNewData", undefined, { catalogue: "c", item: "i" });
     await runOf(registerCollation, bare(calls), "debrief.unlinkTrack", { ids: ["k"] });
     expect(calls.filter((c) => c[0] === "message").map((c) => c[2])).toEqual([OPEN_PLOT, OPEN_PLOT]);
+  });
+
+  it("undo, redo, and go to (or redo to) the step given as a number or by its History row; nothing without one", async () => {
+    const calls: Call[] = [];
+    const history = { move: async (...args: unknown[]) => calls.push(["move", ...args]), openLatestRevision: async () => calls.push(["latest"]) } as never;
+    await runOf(registerHistory, history, "debrief.undo");
+    await runOf(registerHistory, history, "debrief.redo");
+    await runOf(registerHistory, history, "debrief.goToStep", 3);
+    await runOf(registerHistory, history, "debrief.goToStep", { seq: 4 });
+    await runOf(registerHistory, history, "debrief.redoToStep", { step: { seq: 5 } });
+    expect(await runOf(registerHistory, history, "debrief.goToStep")).toBeUndefined();
+    await runOf(registerHistory, history, "debrief.openLatestRevision");
+    expect(calls).toEqual([["move", "undo"], ["move", "redo"], ["move", "goto", 3], ["move", "goto", 4], ["move", "goto", 5], ["latest"]]);
   });
 });
