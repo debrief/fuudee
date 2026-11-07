@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/95">pull request #95</a>: Tracer: per-feature Mocha suites with a filter; VS Code versions as a CI matrix. Built from f951b1c on 2026-11-07 10:42 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/95">pull request #95</a>: Tracer: per-feature Mocha suites with a filter; VS Code versions as a CI matrix. Built from 97556d8 on 2026-11-07 10:56 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1855,7 +1855,7 @@
 <ul>
 <li><strong>Detecting and merging:</strong> <code>History.commit</code> and <code>_check_merge</code> in <code>debrief_stac.history</code>; <code>Catalogue.save_as_new</code> (<code>History.fork_into</code>).</li>
 <li><strong>Checksums:</strong> <code>debrief_schemas.chain</code> (the hash chain, the content hash, the step rules); the <code>DAMAGED</code> and <code>MISMATCH</code> messages in <code>debrief_stac.history</code>.</li>
-<li><strong>The service:</strong> <code>base</code> and <code>on_conflict</code> on <code>tools/call</code>; error -32001 on <code>debrief/undo</code>, <code>redo</code> and <code>goto</code>.</li>
+<li><strong>The service:</strong> <code>base</code> and <code>on_conflict</code> on <code>tools/call</code>; error -32001 on <code>debrief/undo</code>, <code>redo</code> and <code>goto</code>, and on every change; from any method, -32004 when another process is saving the plot (send it again) and -32005 when its history refuses or is damaged (open it again), in <code>debrief_tools.rpc</code>.</li>
 <li><strong>The extension:</strong> <code>watch</code>, <code>askAboutConflict</code> and <code>runTool</code> in <code>vscode/src/extension.ts</code>; <code>historyOnDisk</code> and <code>changedSince</code> in <code>vscode/src/catalogue.ts</code>.</li>
 </ul>
 
