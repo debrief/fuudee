@@ -76,6 +76,6 @@ CI runs it on every pull request, in the newest VS Code and the oldest supported
 
 - **Removing a catalogue from the list.**
 - **Keyboard selection on the map** (NFR-13, Phase 3).
-- **Bearing-error wedges** (CAP-22: no format gives an agreed error yet) and **TMA** (CAP-21, Phase 4).
+- **Bearing-error wedges** (CAP-22: no format gives an agreed error yet).
 - **Graphs.** These are shown as tables for now.
 - **Packaging as a VSIX** (Phase 3, DEP-01).

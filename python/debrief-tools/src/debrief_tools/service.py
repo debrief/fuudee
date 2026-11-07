@@ -130,6 +130,7 @@ from debrief_stac import (
     Conflict,
     HistoryError,
     NewerSchemaError,
+    StoreBusy,
     frequencies,
     narrative,
     sensors,
@@ -140,6 +141,20 @@ from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import measure_groups, tote
 from debrief_tools import diagnostics, figures
 from debrief_tools.entries import history_steps, move, offered_tools
+from debrief_tools.rpc import (
+    CONFLICT,
+    INTERNAL,
+    INVALID_PARAMS,
+    INVALID_REQUEST,
+    MAPPED,
+    METHOD_NOT_FOUND,
+    NEEDS_CONFIRMATION,
+    NEWER_SCHEMA,
+    PARSE_ERROR,
+    RpcError,
+    agent_ref,
+    rpc_error,
+)
 from debrief_tools.worker import ToolWorker
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -179,20 +194,6 @@ def _is_document(path: Path) -> bool:
         return sniff(stream.read(1024)) is not None
 
 
-class RpcError(Exception):
-    def __init__(self, code: int, message: str):
-        super().__init__(message)
-        self.code = code
-
-
-INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
-CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
-NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
-# would lose what the analyst made: ask, then send again confirming (a track changed while
-# plotted by dead reckoning, plotted over the ground: discard_dr_changes); or would read a
-# narrative file into a plot it was read into before, or entries the plot has already:
-# ask, then send again with duplicates "skip" or "add" (product owner, 15 Oct 2026)
-NEEDS_CONFIRMATION = -32003
 CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
 # Named groups, not slices of one list: a method added to one group cannot shift another.
 READING_METHODS = (
@@ -259,6 +260,15 @@ WRITING_METHODS = (
     + COLLATION_VIEW_METHODS
 )
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
+# Every method whose change is recorded with who made it: refused without agent, never
+# attributed to the analyst by default (SUB-24). Undo, redo and goto record no one: they
+# return to steps that already name theirs.
+AGENT_METHODS = tuple(m for m in WRITING_METHODS if m not in STEP_METHODS) + (
+    "debrief/import",
+    "debrief/import_rep",
+    "debrief/add_plot_file",
+    "debrief/export_image",
+)
 # The Tote reads a plot at one time; it never changes it, and is asked again at each time.
 TOTE_METHODS = ("debrief/tote", "debrief/measure_groups")
 # Exported images (SUB-25): an ID for an export, the image stamped, written and logged in the
@@ -389,6 +399,8 @@ class ToolService:
         self.unavailable = described["unavailable"]
 
     def handle(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method in AGENT_METHODS:
+            agent_ref(params, method)  # refused before anything is read (SUB-24)
         if method == "initialize":
             requested = params.get("protocolVersion")
             return {
@@ -417,7 +429,7 @@ class ToolService:
                 raise RpcError(INVALID_PARAMS, "kinds must be a list of feature kinds")
             return {"tools": offered_tools(self.declarations, kinds)}
         if method == "debrief/stores":
-            config = self._config()
+            config = self.config()
             return {
                 "stores": [
                     {"id": s.id, "title": s.title, "read_only": bool(s.read_only)}
@@ -466,7 +478,7 @@ class ToolService:
                 view = load_view({"tote": view}).tote
             except DocumentValidationError as error:
                 raise RpcError(INVALID_PARAMS, "; ".join(error.problems)) from None
-        store = self._store(params.get("store"), writing=False)
+        store = self.store(params.get("store"), writing=False)
         try:
             catalogue = Catalogue.open(Path(store.location))
             revision = params.get("revision")
@@ -475,10 +487,10 @@ class ToolService:
             )
         except FileNotFoundError:
             raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.") from None
-        except (CatalogueError, HistoryError, OSError, ValueError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except MAPPED as error:
+            raise rpc_error(error) from None
 
-    def _config(self) -> models.UserConfig:
+    def config(self) -> models.UserConfig:
         return load_config(self.config_path) if self.config_path else load_config()
 
     def _create_catalogue(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -502,12 +514,12 @@ class ToolService:
                 return changed
 
             update_config(add, Path(self.config_path) if self.config_path else None)
-        except (CatalogueError, ConfigError, OSError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except (CatalogueError, ConfigError, StoreBusy, OSError) as error:
+            raise rpc_error(error) from None
         return {"store": store["id"]}
 
-    def _store(self, store_id: Any, *, writing: bool) -> models.KnownStore:
-        store = next((s for s in self._config().stores if s.id == store_id), None)
+    def store(self, store_id: Any, *, writing: bool) -> models.KnownStore:
+        store = next((s for s in self.config().stores if s.id == store_id), None)
         if store is None:
             raise RpcError(
                 INVALID_PARAMS, f"There is no catalogue {store_id!r} in your configuration."
@@ -534,7 +546,7 @@ class ToolService:
             and isinstance(base.get("plot_hash"), str)
         ):
             raise RpcError(INVALID_PARAMS, "base must be {current, plot_hash}")
-        store = self._store(params.get("store"), writing=method in WRITING_METHODS)
+        store = self.store(params.get("store"), writing=method in WRITING_METHODS)
         try:
             catalogue = Catalogue.open(Path(store.location))
             if item not in catalogue.item_ids():
@@ -596,7 +608,7 @@ class ToolService:
                 if not isinstance(given, str) or not (view is None or isinstance(view, dict)):
                     raise RpcError(INVALID_PARAMS, "set_view needs the view and the hash last read")
                 catalogue.write_view(
-                    item, view, given, agent=_agent(params), allow_newer_schema=allow
+                    item, view, given, agent=agent_ref(params), allow_newer_schema=allow
                 )
             if method in ("debrief/open", "debrief/set_view", *COLLATION_VIEW_METHODS):
                 view, view_hash = catalogue.read_view(item)
@@ -619,20 +631,22 @@ class ToolService:
                 NEEDS_CONFIRMATION,
                 f"{error} Nothing was changed. {CONFIRM_HOW}",
             ) from None
-        except (CatalogueError, HistoryError, OSError, ValueError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except MAPPED as error:
+            raise rpc_error(error) from None
 
     def _open(
         self, catalogue: Catalogue, store: models.KnownStore, item: str, params: dict[str, Any]
     ) -> dict[str, Any]:
-        """Opening a plot that still has a retired presentation.json: a writer makes it
-        one recorded step and deletes it; where that cannot be done (a read-only
-        store, say) the plot comes back with it applied in memory, for display."""
+        """Opening a plot that still has a retired presentation.json: a writer that says
+        who it is (agent) makes it one recorded step and deletes it; where that cannot
+        be done (a read-only store, or no agent) the plot comes back with it applied in
+        memory, for display."""
         if catalogue.legacy_presentation(item) is None:
             return {}
-        if not store.read_only:
+        # Migrating is a change, recorded with who made it: only with an agent (SUB-24).
+        if not store.read_only and params.get("agent") is not None:
             try:
-                return {"migrated": catalogue.migrate_presentation(item, _agent(params))}
+                return {"migrated": catalogue.migrate_presentation(item, agent_ref(params))}
             except (NewerSchemaError, OSError):
                 pass
         return {"plot": json.loads(dump_document(DocumentKind.PLOT, catalogue.read_plot(item)))}
@@ -653,7 +667,7 @@ class ToolService:
         features = params.get("features")
         if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
             raise RpcError(INVALID_PARAMS, f"{method} needs the features to change")
-        agent = _agent(params)
+        agent = agent_ref(params)
         if method == "debrief/set_colour":
             colour, name = params.get("colour"), params.get("colour_name")
             if not isinstance(colour, str) or not (name is None or isinstance(name, str)):
@@ -699,7 +713,7 @@ class ToolService:
         its positions may be numbers or text in any notation the analyst types.
         edit_annotation may give only the members that change.
         """
-        agent = _agent(params)
+        agent = agent_ref(params)
         if method == "debrief/add_annotation":
             annotation = params.get("annotation")
             if not isinstance(annotation, dict):
@@ -755,7 +769,7 @@ class ToolService:
         read in and how many entries are there) unless duplicates says "skip" (read only
         the entries not in the plot) or "add" (read them all again).
         """
-        agent = _agent(params)
+        agent = agent_ref(params)
         if method == "debrief/add_narrative":
             entry = params.get("entry")
             if not isinstance(entry, dict):
@@ -831,7 +845,7 @@ class ToolService:
         letters) need not be said. A sensor whose track is neither is refused
         (NEEDS_CONFIRMATION, naming the plot's tracks), as is a file read in before
         unless again is true. debrief/preview_sensor says what a file holds first."""
-        agent = _agent(params)
+        agent = agent_ref(params)
         if method == "debrief/delete_cuts":
             ids = params.get("cut_ids")
             if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
@@ -926,7 +940,7 @@ class ToolService:
         and join true to join the leg starting then to the one before. tma_exclude_cut
         takes the solution, cut_ids and excluded (true to leave them out of the RMS
         error, false to count them again); changed is false if none would change."""
-        agent = _agent(params)
+        agent = agent_ref(params)
         if method == "debrief/tma_create":
             asked = params.get("request", {k: v for k, v in params.items() if k in _TMA_ASKED})
             if not isinstance(asked, dict):
@@ -994,7 +1008,7 @@ class ToolService:
         merge_tracks the features and perhaps a name, and says in notes what was not
         kept (speeds, courses or depths some of the tracks had not).
         """
-        agent = _agent(params)
+        agent = agent_ref(params)
         if method == "debrief/edit_track":
             feature, edit = params.get("feature"), params.get("edit")
             current = params.get("current_time")
@@ -1057,7 +1071,7 @@ class ToolService:
         if not isinstance(feature, str):
             raise RpcError(INVALID_PARAMS, f"{method} needs the track (feature)")
         period = _period(params.get("period"))
-        agent = _agent(params) if method in CLEANING_METHODS else None
+        agent = agent_ref(params) if method in CLEANING_METHODS else None
         if method == "debrief/find_jumps":
             threshold = _speed(params.get("threshold"))
             used, median, jumps = catalogue.find_jumps(
@@ -1129,7 +1143,7 @@ class ToolService:
         """The analyst's other catalogues, where items a plot drew from may be (CAP-10):
         each store in their configuration that holds one, other than this."""
         others = []
-        for store in self._config().stores:
+        for store in self.config().stores:
             try:
                 other = Catalogue.open(Path(store.location))
             except (CatalogueError, OSError, ValueError):
@@ -1142,7 +1156,7 @@ class ToolService:
         """Every plot in the analyst's catalogues that drew from an item since revised, so
         may need review (CAP-12), with the store each is in."""
         catalogues: list[tuple[models.KnownStore, Catalogue]] = []
-        for store in self._config().stores:
+        for store in self.config().stores:
             try:
                 catalogues.append((store, Catalogue.open(Path(store.location))))
             except (CatalogueError, OSError, ValueError):
@@ -1176,7 +1190,7 @@ class ToolService:
         clears the plot's review flag: both in the plot's island, never steps, with who
         answered and when. take_new_data makes no step when the plot has the item's data
         as it is now already: changed false, and a message saying so."""
-        agent = _agent(params)
+        agent = agent_ref(params)
         others = self._other_catalogues(catalogue)
         source = params.get("source")
         if method == "debrief/clear_review_flag":
@@ -1246,9 +1260,7 @@ class ToolService:
         try:
             return {"tracks": rep_track_names(Path(path))}
         except (OSError, ValueError) as error:
-            raise RpcError(
-                INVALID_PARAMS, f"{Path(path).name} could not be read: {error}"
-            ) from None
+            raise rpc_error(error, f"{Path(path).name} could not be read: {error}") from None
 
     def _preview_narrative(self, params: dict[str, Any]) -> dict[str, Any]:
         """What a narrative file holds, before it is read, so the host can ask the analyst
@@ -1266,16 +1278,16 @@ class ToolService:
         if item is not None:
             if not isinstance(item, str):
                 raise RpcError(INVALID_PARAMS, "item is the plot's id")
-            store = self._store(params.get("store"), writing=False)
+            store = self.store(params.get("store"), writing=False)
             try:
                 catalogue = Catalogue.open(Path(store.location))
                 catalogue.read_item(item)
-            except (CatalogueError, OSError) as error:
-                raise RpcError(INVALID_PARAMS, str(error)) from None
+            except (CatalogueError, StoreBusy, OSError) as error:
+                raise rpc_error(error) from None
         try:
             return preview_narrative(Path(path), catalogue=catalogue, item_id=item)
-        except (NoNarrativeError, OSError, CatalogueError, HistoryError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except (NoNarrativeError, CatalogueError, HistoryError, StoreBusy, OSError) as error:
+            raise rpc_error(error) from None
 
     def _preview_sensor(self, params: dict[str, Any]) -> dict[str, Any]:
         """What a .dsf or REP file's sensor lines hold, before they are read into a plot
@@ -1289,13 +1301,13 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
         if not isinstance(item, str):
             raise RpcError(INVALID_PARAMS, "preview_sensor needs the plot (store and item)")
-        store = self._store(params.get("store"), writing=False)
+        store = self.store(params.get("store"), writing=False)
         try:
             catalogue = Catalogue.open(Path(store.location))
             catalogue.read_item(item)
             return preview_sensor(Path(path), catalogue=catalogue, item_id=item)
-        except (CatalogueError, OSError, HistoryError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+        except (CatalogueError, HistoryError, StoreBusy, OSError) as error:
+            raise rpc_error(error) from None
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01), a legacy plot file, .dpf (EXT-14, EXT-15), or a Word
@@ -1312,7 +1324,7 @@ class ToolService:
             remembered is None or isinstance(remembered, str)
         ):
             raise RpcError(INVALID_PARAMS, "modes is otg or dr, or one of them for each track.")
-        store = self._store(params.get("store"), writing=True)
+        store = self.store(params.get("store"), writing=True)
         if not isinstance(path, str) or not Path(path).is_file():
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
         try:
@@ -1323,7 +1335,7 @@ class ToolService:
                 item_id, n = f"{stem}-{n}", n + 1
             options = {
                 "item_id": item_id,
-                "agent": _agent(params),
+                "agent": agent_ref(params),
                 "allow_newer_schema": params.get("allow_newer_schema") is True,
             }
             if _is_plot_file(Path(path)):
@@ -1345,11 +1357,11 @@ class ToolService:
                 )
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
-        except (CatalogueError, OSError, ValueError) as error:
+        except MAPPED as error:
             message = str(error)
             if not message.startswith(Path(path).name):
                 message = f"{Path(path).name} could not be imported: {message}"
-            raise RpcError(INVALID_PARAMS, message) from None
+            raise rpc_error(error, message) from None
         return {
             "item": report.item_id,
             "tracks": report.tracks,
@@ -1365,25 +1377,25 @@ class ToolService:
         with its whole history, so undo, redo and provenance come with it (decision
         13 Oct). A file whose history does not match its checksums is refused."""
         path = params.get("path")
-        store = self._store(params.get("store"), writing=True)
+        store = self.store(params.get("store"), writing=True)
         if not isinstance(path, str) or not Path(path).is_file():
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
         try:
             catalogue = Catalogue.open(Path(store.location))
             item = catalogue.add_plot_file(
                 Path(path),
-                _agent(params),
+                agent_ref(params),
                 allow_newer_schema=params.get("allow_newer_schema") is True,
             )
             steps = len(catalogue.history(item).steps())
             title = catalogue.read_item(item).properties.title or item
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
-        except (CatalogueError, HistoryError, OSError, ValueError) as error:
+        except MAPPED as error:
             message = str(error)
             if not message.startswith(Path(path).name):
                 message = f"{Path(path).name} could not be added: {message}"
-            raise RpcError(INVALID_PARAMS, message) from None
+            raise rpc_error(error, message) from None
         return {"item": item, "title": title, "steps": steps}
 
     def _log_run(
@@ -1625,17 +1637,6 @@ def _smoothing(smoothing: Any) -> dict[str, Any]:
     }
 
 
-def _agent(params: dict[str, Any]) -> models.AgentRef:
-    """Who is making a change, for its provenance record (SUB-24)."""
-    agent = params.get("agent") or {"kind": "person", "name": "analyst"}
-    if not isinstance(agent, dict):
-        raise RpcError(INVALID_PARAMS, "agent must be {kind, name}")
-    try:
-        return models.AgentRef(**agent)
-    except ValueError:
-        raise RpcError(INVALID_PARAMS, "agent must be {kind, name}") from None
-
-
 def _tool_error(message: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": message}], "isError": True}
 
@@ -1660,7 +1661,7 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
         try:
             message = json.loads(body)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            return _error(None, -32700, "Parse error")
+            return _error(None, PARSE_ERROR, "Parse error")
         if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
             return _error(None, INVALID_REQUEST, "Not a JSON-RPC 2.0 request")
         if len(body) > MAX_BODY_BYTES and message.get("method") not in IMAGE_METHODS:
@@ -1675,14 +1676,22 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
             result = await run_in_threadpool(service.handle, message["method"], params)
         except RpcError as error:
             return _error(message["id"], error.code, str(error))
-        except Exception as error:  # noqa: BLE001 - the service outlives any one request
+        except Exception:  # noqa: BLE001 - the service outlives any one request
             # The method's name only if it is one of ours; the formatter leaves out the message.
             method = message["method"] if message["method"] in KNOWN_METHODS else "-"
             log.exception("rpc_error method=%s", method)
-            return _error(message["id"], INTERNAL, f"Internal error: {error}")
+            # Never the exception's text: it may hold plot data or paths the log leaves
+            # out, and the client may keep it (NFR-14). The log has its type and frames.
+            return _error(message["id"], INTERNAL, INTERNAL_MESSAGE)
         return JSONResponse({"jsonrpc": "2.0", "id": message["id"], "result": result})
 
     return Starlette(routes=[Route("/mcp", mcp, methods=["POST"])])
+
+
+INTERNAL_MESSAGE = (
+    "Internal error: the tool service could not complete this request. Nothing in it is "
+    "said here; the service's log (tools.log) records what went wrong."
+)
 
 
 def _error(request_id: Any, code: int, message: str) -> JSONResponse:

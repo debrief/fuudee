@@ -199,8 +199,8 @@ export function collation(): void {
       assert.equal(byAgent.file, agentFile);
       assert.ok(readFileSync(agentFile, "utf8").includes(`<dc:identifier>${byAgent.id}</dc:identifier>`), "drawn by the map and written");
       assert.equal(exportLog().at(-1).by, "Test agent");
-      await assert.rejects(api.asAgent!("debrief/export_image", { store: opened.store.id, item: "no-such-plot", file: path.join(folder, "x.png") }), /no plot 'no-such-plot'/);
-      await assert.rejects(api.asAgent!("debrief/export_image", { store: opened.store.id, item: opened.item.id, file: path.join(tmpdir(), "debrief-agent-outside.png") }), /only into this workspace's folders/);
+      await assert.rejects(api.asAgent!("debrief/export_image", { store: opened.store.id, item: "no-such-plot", file: path.join(folder, "x.png"), agent: { kind: "software_agent", name: "Test agent" } }), /no plot 'no-such-plot'/);
+      await assert.rejects(api.asAgent!("debrief/export_image", { store: opened.store.id, item: opened.item.id, file: path.join(tmpdir(), "debrief-agent-outside.png"), agent: { kind: "software_agent", name: "Test agent" } }), /only into this workspace's folders/);
       assert.equal((await steps()).length, count, "exports are never steps");
       await sleep(500);
       await screenshot("40-exported");
