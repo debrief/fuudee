@@ -825,8 +825,17 @@ def test_the_service_logs_no_free_text_from_requests_or_libraries(tmp_path, capl
         service.handle = lambda method, params: 1 / 0  # type: ignore[method-assign]
         rpc(c, "NELSON was here")
         rpc(c, "tools/list")
+
+        def leaks(method, params):
+            raise RuntimeError("NELSON at /home/a/exercise/serial/plot.geojson")
+
+        service.handle = leaks  # type: ignore[method-assign]
+        told = rpc(c, "debrief/open", {"store": "s", "item": "serial"}).json()["error"]
+    # The client is told no more than the log is (NFR-14).
+    assert told == {"code": -32603, "message": service_module.INTERNAL_MESSAGE}
     lines = [r.getMessage() for r in caplog.records]
     assert "rpc_error method=-" in lines and "rpc_error method=tools/list" in lines
+    assert "rpc_error method=debrief/open" in lines
     assert any(
         line.startswith("tool_unavailable library=lab tool=- reason=<text:") for line in lines
     )

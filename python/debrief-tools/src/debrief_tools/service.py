@@ -1676,14 +1676,22 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
             result = await run_in_threadpool(service.handle, message["method"], params)
         except RpcError as error:
             return _error(message["id"], error.code, str(error))
-        except Exception as error:  # noqa: BLE001 - the service outlives any one request
+        except Exception:  # noqa: BLE001 - the service outlives any one request
             # The method's name only if it is one of ours; the formatter leaves out the message.
             method = message["method"] if message["method"] in KNOWN_METHODS else "-"
             log.exception("rpc_error method=%s", method)
-            return _error(message["id"], INTERNAL, f"Internal error: {error}")
+            # Never the exception's text: it may hold plot data or paths the log leaves
+            # out, and the client may keep it (NFR-14). The log has its type and frames.
+            return _error(message["id"], INTERNAL, INTERNAL_MESSAGE)
         return JSONResponse({"jsonrpc": "2.0", "id": message["id"], "result": result})
 
     return Starlette(routes=[Route("/mcp", mcp, methods=["POST"])])
+
+
+INTERNAL_MESSAGE = (
+    "Internal error: the tool service could not complete this request. Nothing in it is "
+    "said here; the service's log (tools.log) records what went wrong."
+)
 
 
 def _error(request_id: Any, code: int, message: str) -> JSONResponse:
