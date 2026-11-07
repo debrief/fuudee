@@ -23,6 +23,7 @@ import type { WebviewMessage } from "@debrief/schemas";
 import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
 import { createPanel, resourceRoots } from "./webviewhost.js";
+import { PopOut, type PoppedOut, type PoppedWindow } from "../../webview/panels/popout.js";
 
 /** VS Code's command that moves the active editor into a new window of its own (VS Code 1.85 on). */
 export const MOVE_TO_NEW_WINDOW = "workbench.action.moveEditorToNewWindow";
@@ -76,10 +77,12 @@ export interface Poppable {
   data?(): Record<string, string>;
 }
 
-/** How a pop out ended: in a window of its own, or left an editor tab, and why. */
-export interface PoppedOut {
-  where: "window" | "tab";
-  reason?: string;
+export type { PoppedOut };
+
+/** The popped-out editor, as the shared pop-out (webview/panels/popout.ts) holds it. */
+interface EditorWindow extends PoppedWindow {
+  panel: vscode.WebviewPanel;
+  surface: PoppableSurface;
 }
 
 /** A command run (VS Code's, or a test's stand-in). */
@@ -88,13 +91,18 @@ export type RunCommand = (command: string, ...args: unknown[]) => Thenable<unkno
 export class PoppableView<C extends PoppableController> implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer {
   private view?: vscode.WebviewView;
   private viewSurface?: PoppableSurface;
-  private panel?: vscode.WebviewPanel;
   /** Why the popped-out view could not go into a window of its own this session: not tried again. */
   private noWindow?: string;
   /** Whether that was said: once a session. */
   private said = false;
-  /** How the last pop out ended, for tests and agents. */
-  popped?: PoppedOut;
+  /** The lifecycle the playground's pop-out shares: popped out, brought back, closed. */
+  private readonly popOutState = new PopOut<EditorWindow>({
+    open: () => this.openEditor(),
+    poppedOut: (window) => this.adopt(window),
+    placed: (window) => this.intoWindow(window.panel),
+    settled: (_, popped) => this.settled(popped),
+    cameBack: (window) => this.cameBack(window.surface),
+  });
   /** How many times the move into a new window was asked for, for tests (under xvfb a window cannot be seen to move). */
   moveAsked = 0;
 
@@ -110,7 +118,16 @@ export class PoppableView<C extends PoppableController> implements vscode.Webvie
 
   /** The popped-out editor, while open: for tests and agents. */
   get poppedOutPanel(): vscode.WebviewPanel | undefined {
-    return this.panel;
+    return this.popOutState.window?.panel;
+  }
+
+  /** How the last pop out ended, for tests and agents. */
+  get popped(): PoppedOut | undefined {
+    return this.popOutState.popped;
+  }
+
+  private get panel(): vscode.WebviewPanel | undefined {
+    return this.poppedOutPanel;
   }
 
   /** Whether the panel's view shows the placeholder, not the view's page. */
@@ -172,28 +189,12 @@ export class PoppableView<C extends PoppableController> implements vscode.Webvie
    * placeholder. Popped out already: that tab or window brought to the front.
    */
   async popOut(): Promise<PoppedOut> {
-    if (this.panel) {
-      this.panel.reveal(undefined, false);
-      return this.popped ?? { where: "tab" };
-    }
-    const panel = createPanel(this.poppable.window, this.poppable.title, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false }, this.extension);
-    this.adopt(panel);
-    const popped = await this.intoWindow(panel);
-    this.popped = popped;
-    this.log(`${this.poppable.log}_popped_out where=${popped.where}`);
-    // The placeholder says where it went.
-    this.dressView();
-    if (popped.reason && !this.said) {
-      this.said = true;
-      void vscode.window.showInformationMessage(`${this.poppable.title} is open in an editor tab: ${popped.reason}. Drag the tab out of the window, or to another editor group.`);
-    }
-    return popped;
+    return (await this.popOutState.popOut())!;
   }
 
-  /** An editor showing the view: live, linked, the panel a placeholder until it closes. */
-  private adopt(panel: vscode.WebviewPanel): void {
-    this.panel = panel;
-    panel.iconPath = vscode.Uri.joinPath(this.extension, "media", "debrief.svg");
+  /** The view opened as an editor tab, made active. */
+  private openEditor(): EditorWindow {
+    const panel = createPanel(this.poppable.window, this.poppable.title, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false }, this.extension);
     const surface: PoppableSurface = {
       where: "window",
       post: (message) => panel.webview.postMessage(message),
@@ -202,13 +203,30 @@ export class PoppableView<C extends PoppableController> implements vscode.Webvie
       },
       show: (preserveFocus) => panel.reveal(undefined, preserveFocus),
     };
+    return { panel, surface, focus: () => panel.reveal(undefined, false), close: () => panel.dispose() };
+  }
+
+  /** An editor showing the view: live, linked, the panel a placeholder until it closes. */
+  private adopt(window: EditorWindow): void {
+    const { panel, surface } = window;
+    panel.iconPath = vscode.Uri.joinPath(this.extension, "media", "debrief.svg");
     panel.webview.html = this.page(panel.webview);
     panel.webview.onDidReceiveMessage((raw) => void this.controller.receive(raw, surface));
     panel.onDidChangeViewState(() => this.controller.shown(surface));
-    panel.onDidDispose(() => this.cameBack(panel, surface));
+    panel.onDidDispose(() => this.popOutState.closed(window));
     this.controller.attach(surface);
     this.dressView();
     void this.run("setContext", this.poppable.contextKey, true);
+  }
+
+  /** Placed: logged, the placeholder saying where it went, and a tab's reason said once a session. */
+  private settled(popped: PoppedOut): void {
+    this.log(`${this.poppable.log}_popped_out where=${popped.where}`);
+    this.dressView();
+    if (popped.reason && !this.said) {
+      this.said = true;
+      void vscode.window.showInformationMessage(`${this.poppable.title} is open in an editor tab: ${popped.reason}. Drag the tab out of the window, or to another editor group.`);
+    }
   }
 
   /** Into a window of its own, if VS Code can here; else left a tab, and why. */
@@ -236,9 +254,7 @@ export class PoppableView<C extends PoppableController> implements vscode.Webvie
   }
 
   /** The popped-out editor closed (or its window): the view back in the panel, in sight, the keyboard left where it was. */
-  private cameBack(panel: vscode.WebviewPanel, surface: PoppableSurface): void {
-    if (this.panel !== panel) return;
-    this.panel = undefined;
+  private cameBack(surface: PoppableSurface): void {
     this.controller.detach(surface);
     void this.run("setContext", this.poppable.contextKey, false);
     this.dressView();
@@ -249,13 +265,13 @@ export class PoppableView<C extends PoppableController> implements vscode.Webvie
 
   /** Bring back: the popped-out editor closed, the view in the panel again. */
   async bringBack(): Promise<void> {
-    if (this.panel) this.panel.dispose();
+    this.popOutState.bringBack();
     await this.controller.reveal(false);
   }
 
   /** The popped-out tab, or its window, brought to the front with the keyboard in it. */
   focusWindow(): void {
-    this.panel?.reveal(undefined, false);
+    this.popOutState.focusWindow();
   }
 
   /**
