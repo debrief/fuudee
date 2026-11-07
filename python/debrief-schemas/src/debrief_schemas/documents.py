@@ -223,8 +223,14 @@ def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
     return list(check.iter_errors(item))
 
 
+# The quick checks below mirror generated classes by hand. A test holds their member sets
+# to the generated JSON Schema: each member of the class is either checked here or left
+# to the schema (an item carrying it is not passed here), so a new attribute cannot slip
+# past them unnoticed.
+_FEATURE_MEMBERS = frozenset(("type", "id", "geometry", "properties"))
 _NARRATIVE_REQUIRED = frozenset(("kind", "time", "source", "text"))
 _NARRATIVE_MEMBERS = _NARRATIVE_REQUIRED | {"entry_type", "track_id"}
+_NARRATIVE_LEFT_TO_SCHEMA = frozenset(("provenance",))
 
 
 @cache
@@ -244,7 +250,7 @@ def _plain_narrative(item: Any) -> bool:
     props = item.get("properties")
     if not isinstance(props, dict) or props.get("kind") != "narrative":
         return False
-    if not item.keys() <= {"type", "id", "geometry", "properties"}:
+    if not item.keys() <= _FEATURE_MEMBERS:
         return False
     if item.get("type") != "Feature" or not isinstance(item.get("id"), str):
         return False
@@ -265,6 +271,9 @@ def _plain_narrative(item: Any) -> bool:
 
 _CUT_REQUIRED = frozenset(("kind", "sensor_id", "time", "bearing"))
 _CUT_MEMBERS = _CUT_REQUIRED | {"ambiguous_bearing", "resolved", "label", "colour", "hidden"}
+_CUT_LEFT_TO_SCHEMA = frozenset(
+    ("range", "origin", "origin_derived", "course", "bearing_accuracy", "comment")
+)
 _ANGLE_UNITS = frozenset(("deg", "rad"))
 
 
@@ -279,11 +288,12 @@ def _plain_angle(value: Any) -> bool:
 
 def _plain_cut(item: Any) -> bool:
     """A sensor cut as importers write it, checked by hand: exactly what
-    SensorCutFeature's JSON Schema allows, less a range, an origin and a comment (a cut
-    carrying any is left to the schema). True only where the schema would pass it too, so
-    this can only make checking quicker, never more lenient. A dense sensor holds tens
+    SensorCutFeature's JSON Schema allows, less the members in _CUT_LEFT_TO_SCHEMA (a range,
+    an origin and a comment among them: a cut carrying any is left to the schema). True
+    only where the schema would pass it too, so this can only make checking quicker,
+    never more lenient. A dense sensor holds tens
     of thousands of cuts (NFR-06), each checked once, as a narrative entry is."""
-    if not isinstance(item, dict) or not item.keys() <= {"type", "id", "geometry", "properties"}:
+    if not isinstance(item, dict) or not item.keys() <= _FEATURE_MEMBERS:
         return False
     props = item.get("properties")
     if not isinstance(props, dict) or props.get("kind") != "sensor_cut":
