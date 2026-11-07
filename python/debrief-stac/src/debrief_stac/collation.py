@@ -80,6 +80,7 @@ from debrief_kernel.units import Quantity
 from debrief_schemas import DebriefFeatureCollection, models
 from debrief_stac import sensors as plot_sensors
 from debrief_stac import tracks
+from debrief_stac.errors import DomainError
 from debrief_stac.history import Changes, HistoryError
 
 if TYPE_CHECKING:
@@ -99,7 +100,7 @@ Key = tuple[str, str, str]  # (catalogue id, item id, track id)
 Span = tuple[int, int]
 
 
-class CollationError(ValueError):
+class CollationError(DomainError):
     """A collation step that cannot be done as asked, in plain words."""
 
 

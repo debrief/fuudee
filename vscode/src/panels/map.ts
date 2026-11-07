@@ -8,26 +8,25 @@ import * as vscode from "vscode";
 import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
 import { receiveMap } from "../../webview/dispatch.js";
-import { webviewHtml } from "./html.js";
+import { WebviewHost } from "./webviewhost.js";
 import { startup } from "../startup.js";
 import { displayed, hiddenIds } from "../hidden.js";
-import type { ImageRequest, RenderedImage, RevisionShown, TimelineEntry, TmaRequest, ToteView } from "@debrief/schemas";
+import type { ContextTracksEnum, ImageRequest, LineStringGeometry, MessageKind, MessageOf, RenderedImage, RevisionShown, TimelineEntry, TmaRequest, ToteView } from "@debrief/schemas";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries } from "../timeline.js";
 import { toteOf } from "../../webview/totelogic.js";
 
 export class MapPanel {
-  private panel?: vscode.WebviewPanel;
-  private ready = false;
+  private readonly host: WebviewHost<vscode.WebviewPanel>;
   /** The plot the map last drew, once it is ready. */
   showing?: string;
   /** How many hidden features the map last said there were. */
   hiddenCount?: number;
   /** How the map was last told to draw tracks outside the window, for tests and agents. */
-  context?: string;
+  context?: ContextTracksEnum;
   /** The Tote's choice the map was last told of, for its lines from the primary (CAP-06), for tests and agents. */
   tote?: ToteView;
   /** The fixes the map last ringed for the analyst to check, and any change previewed, for tests and agents. */
-  fixesShown?: { feature_id: string; fix_times?: string[]; preview?: { type: "LineString"; coordinates: number[][] }; message?: string };
+  fixesShown?: { feature_id: string; fix_times?: string[]; preview?: LineStringGeometry; message?: string };
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
   narrative?: TimelineEntry;
   /** The earlier revision the map was last told it shows read-only, for tests and agents (SUB-25). */
@@ -35,10 +34,16 @@ export class MapPanel {
   private narrativeOnMap = new NarrativeOnMap([]);
 
   constructor(
-    private readonly extension: vscode.Uri,
+    extension: vscode.Uri,
     private readonly session: Session,
     private readonly log: (line: string) => void,
   ) {
+    this.host = new WebviewHost(extension, {
+      bundle: "map",
+      marks: "map",
+      receive: (raw) => void this.receive(raw),
+      disposed: () => (this.showing = undefined),
+    });
     session.onPlot((opened) => {
       this.narrativeOnMap = new NarrativeOnMap(opened ? timelineEntries(opened.plot) : []);
       this.showPlot();
@@ -54,7 +59,7 @@ export class MapPanel {
     });
     // How tracks outside the window are drawn: the plot's choice, the analyst's setting applied (CAP-29).
     session.onView(() => {
-      if (!this.session.current || !this.panel || !this.ready) return;
+      if (!this.session.current || !this.host.ready) return;
       this.context = this.session.contextShown();
       this.post({ kind: "set_context", context_tracks: this.context });
       // The Tote's tracks and whether the map draws its lines: island state too (decision, 14 Oct 2026).
@@ -73,38 +78,24 @@ export class MapPanel {
     const opened = this.session.current;
     if (!opened) return;
     const title = opened.item.properties.title ?? opened.item.id;
-    if (this.panel) {
-      this.panel.title = title;
-      this.panel.reveal(undefined, true);
+    const panel = this.host.target;
+    if (panel) {
+      panel.title = title;
+      panel.reveal(undefined, true);
       return;
     }
-    startup.mark("map", "resolve");
-    this.panel = vscode.window.createWebviewPanel("debrief.map", title, vscode.ViewColumn.One, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
-    });
-    this.ready = false;
-    this.panel.webview.html = webviewHtml(this.panel.webview, this.extension, "map", title);
-    startup.mark("map", "html");
-    this.panel.onDidDispose(() => {
-      this.panel = undefined;
-      this.showing = undefined;
-    });
-    this.panel.webview.onDidReceiveMessage((raw) => void this.receive(raw));
+    this.host.open("debrief.map", title, vscode.ViewColumn.One);
   }
 
   /** A message from the map webview; tests may pass one as if the map had sent it. Resolves once it is acted on. */
   async receive(raw: unknown): Promise<void> {
-    if (startup.fromPage("map", raw)) return;
     await this.receiver(raw);
   }
   /** The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here. */
   private readonly receiver = receiveMap(
     {
       ready: () => {
-        startup.mark("map", "ready");
-        this.ready = true;
+        this.host.readied();
         this.showPlot();
       },
       selected: (ids) => this.session.select(ids, "map"),
@@ -134,8 +125,9 @@ export class MapPanel {
       imageRendered: (drawn) => this.rendered?.("image" in drawn ? { image: drawn.image } : { problem: drawn.problem }),
       // An earlier revision shown read-only: the analyst asked for the plot as it is now.
       latestAsked: () => vscode.commands.executeCommand("debrief.openLatestRevision"),
-      // A TMA solution dragged (CAP-21): passed on to the bearing view, for its residuals.
-      tmaPreview: (id, preview) => this.previewed?.(id, preview),
+      // A TMA solution dragged (CAP-21): passed on to the bearing view, for its residuals. Two
+      // points at least, as the schema checked on receipt.
+      tmaPreview: (id, preview) => this.previewed?.(id, preview as LineStringGeometry | undefined),
       // Two clicks made for a first guess, or cancelled (no request).
       tmaGuessed: async (request) => {
         this.guessing = undefined;
@@ -148,7 +140,7 @@ export class MapPanel {
   );
 
   /** Where a TMA solution dragged on the map goes: the bearing view. */
-  previewed?: (featureId: string, preview?: { type: "LineString"; coordinates: number[][] }) => void;
+  previewed?: (featureId: string, preview?: LineStringGeometry) => void;
   /** What two clicks for a first guess make: a solution, as one step. */
   guessed?: (request?: TmaRequest) => Promise<void>;
   /** The cuts two clicks are asked for, while the map waits for them; for tests and agents. */
@@ -158,11 +150,10 @@ export class MapPanel {
   guess(request?: TmaRequest): void {
     this.reveal();
     this.guessing = request;
-    const send = (tries: number) => {
-      if (this.panel && this.ready) return this.post(request ? { kind: "tma_guess", tma_request: request } : { kind: "tma_guess" });
-      if (tries > 0) setTimeout(() => send(tries - 1), 100);
-    };
-    send(100);
+    const send = () => this.post(request ? { kind: "tma_guess", tma_request: request } : { kind: "tma_guess" });
+    // The map just opened: sent once its page is ready, as long as ten seconds after.
+    if (this.host.ready) send();
+    else this.host.whenReady(10000).then(send, () => undefined);
   }
 
   private rendered?: (answer: { image: RenderedImage } | { problem: string }) => void;
@@ -174,12 +165,7 @@ export class MapPanel {
   renderImage(request: ImageRequest): Promise<RenderedImage> {
     this.reveal();
     return new Promise((resolve, reject) => {
-      const waited = Date.now();
       const send = () => {
-        if (!this.panel || !this.ready) {
-          if (Date.now() - waited > 30000) return reject(new Error("The map did not open in time."));
-          return void setTimeout(send, 100);
-        }
         const timer = setTimeout(() => {
           this.rendered = undefined;
           reject(new Error("The map did not draw the image in time."));
@@ -192,7 +178,8 @@ export class MapPanel {
         };
         this.post({ kind: "export_image", image_request: request });
       };
-      send();
+      if (this.host.ready) send();
+      else this.host.whenReady(30000).then(send, () => reject(new Error("The map did not open in time.")));
     });
   }
 
@@ -204,19 +191,20 @@ export class MapPanel {
 
   /** Draw the plot again as it is: after a change on the map was refused, or a drawing's form closed unsaved. */
   refresh(): void {
-    if (this.ready) this.showPlot();
+    if (this.host.ready) this.showPlot();
   }
 
   private showPlot(): void {
     const opened = this.session.current;
-    if (!opened || !this.panel) return;
-    this.panel.title = opened.item.properties.title ?? opened.item.id;
+    const panel = this.host.target;
+    if (!opened || !panel) return;
+    panel.title = opened.item.properties.title ?? opened.item.id;
     // Hiding is shared, so the map says how many are hidden, with a way to show them (SUB-22).
     const hidden = hiddenIds(opened.plot).length;
     this.post({
       kind: "show_plot",
       plot: displayed(opened.plot), // hidden features left out (SUB-22)
-      plot_title: this.panel.title,
+      plot_title: panel.title,
       selection: this.selectionMessage(this.session.selection),
       hidden_count: hidden,
       context_tracks: this.session.contextShown(),
@@ -226,7 +214,7 @@ export class MapPanel {
     });
     this.revisionShown = opened.revision;
     this.showNarrative(true);
-    if (this.ready) {
+    if (this.host.ready) {
       startup.shown("map", true);
       this.showing = opened.item.id;
       this.hiddenCount = hidden;
@@ -239,12 +227,12 @@ export class MapPanel {
     const time = this.session.time;
     const opened = this.session.current;
     const entry = time && opened && narrativeOnMapOf(opened.plot) ? this.narrativeOnMap.at(Date.parse(time.current)) : undefined;
-    if (!this.panel || !this.ready || (!again && entry?.id === this.narrative?.id)) return;
+    if (!this.host.ready || (!again && entry?.id === this.narrative?.id)) return;
     this.narrative = entry;
     this.post(entry ? { kind: "set_narrative", timeline_entry: entry } : { kind: "set_narrative" });
   }
 
-  private post(message: unknown): void {
-    if (this.panel && this.ready) void this.panel.webview.postMessage(checkMessage(message));
+  private post<K extends MessageKind>(message: MessageOf<K>): void {
+    this.host.post(message);
   }
 }
