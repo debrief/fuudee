@@ -36,11 +36,14 @@ Every type that crosses a process or language boundary is defined here in LinkML
 - **Times** are UTC with exactly three decimal places: `2026-10-11T09:30:00.000Z`.
 - **Feature kinds** form the taxonomy that tools declare against (TL-06): `track`, `annotation`, `sensor`, `sensor_cut`, `sensor_observations`.
 - **Strict by default.** Undeclared properties are rejected except where STAC expects extension fields.
-- **Schema version.** Plots record `schema_version`; STAC items and catalogues record `debrief:schema_version`. Change the version in `debrief.yaml` and note it in `CHANGELOG.md` whenever the schema changes.
+- **Schema version.** Plots record `schema_version`; STAC items and catalogues record `debrief:schema_version`. The version is the files' version, so the rule for bumping it is about files:
+  - A change to a **file type** bumps the version: anything that can be written in a plot, a STAC item or catalogue, or the earlier history layout (`Delta`, `HistoryHead`), down to a feature's properties, a provenance record or the island. Bump with `scripts/bump_schema.py` (see Workflow) and describe the change under the new version in `CHANGELOG.md`.
+  - A change to a **message or request type** does not bump it: webview messages, tool declarations and results, shared state, format settings, view and request types such as `TmaView` or `TmaRequest`. None is a file Debrief opens by version. Note it in `CHANGELOG.md` under the current version, saying it changes no data file. The per-user configuration has its own version (`CONFIG_VERSION`).
+  - A test holds that `CHANGELOG.md` has an entry for the current version.
 
 ## Validation layers
 
-1. **Schema version** (files only): a file with a different version is refused before it is read (SUB-14). Before 1.0.0 there is no migration, so only an exact match opens.
+1. **Schema version** (files only), before anything else is read. A newer file is refused, naming the version it needs (SUB-14). An older file opens only if a chain of registered migrations leads from its version to the current one, and is refused otherwise, naming its version (SUB-13). The registry is the same in both languages (`debrief_schemas.migrations`, `MIGRATIONS` in `ts/schemas`) and is empty: before 1.0.0 there is no migration guarantee, so today only an exact match opens. A migration is a function from a file's JSON at one version to its JSON at the next; the registry sets the version after each step and records each migration applied to a plot in its provenance, as an activity of kind `migration` naming both versions and what changed. In Python a plot that carries its history also gains a step holding those records, so its hash chain stays whole; earlier steps are not rewritten. Writing never migrates.
 2. **Structure**: the generated JSON Schema, run identically in Python and TypeScript. A union told apart by a member (`WebviewMessage`, by `kind`) carries OpenAPI's `discriminator`: both languages check a message against the one class its kind names, so its problems are that class's.
 3. **Rules** LinkML cannot express, in Python only (PRN-03). Examples: parallel arrays match the geometry, track times are in order, polygon rings are closed, a time-only annotation has a time, an annotation's shape has its geometry, a circle's polygon matches its centre and radius, a parameter's default matches its kind, a plot's history is an unbroken hash chain whose current step matches its content. The webview message rules are the one exception: the hosts check them on receipt too (`vscode/webview/messagecheck.ts`), and a test asserts both languages refuse every `webview_message/invalid/semantic` fixture.
 
@@ -55,5 +58,14 @@ uv run python scripts/generate_schemas.py      # LinkML -> Pydantic, JSON Schema
 npm run --prefix ts/schemas generate           # JSON Schema -> TypeScript
 uv run pytest && npm test --prefix ts/schemas && scripts/cross_language_roundtrip.sh
 ```
+
+To bump the version, never by hand:
+
+```bash
+uv run python scripts/bump_schema.py X.Y.Z --dry-run   # list what would change
+uv run python scripts/bump_schema.py X.Y.Z             # rewrite, then regenerate
+```
+
+It rewrites the version in every fixture and every test that writes it as a `schema_version` member, seals plot fixtures' histories again (the version is part of the content hash), adds a stub to `CHANGELOG.md` for you to fill in, changes `debrief.yaml` last, and runs both generators. Run again, it changes nothing. `bump_schema.py --check`, run by a test, fails if any committed file names the current version in a form a bump would miss.
 
 The generators work around several LinkML defects; see `docs/spikes/linkml.md`.

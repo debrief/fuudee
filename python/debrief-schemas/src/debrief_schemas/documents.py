@@ -2,8 +2,10 @@
 
 Validation runs in three layers, in order:
 
-1. Schema version (SUB-14), for file kinds: a file written against another
-   schema version is refused before anything else is read.
+1. Schema version (SUB-13, SUB-14), for file kinds: a file written against an
+   older schema version is migrated to the current one when registered
+   migrations lead there (debrief_schemas.migrations; none yet), and refused
+   otherwise; a newer one is always refused. Before anything else is read.
 2. JSON Schema generated from LinkML: the same check the TypeScript side runs.
 3. Rules LinkML cannot express, such as parallel arrays matching the
    geometry. These live here only, in Python (PRN-03).
@@ -40,11 +42,13 @@ from debrief_schemas.chain import (
     chain_problem,
     content_text_of,
     pointer_problems,
+    step_hash,
     text_hash,
 )
 from debrief_schemas.generated import debrief as g
 from debrief_schemas.generated.schema_version import SCHEMA_VERSION
 from debrief_schemas.island import dump_json
+from debrief_schemas.migrations import chain, migration_record, now_utc
 
 
 class DocumentKind(StrEnum):
@@ -219,8 +223,14 @@ def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
     return list(check.iter_errors(item))
 
 
+# The quick checks below mirror generated classes by hand. A test holds their member sets
+# to the generated JSON Schema: each member of the class is either checked here or left
+# to the schema (an item carrying it is not passed here), so a new attribute cannot slip
+# past them unnoticed.
+_FEATURE_MEMBERS = frozenset(("type", "id", "geometry", "properties"))
 _NARRATIVE_REQUIRED = frozenset(("kind", "time", "source", "text"))
 _NARRATIVE_MEMBERS = _NARRATIVE_REQUIRED | {"entry_type", "track_id"}
+_NARRATIVE_LEFT_TO_SCHEMA = frozenset(("provenance",))
 
 
 @cache
@@ -240,7 +250,7 @@ def _plain_narrative(item: Any) -> bool:
     props = item.get("properties")
     if not isinstance(props, dict) or props.get("kind") != "narrative":
         return False
-    if not item.keys() <= {"type", "id", "geometry", "properties"}:
+    if not item.keys() <= _FEATURE_MEMBERS:
         return False
     if item.get("type") != "Feature" or not isinstance(item.get("id"), str):
         return False
@@ -261,6 +271,9 @@ def _plain_narrative(item: Any) -> bool:
 
 _CUT_REQUIRED = frozenset(("kind", "sensor_id", "time", "bearing"))
 _CUT_MEMBERS = _CUT_REQUIRED | {"ambiguous_bearing", "resolved", "label", "colour", "hidden"}
+_CUT_LEFT_TO_SCHEMA = frozenset(
+    ("range", "origin", "origin_derived", "course", "bearing_accuracy", "comment")
+)
 _ANGLE_UNITS = frozenset(("deg", "rad"))
 
 
@@ -275,11 +288,12 @@ def _plain_angle(value: Any) -> bool:
 
 def _plain_cut(item: Any) -> bool:
     """A sensor cut as importers write it, checked by hand: exactly what
-    SensorCutFeature's JSON Schema allows, less a range, an origin and a comment (a cut
-    carrying any is left to the schema). True only where the schema would pass it too, so
-    this can only make checking quicker, never more lenient. A dense sensor holds tens
+    SensorCutFeature's JSON Schema allows, less the members in _CUT_LEFT_TO_SCHEMA (a range,
+    an origin and a comment among them: a cut carrying any is left to the schema). True
+    only where the schema would pass it too, so this can only make checking quicker,
+    never more lenient. A dense sensor holds tens
     of thousands of cuts (NFR-06), each checked once, as a narrative entry is."""
-    if not isinstance(item, dict) or not item.keys() <= {"type", "id", "geometry", "properties"}:
+    if not isinstance(item, dict) or not item.keys() <= _FEATURE_MEMBERS:
         return False
     props = item.get("properties")
     if not isinstance(props, dict) or props.get("kind") != "sensor_cut":
@@ -391,9 +405,87 @@ def _check_version(kind: DocumentKind, document: Any) -> None:
         raise DocumentValidationError(
             [f"schema version {found!r} is not a semantic version"]
         ) from None
-    # Before 1.0.0 there is no migration guarantee (SUB-13), so only an exact match opens.
+    # Only the current version is read; an older file is first brought to it by the
+    # registered migrations, if any lead there (see _migrated). Before 1.0.0 there is
+    # no migration guarantee (SUB-13) and none is registered.
     if parsed != _parse_version(SCHEMA_VERSION):
         raise SchemaVersionError(found)
+
+
+def _set_version(kind: DocumentKind, document: dict[str, Any], version: str) -> None:
+    if kind is DocumentKind.STAC_ITEM:
+        document["properties"]["debrief:schema_version"] = version
+    elif kind is DocumentKind.STAC_CATALOG:
+        document["debrief:schema_version"] = version
+    else:
+        document["schema_version"] = version
+
+
+def _migrated(kind: DocumentKind, document: Any) -> Any:
+    """A file of an older schema version brought to the current one by the registered
+    migrations (debrief_schemas.migrations), or the document as given when it needs
+    none. Refuses an older version no chain of migrations leads from, naming it.
+
+    The document given is never changed. Each migration applied to a plot is recorded
+    in its provenance, and, if it carries its history, in a step of its own.
+    """
+    if kind not in _FILE_KINDS or not isinstance(document, dict):
+        return document
+    found = _recorded_version(kind, document)
+    if not isinstance(found, str) or found == SCHEMA_VERSION:
+        return document  # _check_version says what is wrong, if anything
+    try:
+        if _parse_version(found) > _parse_version(SCHEMA_VERSION):
+            return document  # newer: refused by _check_version (SUB-14)
+    except ValueError:
+        return document
+    steps = chain(found, SCHEMA_VERSION)
+    if steps is None:
+        raise SchemaVersionError(found)
+    migrated = copy.deepcopy(document)
+    records = []
+    for step in steps:
+        migrated = step.migrate(kind.value, migrated)
+        _set_version(kind, migrated, step.to_version)
+        records.append(migration_record(step, now_utc()))
+    if kind is DocumentKind.PLOT:
+        migrated["provenance"] = [*migrated.get("provenance", []), *records]
+        _record_in_history(migrated, records)
+    return migrated
+
+
+def _record_in_history(plot: dict[str, Any], records: list[dict[str, Any]]) -> None:
+    """Add a step holding the migration's records to a plot's history, if it has one,
+    after its current step, as any recorded change is: its result_hash is the migrated
+    content's, chained from the last step. Steps undone are then abandoned (SUB-21).
+    A history that is not whole is left alone, to be refused as it would have been."""
+    history = plot.get(HISTORY_MEMBER)
+    if not isinstance(history, dict):
+        return
+    steps, current, head = history.get("steps"), history.get("current"), history.get("head_hash")
+    if not (isinstance(steps, list) and isinstance(current, int) and isinstance(head, str)):
+        return
+    if not all(
+        isinstance(s, dict) and isinstance(s.get("seq"), int) and isinstance(s.get("after"), int)
+        for s in steps
+    ):
+        return
+    seq = len(steps) + 1
+    step: dict[str, Any] = {
+        "seq": seq,
+        "state": "applied",
+        "after": current,
+        "records": records,
+        "result_hash": text_hash(content_text_of(plot)),
+    }
+    step["step_hash"] = step_hash(step, head)
+    steps = [*steps, step]
+    problems, states = pointer_problems([(s["seq"], s["after"], None) for s in steps], seq)
+    if problems:
+        return
+    history["steps"] = [{**s, "state": state} for s, state in zip(steps, states, strict=True)]
+    history["current"] = seq
+    history["head_hash"] = step["step_hash"]
 
 
 # --- Layer 3: rules LinkML cannot express --------------------------------------
@@ -1454,11 +1546,18 @@ def _validate(
 
 
 def load_document(kind: DocumentKind | str, source: str | bytes | dict[str, Any]) -> Any:
-    """Parse and fully validate a document. Never returns a partially loaded one."""
+    """Parse and fully validate a document. Never returns a partially loaded one.
+
+    A file of an older schema version is first migrated, if registered migrations lead
+    from its version to the current one, and refused otherwise (SUB-13, SUB-14).
+    Writing never migrates: dump_document writes the current version only."""
     kind = DocumentKind(kind)
     text = source if isinstance(source, (str, bytes)) else None
     document = json.loads(source) if text is not None else source
-    return _validate(kind, document, text, build=True)
+    migrated = _migrated(kind, document)
+    if migrated is not document:
+        text = None  # the text read is not the document checked
+    return _validate(kind, migrated, text, build=True)
 
 
 def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:

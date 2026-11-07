@@ -100,6 +100,15 @@ def test_schema_version_matches_linkml_source() -> None:
     assert source["version"] == SCHEMA_VERSION
 
 
+def test_changelog_has_an_entry_for_the_current_version() -> None:
+    changelog = (ROOT / "schemas" / "CHANGELOG.md").read_text()
+    headings = [line for line in changelog.splitlines() if line.startswith("## ")]
+    assert headings, "CHANGELOG.md has no version headings"
+    assert headings[0].startswith(f"## {SCHEMA_VERSION} "), (
+        f"the latest CHANGELOG.md entry is {headings[0]!r}, not {SCHEMA_VERSION}"
+    )
+
+
 def test_fixtures_use_current_schema_version() -> None:
     for kind in (DocumentKind.PLOT, DocumentKind.STAC_ITEM, DocumentKind.STAC_CATALOG):
         for path in (FIXTURES / kind.value / "valid").glob("*.json"):
@@ -256,24 +265,85 @@ def test_a_feature_that_passed_is_not_checked_again(monkeypatch) -> None:
     assert checked == [raw["features"][0]["id"]] * 2
 
 
-def test_the_quick_check_of_narrative_entries_is_never_more_lenient_than_the_schema() -> None:
-    """Sixty thousand entries are checked by hand, not by the JSON Schema library
-    (NFR-06); every entry the quick check passes, the schema passes too."""
+# The quick checks of narrative entries and sensor cuts, which mirror generated classes by
+# hand (NFR-06): their member sets are held to the generated JSON Schema, and every item
+# they pass, the schema passes too.
+_ANGLE = {"value": 10.0, "unit": "deg"}
+QUICK_CHECKS = {
+    "narrative": (
+        "NarrativeFeature",
+        "NarrativeProperties",
+        "_plain_narrative",
+        "_NARRATIVE_REQUIRED",
+        "_NARRATIVE_MEMBERS",
+        "_NARRATIVE_LEFT_TO_SCHEMA",
+        {
+            "type": "Feature",
+            "id": "narrative-0001",
+            "geometry": None,
+            "properties": {
+                "kind": "narrative",
+                "time": "2026-10-11T09:30:00.000Z",
+                "source": "BLUE ONE",
+                "entry_type": "Sonar",
+                "text": "Contact.",
+                "track_id": "track-blue-one",
+            },
+        },
+    ),
+    "sensor_cut": (
+        "SensorCutFeature",
+        "SensorCutProperties",
+        "_plain_cut",
+        "_CUT_REQUIRED",
+        "_CUT_MEMBERS",
+        "_CUT_LEFT_TO_SCHEMA",
+        {
+            "type": "Feature",
+            "id": "cut-0001",
+            "geometry": None,
+            "properties": {
+                "kind": "sensor_cut",
+                "sensor_id": "sensor-bow",
+                "time": "2026-10-11T09:30:00.000Z",
+                "bearing": _ANGLE,
+                "ambiguous_bearing": {"value": 350, "unit": "deg"},
+                "resolved": "bearing",
+                "label": "A",
+                "colour": "#0064bd",
+                "hidden": False,
+            },
+        },
+    ),
+}
+
+
+@pytest.mark.parametrize("which", QUICK_CHECKS)
+def test_a_quick_checks_members_are_the_generated_classs(which: str) -> None:
+    """Each member of the class is checked by hand or left to the schema, never neither:
+    a new attribute fails here until the quick check says which."""
     from debrief_schemas import documents
 
-    good = {
-        "type": "Feature",
-        "id": "narrative-0001",
-        "geometry": None,
-        "properties": {
-            "kind": "narrative",
-            "time": "2026-10-11T09:30:00.000Z",
-            "source": "BLUE ONE",
-            "entry_type": "Sonar",
-            "text": "Contact.",
-            "track_id": "track-blue-one",
-        },
-    }
+    feature, properties, _, required, members, left, _ = QUICK_CHECKS[which]
+    defs = json.loads(JSON_SCHEMA.read_text())["$defs"]
+    required, members, left = (getattr(documents, n) for n in (required, members, left))
+    assert documents._FEATURE_MEMBERS == set(defs[feature]["properties"])
+    assert required == set(defs[properties]["required"])
+    assert required <= members
+    assert not members & left
+    assert members | left == set(defs[properties]["properties"])
+
+
+@pytest.mark.parametrize("which", QUICK_CHECKS)
+def test_a_quick_check_is_never_more_lenient_than_the_schema(which: str) -> None:
+    """Sixty thousand entries or cuts are checked by hand, not by the JSON Schema library
+    (NFR-06); every item the quick check passes, the schema passes too. Every member the
+    schema declares is varied, so a new one is too."""
+    from debrief_schemas import documents
+
+    feature, properties, check, *_, good = QUICK_CHECKS[which]
+    quick = getattr(documents, check)
+    defs = json.loads(JSON_SCHEMA.read_text())["$defs"]
 
     def variant(path: tuple[str, ...], value: object) -> dict:
         item = json.loads(json.dumps(good))
@@ -281,35 +351,39 @@ def test_the_quick_check_of_narrative_entries_is_never_more_lenient_than_the_sch
         for key in path[:-1]:
             where = where[key]
         if value is KeyError:
-            where.pop(path[-1])
+            where.pop(path[-1], None)
         else:
             where[path[-1]] = value
         return item
 
+    wrong = [KeyError, None, 7, 1.5, True, "x", "", ["a"], {}, {"value": 1}]
     variants = [good]
-    for key in ("type", "id", "geometry", "properties"):
-        variants += [variant((key,), KeyError), variant((key,), 7), variant((key,), "x")]
-    for key in ("kind", "time", "source", "entry_type", "text", "track_id"):
-        variants += [
-            variant(("properties", key), KeyError),
-            variant(("properties", key), None),
-            variant(("properties", key), 7),
-            variant(("properties", key), ["a"]),
-        ]
+    for key in defs[feature]["properties"]:
+        variants += [variant((key,), value) for value in wrong]
+    for key in defs[properties]["properties"]:
+        variants += [variant(("properties", key), value) for value in wrong]
+        variants += [variant(("properties", key), _ANGLE)]
+        variants += [variant(("properties", key), "2026-10-11T09:30:00.000Z")]
     variants += [
         variant(("properties", "time"), "2026-10-11T09:30:00Z"),
         variant(("properties", "time"), "2026-10-11T09:30:00.000Z\n"),
         variant(("properties", "kind"), "annotation"),
         variant(("properties", "colour"), "#ffffff"),
+        variant(("properties", "colour"), "#FFFFFF"),
+        variant(("properties", "bearing"), {"value": 10, "unit": "m"}),
+        variant(("properties", "bearing"), {"value": "10", "unit": "deg"}),
+        variant(("properties", "bearing"), {"value": 10, "unit": "deg", "x": 1}),
+        variant(("properties", "resolved"), "ambiguous_bearing"),
         variant(("extra",), 1),
+        variant(("properties", "extra"), 1),
         variant(("geometry",), {"type": "Point", "coordinates": [0, 0]}),
         variant(("properties", "provenance"), []),
     ]
-    schema = documents._class_validator("NarrativeFeature")
+    schema = documents._class_validator(feature)
     for item in [*variants, None, [], "x"]:
-        if documents._plain_narrative(item):
+        if quick(item):
             assert schema.is_valid(item), item
-    assert documents._plain_narrative(good)
+    assert quick(good)
 
 
 def test_many_features_are_checked_for_duplicate_ids_quickly() -> None:
