@@ -1179,35 +1179,49 @@ def test_tracks_are_cleaned_what_would_change_shown_first(client, catalogue) -> 
 
 
 def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> None:
+    """The sets the service uses are read from its one registry (METHODS), so a method is
+    declared once: whether it changes the plot, needs agent and runs on one plot."""
     from debrief_tools import service
 
-    groups = (
-        service.STEP_METHODS,
-        service.PRESENTATION_METHODS,
-        service.ANNOTATION_METHODS,
-        service.NARRATIVE_METHODS,
-        service.TRACK_METHODS,
-        service.CLEANING_METHODS,
-        service.COLLATION_METHODS,
-        service.COLLATION_VIEW_METHODS,
-        service.SENSOR_METHODS,
-        service.TMA_METHODS,
-    )
-    assert set(service.WRITING_METHODS) == {m for g in groups for m in g}
-    assert "debrief/coverage" in service.READING_METHODS
-    assert "debrief/review_flags" in service.KNOWN_METHODS
-    assert set(service.HISTORY_METHODS) <= service.KNOWN_METHODS
-    assert not set(service.READING_METHODS) & set(service.WRITING_METHODS)
-    assert not set(service.CHECKING_METHODS) & set(service.WRITING_METHODS)
-    assert "debrief/mark_fix" in service.CLEANING_METHODS
-    assert "debrief/merge_tracks" in service.TRACK_METHODS
-    assert "debrief/set_north_arrow" in service.ANNOTATION_METHODS
-    assert "debrief/narrative" in service.READING_METHODS
-    assert "debrief/sensors" in service.READING_METHODS
-    assert "debrief/resolve_ambiguity" in service.SENSOR_METHODS
-    assert "debrief/tma_residuals" in service.READING_METHODS
-    assert "debrief/tma_create" in service.TMA_METHODS
-    assert not set(service.TOTE_METHODS) & set(service.WRITING_METHODS)
+    methods = service.METHODS
+    assert service.KNOWN_METHODS == frozenset(methods)
+    assert service.WRITING_METHODS == {n for n, m in methods.items() if m.writes}
+    assert service.WRITING_METHODS <= service.HISTORY_METHODS <= service.KNOWN_METHODS
+    assert not service.READING_METHODS & service.WRITING_METHODS
+    for reads in (
+        "debrief/open",
+        "debrief/history",
+        "debrief/coverage",
+        "debrief/narrative",
+        "debrief/sensors",
+        "debrief/tma_residuals",
+        "debrief/find_jumps",
+        "debrief/preview_smoothing",
+    ):
+        assert reads in service.READING_METHODS, reads
+    for writes in (
+        "debrief/undo",
+        "debrief/mark_fix",
+        "debrief/merge_tracks",
+        "debrief/set_north_arrow",
+        "debrief/resolve_ambiguity",
+        "debrief/tma_create",
+        "debrief/dismiss_new_data",
+        "debrief/clear_review_flag",
+    ):
+        assert writes in service.WRITING_METHODS, writes
+    for elsewhere in ("debrief/review_flags", "debrief/tote", "debrief/measure_groups"):
+        assert elsewhere in service.KNOWN_METHODS
+        assert elsewhere not in service.HISTORY_METHODS
+    # Every change names who made it (SUB-24), but undo, redo and goto record no one.
+    steps = {"debrief/undo", "debrief/redo", "debrief/goto"}
+    assert service.AGENT_METHODS == (service.WRITING_METHODS - steps) | {
+        "debrief/import",
+        "debrief/import_rep",
+        "debrief/add_plot_file",
+        "debrief/export_image",
+    }
+    assert service.IMAGE_METHODS == {"debrief/export_image"}
 
 
 def test_the_tote_at_a_time_and_its_choice_in_the_island(client, catalogue) -> None:

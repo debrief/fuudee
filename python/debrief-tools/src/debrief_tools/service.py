@@ -3,61 +3,25 @@
 The protocol is MCP's Streamable HTTP transport (JSON-RPC 2.0, one POST per
 request, JSON responses), so the VS Code extension and any MCP-capable agent
 use the same tools (TL-01, TL-17). Debrief adds methods of its own, named
-debrief/...: debrief/tools_for_selection, so the offering rule lives in
-Python (TL-08); stores, catalogues and import (REP, legacy .dpf, Word and PDF documents);
-adding a plot
-file received from a colleague, with its whole history (debrief/add_plot_file); a plot's history
-(debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
-so undo is the same for the extension and an agent (SUB-21); colour and hiding, and how
-often tracks are labelled, marked with a symbol and given a direction arrow, recorded in
-that history like any change (debrief/set_colour, debrief/set_hidden,
-debrief/set_track_frequencies);
-annotations added, changed and deleted by hand, and the north arrow, recorded the
-same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
-debrief/set_north_arrow); sensors and their cuts (CAP-22): read, with each cut's bearings
-and where it is drawn from (debrief/sensors), ambiguous cuts resolved one by one or a
-period at a time (debrief/resolve_ambiguity), cuts hidden or shown (debrief/set_hidden,
-which says what that does to the solutions rooted in them) or deleted (debrief/delete_cuts),
-and a .dsf file's sensor lines read into the
-plot, what it holds said first (debrief/preview_sensor, debrief/import_sensor), each a
-step; narrative entries on one Zulu time axis, read and filtered
-(debrief/narrative) and added, changed, deleted or read in from a REP file's narrative
-lines, recorded the same way (debrief/add_narrative, debrief/edit_narrative,
-debrief/delete_narrative, debrief/import_narrative), Word and PDF narrative among them,
-in legacy Debrief's dialects, what a file holds said first so the analyst can choose
-(debrief/preview_narrative); tracks moved, rotated, sheared,
-stretched, split and merged by hand, single fixes moved and tracks plotted by dead
-reckoning (move_fix and set_plotting_mode), recorded the same way (debrief/edit_track,
-debrief/split_track, debrief/merge_tracks); tracks cleaned,
-what would change shown first (debrief/find_jumps, debrief/preview_smoothing) and then
-changed, recorded the same way (debrief/remove_jumps, debrief/smooth_track), and fixes
-given a colour, label or comment of their own (debrief/mark_fix);
-and the plot's view, its island, kept in the plot file outside its history
-(debrief/set_view; debrief/open returns it) (SUB-22, decision 12 Oct); and the Tote:
-measures between a primary track and its secondaries at one time
-(debrief/tote), and the measure groups it can show (debrief/measure_groups),
-reading only (CAP-06, CAP-07). Which tracks the Tote compares is in the island,
-set with debrief/set_view like the time window (decision, 14 Oct 2026). Collation
-(CAP-08 to CAP-12): a plot's coverage, its platforms and every catalogue item with data
-for each, the items marked as new data for it, and whether it may need review
-(debrief/coverage); taking an item's new data, choosing which item supplies a period of
-a track, and linking or unlinking a track in another item as a platform, each a step
-(debrief/take_new_data, debrief/set_source_preference, debrief/link_tracks); setting new
-data aside and clearing a review flag, in the plot's island (debrief/dismiss_new_data,
-debrief/clear_review_flag); and every plot that may need review (debrief/review_flags).
-TMA solutions (CAP-21; product owner, 24 Oct 2026): a solution made from a period of a
-sensor's cuts with a first guess, split into legs at a time or before or after one of its
-fixes (side), and its cuts left out of its RMS error or counted again, each a step
-(debrief/tma_create, debrief/tma_split_leg, debrief/tma_exclude_cut); and its bearing
-residuals and RMS error, reading only (debrief/tma_residuals). A solution is a track, so it
-is dragged with debrief/edit_track.
-Exported images (SUB-25): a fresh image ID for an export of the plot, at its current
-revision or an earlier one shown read-only (debrief/figure_id); the image a host drew, or
-one an agent has, with its ID in its metadata, written to file and recorded in the plot's
-export log, its island, never a step (debrief/export_image); the plots an image came from,
-by its file or its ID typed from its footer (debrief/find_image_source); and a plot as it
-was at a revision, rebuilt by replay, to show read-only (debrief/open_revision). See
-figures.py.
+debrief/...: the offering rule (TL-08), stores, catalogues and import, a plot's history
+(SUB-21) and every change recorded in it, the plot's view (its island, SUB-22), the Tote
+(CAP-06, CAP-07), collation (CAP-08 to CAP-12), narrative (CAP-19, CAP-20), sensors
+(CAP-22), TMA solutions (CAP-21) and exported images (SUB-25, figures.py).
+
+Each method is one entry in METHODS, registered by a decorator on its handler: a Method
+(methods.py) naming its parameters (a Params model, method_params.py), whether it changes
+the plot it names, whether it needs agent (SUB-24), whether it runs on one plot inside its
+history, and its handler. handle() looks the method up there and nowhere else; the sets
+the service and its tests use are read from it, and the README's method table is printed
+from it (python -m debrief_tools methods). Adding a method is a decorated handler, perhaps
+a Params model, and that table.
+
+A method on one plot (history) gets a PlotCall: the plot's catalogue, its history, opened
+(recovering an interrupted change), and the base the caller passed. Every such method
+returns the new base, which the caller passes back with its next change, so one made
+meanwhile elsewhere is never overwritten (SUB-28). The view has a hash of its own for the
+same purpose: changing it never moves the base, and changing the plot never moves the
+view's hash.
 
 Security (SEC-06 to SEC-08):
 - runs as the user who started it, so it can read only what they can;
@@ -83,6 +47,8 @@ import re
 import socket
 import sys
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -113,15 +79,13 @@ from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
 from debrief_io.documents import sniff
 from debrief_io.importer import rep_track_names
 from debrief_kernel.time import parse_utc
-from debrief_kernel.units import IncompatibleUnitsError, Quantity
+from debrief_kernel.units import Quantity as UnitQuantity
 from debrief_schemas import (
-    DebriefFeatureCollection,
     DocumentKind,
     dump_document,
     load_document,
     models,
 )
-from debrief_schemas.documents import DocumentValidationError, load_view
 from debrief_stac import (
     Base,
     Catalogue,
@@ -134,13 +98,14 @@ from debrief_stac import (
     frequencies,
     narrative,
     sensors,
-    tma,
 )
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import measure_groups, tote
 from debrief_tools import diagnostics, figures
+from debrief_tools import method_params as mp
 from debrief_tools.entries import history_steps, move, offered_tools
+from debrief_tools.methods import Handler, Method, Methods, Params
 from debrief_tools.rpc import (
     CONFLICT,
     INTERNAL,
@@ -153,6 +118,7 @@ from debrief_tools.rpc import (
     PARSE_ERROR,
     RpcError,
     agent_ref,
+    base_of,
     rpc_error,
 )
 from debrief_tools.worker import ToolWorker
@@ -160,11 +126,8 @@ from debrief_tools.worker import ToolWorker
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_VERSIONS = ("2025-06-18", "2025-03-26")
 MAX_BODY_BYTES = 10 * 1024 * 1024
-# Only an exported image travels in its request (debrief/export_image): an A4 PNG at twice
-# its size on screen is a few megabytes, as base 64 a third more. Every other method keeps
-# MAX_BODY_BYTES (expert panel, 16 Oct 2026).
+# The most an exported image's request may be (IMAGE_METHODS).
 MAX_IMAGE_BODY_BYTES = 48 * 1024 * 1024
-IMAGE_METHODS = ("debrief/export_image",)
 DEFAULT_TIMEOUT_S = 120.0
 MIN_TOKEN_LENGTH = 32
 log = logging.getLogger("debrief_tools")
@@ -195,122 +158,6 @@ def _is_document(path: Path) -> bool:
 
 
 CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
-# Named groups, not slices of one list: a method added to one group cannot shift another.
-READING_METHODS = (
-    "debrief/open",
-    "debrief/history",
-    "debrief/narrative",
-    "debrief/coverage",
-    "debrief/sensors",
-    "debrief/tma_residuals",
-)
-STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
-PRESENTATION_METHODS = (
-    "debrief/set_colour",
-    "debrief/set_hidden",
-    "debrief/set_track_frequencies",
-    "debrief/set_view",
-)
-ANNOTATION_METHODS = (
-    "debrief/add_annotation",
-    "debrief/edit_annotation",
-    "debrief/delete_annotations",
-    "debrief/set_north_arrow",
-)
-TRACK_METHODS = ("debrief/edit_track", "debrief/split_track", "debrief/merge_tracks")
-# Narrative entries, each change one step (CAP-20); and a narrative read into an open plot.
-NARRATIVE_METHODS = (
-    "debrief/add_narrative",
-    "debrief/edit_narrative",
-    "debrief/delete_narrative",
-    "debrief/import_narrative",
-)
-# Cleaning tracks: what would change is shown first (read), then changed as one step (write).
-CHECKING_METHODS = ("debrief/find_jumps", "debrief/preview_smoothing")
-CLEANING_METHODS = ("debrief/remove_jumps", "debrief/smooth_track", "debrief/mark_fix")
-# Collation (CAP-08 to CAP-12): a step each, naming the items and periods taken from.
-COLLATION_METHODS = (
-    "debrief/take_new_data",
-    "debrief/set_source_preference",
-    "debrief/link_tracks",
-)
-# Sensors (CAP-22): ambiguous cuts resolved, or made ambiguous again, and a .dsf or REP
-# file's sensor lines read into the plot, each one step.
-# Cuts deleted (product owner, 27 Oct 2026): one step, the solutions rooted in them dropping them.
-SENSOR_METHODS = (
-    "debrief/resolve_ambiguity",
-    "debrief/import_sensor",
-    "debrief/set_array_offset",
-    "debrief/delete_cuts",
-)
-# TMA solutions (CAP-21): made, split into legs, cuts left out of the RMS, each one step.
-TMA_METHODS = ("debrief/tma_create", "debrief/tma_split_leg", "debrief/tma_exclude_cut")
-# What the analyst said of collation's marks: the plot's island, never a step.
-COLLATION_VIEW_METHODS = ("debrief/dismiss_new_data", "debrief/clear_review_flag")
-WRITING_METHODS = (
-    STEP_METHODS
-    + PRESENTATION_METHODS
-    + ANNOTATION_METHODS
-    + NARRATIVE_METHODS
-    + TRACK_METHODS
-    + CLEANING_METHODS
-    + COLLATION_METHODS
-    + SENSOR_METHODS
-    + TMA_METHODS
-    + COLLATION_VIEW_METHODS
-)
-HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
-# Every method whose change is recorded with who made it: refused without agent, never
-# attributed to the analyst by default (SUB-24). Undo, redo and goto record no one: they
-# return to steps that already name theirs.
-AGENT_METHODS = tuple(m for m in WRITING_METHODS if m not in STEP_METHODS) + (
-    "debrief/import",
-    "debrief/import_rep",
-    "debrief/add_plot_file",
-    "debrief/export_image",
-)
-# The Tote reads a plot at one time; it never changes it, and is asked again at each time.
-TOTE_METHODS = ("debrief/tote", "debrief/measure_groups")
-# Exported images (SUB-25): an ID for an export, the image stamped, written and logged in the
-# plot's island (never a step), an image traced to its plot, and a plot shown as it was then.
-FIGURE_METHODS = (
-    "debrief/figure_id",
-    "debrief/export_image",
-    "debrief/find_image_source",
-    "debrief/open_revision",
-)
-# A host (VS Code) waiting for what the service asks of it, and answering: an agent's
-# export, drawn by an open map (SUB-25).
-HOST_METHODS = ("debrief/host_poll", "debrief/host_answer")
-KNOWN_METHODS = frozenset(
-    (
-        "initialize",
-        "ping",
-        "tools/list",
-        "tools/call",
-        "debrief/tools_for_selection",
-        "debrief/stores",
-        "debrief/create_catalogue",
-        "debrief/import",
-        "debrief/import_rep",
-        "debrief/rep_tracks",
-        "debrief/preview_narrative",
-        "debrief/preview_sensor",
-        "debrief/add_plot_file",
-        "debrief/review_flags",
-        *TOTE_METHODS,
-        *FIGURE_METHODS,
-        *HOST_METHODS,
-        *HISTORY_METHODS,
-    )
-)
-
-
-_QUANTITY = {
-    "type": "object",
-    "required": ["value", "unit"],
-    "properties": {"value": {"type": "number"}, "unit": {"type": "string"}},
-}
 
 
 def _parameter_schema(param: models.ParameterDeclaration) -> dict[str, Any]:
@@ -321,7 +168,7 @@ def _parameter_schema(param: models.ParameterDeclaration) -> dict[str, Any]:
         "string": {"type": "string"},
         "boolean": {"type": "boolean"},
         "choice": {"type": "string", "enum": param.choices or []},
-        "quantity": {**_QUANTITY, "description": f"A {param.quantity_kind} with a UCUM unit"},
+        "quantity": {**mp.QUANTITY, "description": f"A {param.quantity_kind} with a UCUM unit"},
         "time": {"type": "string", "description": "UTC, such as 2026-10-11T09:30:00.000Z"},
     }[kind]
     schema = {**schema, "title": param.title}
@@ -399,124 +246,17 @@ class ToolService:
         self.unavailable = described["unavailable"]
 
     def handle(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        if method in AGENT_METHODS:
+        entry = METHODS.get(method)
+        if entry is None:
+            raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
+        if entry.agent:
             agent_ref(params, method)  # refused before anything is read (SUB-24)
-        if method == "initialize":
-            requested = params.get("protocolVersion")
-            return {
-                "protocolVersion": requested
-                if requested in SUPPORTED_VERSIONS
-                else PROTOCOL_VERSION,
-                "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "debrief-tools", "version": version("debrief-tools")},
-                "instructions": (
-                    "Debrief analysis tools. Each acts on features of one plot in one of the "
-                    "user's stores; list stores with debrief/stores. Say who you are in agent."
-                ),
-            }
-        if method == "ping":
-            return {}
-        if method == "tools/list":
-            return {
-                "tools": [_describe(d, self.raw[n]) for n, d in self.declarations.items()],
-                "_meta": {"debrief/unavailable": self.unavailable},
-            }
-        if method == "tools/call":
-            return self._call(params)
-        if method == "debrief/tools_for_selection":
-            kinds = params.get("kinds")
-            if not isinstance(kinds, list) or not all(isinstance(k, str) for k in kinds):
-                raise RpcError(INVALID_PARAMS, "kinds must be a list of feature kinds")
-            return {"tools": offered_tools(self.declarations, kinds)}
-        if method == "debrief/stores":
-            config = self.config()
-            return {
-                "stores": [
-                    {"id": s.id, "title": s.title, "read_only": bool(s.read_only)}
-                    for s in config.stores
-                ]
-            }
-        if method == "debrief/create_catalogue":
-            return self._create_catalogue(params)
-        if method in ("debrief/import", "debrief/import_rep"):
-            return self._import(params)
-        if method == "debrief/add_plot_file":
-            return self._add_plot_file(params)
-        if method == "debrief/rep_tracks":
-            return self._rep_tracks(params)
-        if method == "debrief/preview_narrative":
-            return self._preview_narrative(params)
-        if method == "debrief/preview_sensor":
-            return self._preview_sensor(params)
-        if method == "debrief/measure_groups":
-            return measure_groups()
-        if method == "debrief/tote":
-            return self._tote(params)
-        if method == "debrief/review_flags":
-            return self._review_flags()
-        if method in FIGURE_METHODS or method in HOST_METHODS:
-            return figures.handle(self, method, params)
-        if method in HISTORY_METHODS:
-            return self._history(method, params)
-        raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
-
-    def _tote(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The Tote at one time (CAP-06): a ToteResult. tote, a ToteView, says which
-        tracks and which measure group; left out, the plot's island says. One call per
-        change of current time, so it reads nothing it need not (NFR-04)."""
-        item, time, view = params.get("item"), params.get("time"), params.get("tote")
-        if not isinstance(item, str) or not isinstance(time, str):
-            raise RpcError(INVALID_PARAMS, "tote needs a store, an item and a time")
-        try:
-            time_ms = parse_utc(time)
-        except ValueError as error:
-            raise RpcError(INVALID_PARAMS, f"time: {error}") from None
-        if view is not None:
-            if not isinstance(view, dict):
-                raise RpcError(INVALID_PARAMS, "tote must be {primary, secondaries, measure_group}")
-            try:
-                view = load_view({"tote": view}).tote
-            except DocumentValidationError as error:
-                raise RpcError(INVALID_PARAMS, "; ".join(error.problems)) from None
-        store = self.store(params.get("store"), writing=False)
-        try:
-            catalogue = Catalogue.open(Path(store.location))
-            revision = params.get("revision")
-            return tote(
-                catalogue, item, time_ms, view, revision if isinstance(revision, str) else None
-            )
-        except FileNotFoundError:
-            raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.") from None
-        except MAPPED as error:
-            raise rpc_error(error) from None
+        if entry.history:
+            return self._history(entry, params)
+        return entry.handler(self, params, entry.read(params))
 
     def config(self) -> models.UserConfig:
         return load_config(self.config_path) if self.config_path else load_config()
-
-    def _create_catalogue(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Create an empty catalogue in a folder and add it to the user's configuration."""
-        location, title = params.get("location"), params.get("title")
-        if not isinstance(location, str) or not isinstance(title, str) or not title.strip():
-            raise RpcError(INVALID_PARAMS, "create_catalogue needs a location and a title")
-        folder = Path(location)
-        if folder.exists() and any(folder.iterdir()) and not (folder / "catalog.json").exists():
-            raise RpcError(INVALID_PARAMS, f"{folder} is not empty. Choose an empty folder.")
-        try:
-            if not (folder / "catalog.json").exists():
-                folder.mkdir(parents=True, exist_ok=True)
-                identifier = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "catalogue"
-                Catalogue.create(folder, identifier, title.strip(), "")
-            store = {}
-
-            def add(config: models.UserConfig) -> models.UserConfig:
-                changed, added = add_store(config, title=title.strip(), location=str(folder))
-                store["id"] = added.id
-                return changed
-
-            update_config(add, Path(self.config_path) if self.config_path else None)
-        except (CatalogueError, ConfigError, StoreBusy, OSError) as error:
-            raise rpc_error(error) from None
-        return {"store": store["id"]}
 
     def store(self, store_id: Any, *, writing: bool) -> models.KnownStore:
         store = next((s for s in self.config().stores if s.id == store_id), None)
@@ -528,25 +268,18 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, f"{store.title} is read-only.")
         return store
 
-    def _history(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """A plot's history and view: open (recovering an interrupted change), list,
-        undo, redo, goto, colour, hide; and set_view, which changes the plot's island.
-
-        Every change returns the new base, which the caller passes back with its
-        next change, so one made meanwhile elsewhere is never overwritten (SUB-28).
-        The view has a hash of its own for the same purpose: changing it never
-        moves the base, and changing the plot never moves the view's hash.
-        """
-        item, base = params.get("item"), params.get("base")
+    def _history(self, method: Method, params: dict[str, Any]) -> dict[str, Any]:
+        """A method on one plot: the plot opened (an interrupted change recovered, unless
+        it is opened to show read-only), the method's parameters checked and its handler
+        run, and the plot's base and latest step returned (SUB-21, SUB-28)."""
+        item = params.get("item")
         if not isinstance(item, str):
-            raise RpcError(INVALID_PARAMS, f"{method} needs a store and an item")
-        if base is not None and not (
-            isinstance(base, dict)
-            and type(base.get("current")) is int
-            and isinstance(base.get("plot_hash"), str)
-        ):
-            raise RpcError(INVALID_PARAMS, "base must be {current, plot_hash}")
-        store = self.store(params.get("store"), writing=method in WRITING_METHODS)
+            raise RpcError(INVALID_PARAMS, f"{method.name} needs a store and an item")
+        try:
+            expected = base_of(params.get("base"))
+        except ValueError as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+        store = self.store(params.get("store"), writing=method.writes)
         try:
             catalogue = Catalogue.open(Path(store.location))
             if item not in catalogue.item_ids():
@@ -554,73 +287,26 @@ class ToolService:
             history = catalogue.history(item)
             # Opened to show read-only (an earlier revision): an interrupted change is not
             # recovered, which would write to the plot (expert panel, 16 Oct 2026).
-            reading_only = method == "debrief/open" and params.get("read_only") is True
+            reading_only = method.name == "debrief/open" and params.get("read_only") is True
             recovered = False if reading_only else history.open()
-            expected = Base(base["current"], base["plot_hash"]) if base else None
-            allow = params.get("allow_newer_schema") is True
+            call = PlotCall(
+                self,
+                method.name,
+                params,
+                store,
+                catalogue,
+                item,
+                history,
+                expected,
+                params.get("allow_newer_schema") is True,
+            )
             out: dict[str, Any] = {"recovered": recovered}
-            if method == "debrief/open":
-                out.update(self._open(catalogue, store, item, params))
-            elif method in STEP_METHODS:
-                step = params.get("step")
-                if method == "debrief/goto" and type(step) is not int:
-                    raise RpcError(INVALID_PARAMS, "goto needs the step to return to")
-                how = method.removeprefix("debrief/")
-                move(history, how, expected, step, allow_newer_schema=allow)
-            elif method in (
-                "debrief/set_colour",
-                "debrief/set_hidden",
-                "debrief/set_track_frequencies",
-            ):
-                step = self._restyle(catalogue, item, method, params, expected, allow)
-                out["changed"] = step is not None
-                # Cuts hidden or shown: what it does to the solutions rooted in them, said.
-                if step is not None and method == "debrief/set_hidden":
-                    out["notes"] = list(catalogue.history(item).steps()[step - 1].records[0].notes)
-            elif method in ANNOTATION_METHODS:
-                out.update(self._annotate(catalogue, item, method, params, expected, allow))
-            elif method in NARRATIVE_METHODS:
-                out.update(self._narrate(catalogue, item, method, params, expected, allow))
-            elif method == "debrief/narrative":
-                out.update(_narrative_query(history.plot(), params))
-            elif method == "debrief/sensors":
-                out.update(_sensor_query(history.plot(), params))
-            elif method in SENSOR_METHODS:
-                out.update(self._sense(catalogue, item, method, params, expected, allow))
-            elif method == "debrief/tma_residuals":
-                feature = params.get("feature")
-                if not isinstance(feature, str):
-                    raise RpcError(INVALID_PARAMS, "tma_residuals needs the solution (feature)")
-                out["residuals"] = catalogue.tma_residuals(item, feature, expected)
-            elif method in TMA_METHODS:
-                out.update(self._tma(catalogue, item, method, params, expected, allow))
-            elif method in TRACK_METHODS:
-                out.update(self._track(catalogue, item, method, params, expected, allow))
-            elif method in CHECKING_METHODS + CLEANING_METHODS:
-                out.update(self._clean(catalogue, item, method, params, expected, allow))
-            elif method == "debrief/coverage":
-                report = catalogue.coverage(item, self._other_catalogues(catalogue))
-                out["coverage"] = report.model_dump(mode="json", exclude_none=True)
-            elif method in COLLATION_METHODS + COLLATION_VIEW_METHODS:
-                out.update(self._collate(catalogue, item, method, params, expected, allow))
-            elif method == "debrief/set_view":
-                view, given = params.get("view"), params.get("hash")
-                if not isinstance(given, str) or not (view is None or isinstance(view, dict)):
-                    raise RpcError(INVALID_PARAMS, "set_view needs the view and the hash last read")
-                catalogue.write_view(
-                    item, view, given, agent=agent_ref(params), allow_newer_schema=allow
-                )
-            if method in ("debrief/open", "debrief/set_view", *COLLATION_VIEW_METHODS):
-                view, view_hash = catalogue.read_view(item)
-                out["view"] = view.model_dump(mode="json", exclude_none=True) if view else None
-                out["view_hash"] = view_hash
+            out.update(method.handler(call, method.read(params)))
             head = history.head()
             out["base"] = {"current": head.current, "plot_hash": head.plot_hash}
             # How many steps the history holds: with base, what tells the extension that
             # someone else changed the plot, read from the plot file alone (SUB-28).
             out["latest"] = head.latest
-            if method == "debrief/history":
-                out["steps"] = history_steps(history)
             return out
         except Conflict as conflict:
             raise RpcError(CONFLICT, str(conflict)) from None
@@ -634,512 +320,7 @@ class ToolService:
         except MAPPED as error:
             raise rpc_error(error) from None
 
-    def _open(
-        self, catalogue: Catalogue, store: models.KnownStore, item: str, params: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Opening a plot that still has a retired presentation.json: a writer that says
-        who it is (agent) makes it one recorded step and deletes it; where that cannot
-        be done (a read-only store, or no agent) the plot comes back with it applied in
-        memory, for display."""
-        if catalogue.legacy_presentation(item) is None:
-            return {}
-        # Migrating is a change, recorded with who made it: only with an agent (SUB-24).
-        if not store.read_only and params.get("agent") is not None:
-            try:
-                return {"migrated": catalogue.migrate_presentation(item, agent_ref(params))}
-            except (NewerSchemaError, OSError):
-                pass
-        return {"plot": json.loads(dump_document(DocumentKind.PLOT, catalogue.read_plot(item)))}
-
-    def _restyle(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> int | None:
-        """Colour tracks, hide features (cuts among them: left out of every solution's
-        residuals until shown again), or set how often tracks are labelled, marked and
-        arrowed (CAP-32): recorded and undoable, like any change. The step, or None if
-        nothing changed."""
-        features = params.get("features")
-        if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
-            raise RpcError(INVALID_PARAMS, f"{method} needs the features to change")
-        agent = agent_ref(params)
-        if method == "debrief/set_colour":
-            colour, name = params.get("colour"), params.get("colour_name")
-            if not isinstance(colour, str) or not (name is None or isinstance(name, str)):
-                raise RpcError(INVALID_PARAMS, "set_colour needs a colour, such as #e01c3e")
-            step = catalogue.set_colour(
-                item, features, colour, agent, base, colour_name=name, allow_newer_schema=allow
-            )
-        elif method == "debrief/set_track_frequencies":
-            # Each of label_interval, symbol_interval and arrow_interval given: a duration
-            # ({value, unit}, seconds, or text such as "10 min"), "off", or null for the default.
-            changes = {f: params[f] for f in frequencies.FIELDS if f in params}
-            if not changes:
-                raise RpcError(
-                    INVALID_PARAMS,
-                    "set_track_frequencies needs label_interval, symbol_interval or "
-                    'arrow_interval: a duration such as "10 min", "off", or null for the default',
-                )
-            step = catalogue.set_track_frequencies(
-                item, features, changes, agent, base, allow_newer_schema=allow
-            )
-        else:
-            hidden = params.get("hidden")
-            if not isinstance(hidden, bool):
-                raise RpcError(INVALID_PARAMS, "set_hidden needs hidden, true or false")
-            step = catalogue.set_hidden(
-                item, features, hidden, agent, base, allow_newer_schema=allow
-            )
-        return step
-
-    def _annotate(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> dict[str, Any]:
-        """Add, change or delete annotations, or show the north arrow: each one
-        recorded, undoable step, named like "Circle 'Exclusion zone' added" (CAP-03).
-
-        An annotation is described as an AnnotationSpec (the forms' description);
-        its positions may be numbers or text in any notation the analyst types.
-        edit_annotation may give only the members that change.
-        """
-        agent = agent_ref(params)
-        if method == "debrief/add_annotation":
-            annotation = params.get("annotation")
-            if not isinstance(annotation, dict):
-                raise RpcError(INVALID_PARAMS, "add_annotation needs the annotation to add")
-            _, feature = catalogue.add_annotation(
-                item, annotation, agent, base, allow_newer_schema=allow
-            )
-            return {"changed": True, "feature": feature}
-        if method == "debrief/edit_annotation":
-            feature, annotation = params.get("feature"), params.get("annotation")
-            if not isinstance(feature, str) or not isinstance(annotation, dict):
-                raise RpcError(INVALID_PARAMS, "edit_annotation needs the feature and its changes")
-            step = catalogue.edit_annotation(
-                item, feature, annotation, agent, base, allow_newer_schema=allow
-            )
-            return {"changed": step is not None, "feature": feature}
-        if method == "debrief/delete_annotations":
-            features = params.get("features")
-            if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
-                raise RpcError(INVALID_PARAMS, "delete_annotations needs the features to delete")
-            catalogue.delete_annotations(item, features, agent, base, allow_newer_schema=allow)
-            return {"changed": True}
-        shown = params.get("shown")
-        if not isinstance(shown, bool):
-            raise RpcError(INVALID_PARAMS, "set_north_arrow needs shown, true or false")
-        step = catalogue.set_north_arrow(item, shown, agent, base, allow_newer_schema=allow)
-        return {"changed": step is not None}
-
-    def _narrate(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> dict[str, Any]:
-        """Add, change or delete narrative entries, or read a file's narrative into the
-        plot: each one recorded, undoable step, named like "Narrative entry by BLUE ONE at
-        08:40:00Z added" (CAP-20).
-
-        An entry is described as a NarrativeSpec: time (UTC to the millisecond), source,
-        entry_type, text and track_id; left out on adding, the track is the one named as
-        its source. edit_narrative may give only the members that change, and None clears
-        one. import_narrative reads the narrative of a REP file or a Word (.docx, .doc) or
-        PDF document (path) into the plot, with the analyst's choices as legacy Debrief
-        asked them (see debrief_io.Choices): types, the entry types to read ("" for none;
-        left out, all); within_period, only entries within the plot's tracks' period;
-        tracks, the track id (or null) of a platform; platform, the source of entries
-        whose document names none. A file read into the plot before (known by its
-        content, whatever its name) or with entries the plot has already (the same time,
-        source and text) is refused (NEEDS_CONFIRMATION, the message saying when it was
-        read in and how many entries are there) unless duplicates says "skip" (read only
-        the entries not in the plot) or "add" (read them all again).
-        """
-        agent = agent_ref(params)
-        if method == "debrief/add_narrative":
-            entry = params.get("entry")
-            if not isinstance(entry, dict):
-                raise RpcError(INVALID_PARAMS, "add_narrative needs the entry to add")
-            _, feature = catalogue.add_narrative(item, entry, agent, base, allow_newer_schema=allow)
-            return {"changed": True, "feature": feature}
-        if method == "debrief/edit_narrative":
-            feature, entry = params.get("feature"), params.get("entry")
-            if not isinstance(feature, str) or not isinstance(entry, dict):
-                raise RpcError(INVALID_PARAMS, "edit_narrative needs the feature and its changes")
-            step = catalogue.edit_narrative(
-                item, feature, entry, agent, base, allow_newer_schema=allow
-            )
-            return {"changed": step is not None, "feature": feature}
-        if method == "debrief/delete_narrative":
-            features = params.get("features")
-            if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
-                raise RpcError(INVALID_PARAMS, "delete_narrative needs the entries to delete")
-            catalogue.delete_narrative(item, features, agent, base, allow_newer_schema=allow)
-            return {"changed": True}
-        path = params.get("path")
-        if not isinstance(path, str):
-            raise RpcError(INVALID_PARAMS, "import_narrative needs the path of the file to read")
-        try:
-            choices = Choices.of(params)
-        except ValueError as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
-        try:
-            done = import_narrative(
-                catalogue, item, Path(path), agent, base, allow_newer_schema=allow, choices=choices
-            )
-        except AlreadyInPlotError as error:
-            raise RpcError(NEEDS_CONFIRMATION, str(error)) from None
-        except NoNarrativeError as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
-        return {
-            "changed": True,
-            "entries": done.entries,
-            "sources": done.sources,
-            "omitted": done.omitted,
-            "notes": done.notes,
-        }
-
-    def _sense(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> dict[str, Any]:
-        """Sensors (CAP-22), each one recorded, undoable step.
-
-        resolve_ambiguity keeps one side of ambiguous cuts, or makes them ambiguous
-        again: keep is port or starboard (of the course logged where the sensor was at
-        each cut's time, as legacy Debrief's Keep port bearing), bearing or
-        ambiguous_bearing (the bearing recorded first, or its twin), or ambiguous; the
-        cuts are cut_ids, or sensor_ids and perhaps a period ({start, end}: the time
-        window, say), hidden cuts left out unless named. Named like "Port kept: 42 Towed
-        array cuts 09:00:00Z–09:59:30Z".
-
-        set_array_offset says how far astern a towed array is (offset {value, unit}, or
-        null for at the ship) and how it follows (mode worm_in_hole, legacy's default, or
-        plain), for sensor_ids; the cuts are then drawn, and their sides told, from the
-        array. Named like "Towed array: 300 yd astern, worm in the hole"; changed false
-        if the sensors were so already.
-
-        import_sensor reads a .dsf (or REP) file's ;SENSOR:, ;SENSOR2: and ;SENSOR3:
-        lines into the plot (path), the file kept as its source. hosts gives, for a track
-        name the lines give, the id of the plot's track that carries its sensors (or
-        null: not read); names matching a track (ignoring case, or by their first six
-        letters) need not be said. A sensor whose track is neither is refused
-        (NEEDS_CONFIRMATION, naming the plot's tracks), as is a file read in before
-        unless again is true. debrief/preview_sensor says what a file holds first."""
-        agent = agent_ref(params)
-        if method == "debrief/delete_cuts":
-            ids = params.get("cut_ids")
-            if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
-                raise RpcError(INVALID_PARAMS, "delete_cuts needs cut_ids")
-            step = catalogue.delete_cuts(item, ids, agent, base, allow_newer_schema=allow)
-            notes = catalogue.history(item).steps()[step - 1].records[0].notes
-            return {"changed": True, "notes": notes}
-        if method == "debrief/set_array_offset":
-            # A towed array's offset astern ({value, unit}, or null for none) and its mode.
-            ids = params.get("sensor_ids")
-            if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
-                raise RpcError(INVALID_PARAMS, "set_array_offset needs sensor_ids")
-            offset = params.get("offset")
-            if offset is not None and not isinstance(offset, dict):
-                raise RpcError(INVALID_PARAMS, "offset is {value, unit}, or null for none")
-            mode = params.get("mode", "worm_in_hole")
-            step = catalogue.set_array_offset(
-                item, ids, offset, agent, base, mode=mode, allow_newer_schema=allow
-            )
-            if step is None:
-                return {"changed": False}
-            notes = catalogue.history(item).steps()[step - 1].records[0].notes
-            return {"changed": True, "notes": notes}
-        if method == "debrief/resolve_ambiguity":
-            asked = {
-                k: params[k]
-                for k in (
-                    "keep",
-                    "cut_ids",
-                    "other_cut_ids",
-                    "clear_cut_ids",
-                    "sensor_ids",
-                    "period",
-                )
-                if k in params
-            }
-            step = catalogue.resolve_ambiguity(item, asked, agent, base, allow_newer_schema=allow)
-            note = catalogue.history(item).steps()[step - 1].records[0].notes
-            return {"changed": True, "notes": note}
-        path, hosts, again = params.get("path"), params.get("hosts"), params.get("again", False)
-        if not isinstance(path, str):
-            raise RpcError(INVALID_PARAMS, "import_sensor needs the path of the file to read")
-        if hosts is not None and not (
-            isinstance(hosts, dict)
-            and all(
-                isinstance(k, str) and (v is None or isinstance(v, str)) for k, v in hosts.items()
-            )
-        ):
-            raise RpcError(INVALID_PARAMS, "hosts gives, for a track name, a track's id, or null")
-        if not isinstance(again, bool):
-            raise RpcError(INVALID_PARAMS, "again is true or false")
-        try:
-            done = import_sensor(
-                catalogue,
-                item,
-                Path(path),
-                agent,
-                base,
-                hosts=hosts,
-                again=again,
-                allow_newer_schema=allow,
-            )
-        except (HostNeeded, SensorReadBefore) as error:
-            raise RpcError(NEEDS_CONFIRMATION, str(error)) from None
-        except NoSensorDataError as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
-        return {
-            "changed": True,
-            "sensors": done.sensors,
-            "cuts": done.cuts,
-            "omitted": done.omitted,
-            "notes": done.notes,
-        }
-
-    def _tma(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> dict[str, Any]:
-        """TMA solutions (CAP-21; product owner, 24 Oct 2026), each one recorded, undoable step.
-
-        tma_create takes the cuts (sensor_ids and perhaps a period, or cut_ids), and perhaps
-        a contact, a name and a colour, and a first guess: range, course and speed (and,
-        for an ambiguous first cut, first_bearing), or first_position and last_position
-        (on or near the first cut's line and the last's); with none, Debrief's (10,000
-        yd along the first cut's bearing, across it, 8 kn). Returns the solution's id
-        and its residuals. tma_split_leg takes the solution (feature) and a time (at),
-        and join true to join the leg starting then to the one before. tma_exclude_cut
-        takes the solution, cut_ids and excluded (true to leave them out of the RMS
-        error, false to count them again); changed is false if none would change."""
-        agent = agent_ref(params)
-        if method == "debrief/tma_create":
-            asked = params.get("request", {k: v for k, v in params.items() if k in _TMA_ASKED})
-            if not isinstance(asked, dict):
-                raise RpcError(INVALID_PARAMS, "tma_create takes the request as an object")
-            step, feature = catalogue.create_tma(item, asked, agent, base, allow_newer_schema=allow)
-            notes = catalogue.history(item).steps()[step - 1].records[0].notes
-            residuals = catalogue.tma_residuals(item, feature)
-            return {"changed": True, "feature": feature, "notes": notes, "residuals": residuals}
-        feature = params.get("feature")
-        if not isinstance(feature, str):
-            raise RpcError(INVALID_PARAMS, f"{method[8:]} needs the solution (feature)")
-        if method == "debrief/tma_split_leg":
-            at, join, side = params.get("at"), params.get("join", False), params.get("side")
-            if not isinstance(at, str) or not isinstance(join, bool):
-                raise RpcError(
-                    INVALID_PARAMS, "tma_split_leg needs the time (at), and join true or false"
-                )
-            if side is not None and side not in tma.SPLIT_SIDES:
-                raise RpcError(
-                    INVALID_PARAMS,
-                    'side is "before" or "after": the fix at at starts the new leg, or ends '
-                    "the earlier one",
-                )
-            step = catalogue.tma_split_leg(
-                item, feature, at, agent, base, join=join, side=side, allow_newer_schema=allow
-            )
-            notes = catalogue.history(item).steps()[step - 1].records[0].notes
-            return {"changed": True, "notes": notes}
-        ids, excluded = params.get("cut_ids"), params.get("excluded", True)
-        if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
-            raise RpcError(INVALID_PARAMS, "tma_exclude_cut needs cut_ids")
-        if not isinstance(excluded, bool):
-            raise RpcError(INVALID_PARAMS, "excluded is true or false")
-        step = catalogue.tma_exclude(
-            item, feature, ids, excluded, agent, base, allow_newer_schema=allow
-        )
-        if step is None:
-            return {"changed": False}
-        notes = catalogue.history(item).steps()[step - 1].records[0].notes
-        return {
-            "changed": True,
-            "notes": notes,
-            "residuals": catalogue.tma_residuals(item, feature),
-        }
-
-    def _track(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> dict[str, Any]:
-        """Move, rotate, shear, stretch, split or merge tracks by hand: each one
-        recorded, undoable step, named like "BLUE ONE moved 1.20 nmi 045.0°T" or
-        "BLUE ONE sheared: 087.2°T 12.4 kn" (CAP-01, CAP-02, CAP-21).
-
-        edit_track takes the feature and the edit (a TrackEdit: move with distance and
-        bearing; rotate with angle and perhaps pivot; shear with anchor and either
-        distance and bearing for the dragged end or course and speed; stretch with
-        anchor and speed; each for a period or the whole track) and, for a
-        rotation's default pivot, current_time. split_track
-        takes the feature, the time (at) and perhaps names for the two parts;
-        merge_tracks the features and perhaps a name, and says in notes what was not
-        kept (speeds, courses or depths some of the tracks had not).
-        """
-        agent = agent_ref(params)
-        if method == "debrief/edit_track":
-            feature, edit = params.get("feature"), params.get("edit")
-            current = params.get("current_time")
-            if not isinstance(feature, str) or not isinstance(edit, dict):
-                raise RpcError(INVALID_PARAMS, "edit_track needs the feature and the edit")
-            if current is not None and not isinstance(current, str):
-                raise RpcError(INVALID_PARAMS, "current_time must be a UTC time")
-            step = catalogue.edit_track(
-                item, feature, edit, agent, base, current_time=current, allow_newer_schema=allow
-            )
-            return {"changed": step is not None, "feature": feature}
-        if method == "debrief/split_track":
-            feature, at, names = params.get("feature"), params.get("at"), params.get("names")
-            if not isinstance(feature, str) or not isinstance(at, str):
-                raise RpcError(INVALID_PARAMS, "split_track needs the feature and the time (at)")
-            if names is not None and not (
-                isinstance(names, list)
-                and len(names) == 2
-                and all(isinstance(n, str) for n in names)
-            ):
-                raise RpcError(INVALID_PARAMS, "names must be two names, one for each part")
-            _, parts = catalogue.split_track(
-                item, feature, at, agent, base, names=names, allow_newer_schema=allow
-            )
-            return {"changed": True, "features": parts}
-        features, name = params.get("features"), params.get("name")
-        if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
-            raise RpcError(INVALID_PARAMS, "merge_tracks needs the tracks to merge")
-        if name is not None and not isinstance(name, str):
-            raise RpcError(INVALID_PARAMS, "name must be text")
-        _, merged, lost = catalogue.merge_tracks(
-            item, features, agent, base, name=name, allow_newer_schema=allow
-        )
-        return {"changed": True, "feature": merged, "notes": lost}
-
-    def _clean(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> dict[str, Any]:
-        """Clean a track: find its jumps and show them, then remove those the analyst
-        confirms; preview smoothing, then apply it; colour, label or comment on a fix.
-        Finding and previewing change nothing; each change is one recorded, undoable step
-        (CAP-01, EXT-14).
-
-        Each takes the feature (a track). find_jumps takes a threshold (a speed, such as
-        {"value": 30, "unit": "[kn_i]"}; left out, three times the track's median speed,
-        at least 10 kn) and a period ({start, end}); remove_jumps the times to remove and
-        the threshold they were found at, for the record. preview_smoothing and
-        smooth_track take the window (an odd number of fixes) and a period. mark_fix takes
-        the time of the fix and changes ({colour, label, comment}; null or "" takes one
-        away; show_label, show_symbol: true to always show its time label or symbol,
-        false to stop), and colour_name for the step's name.
-        """
-        feature = params.get("feature")
-        if not isinstance(feature, str):
-            raise RpcError(INVALID_PARAMS, f"{method} needs the track (feature)")
-        period = _period(params.get("period"))
-        agent = agent_ref(params) if method in CLEANING_METHODS else None
-        if method == "debrief/find_jumps":
-            threshold = _speed(params.get("threshold"))
-            used, median, jumps = catalogue.find_jumps(
-                item, feature, threshold=threshold, period=period, base=base
-            )
-            return {
-                "feature": feature,
-                "threshold": _quantity(used),
-                "median_speed": _quantity(median) if median else None,
-                "jumps": [
-                    {
-                        "time": j.time,
-                        "position": list(j.position),
-                        # None when it is at the same time as the fix before, somewhere else.
-                        "speed": None
-                        if math.isinf(j.speed_kn)
-                        else {"value": j.speed_kn, "unit": "[kn_i]"},
-                        "since": j.since,
-                        # A DR track's jump: its logged speed, on to the fix at since.
-                        **({"logged": True} if j.logged else {}),
-                    }
-                    for j in jumps
-                ],
-            }
-        if method == "debrief/remove_jumps":
-            times = params.get("times")
-            if not isinstance(times, list) or not all(isinstance(t, str) for t in times):
-                raise RpcError(
-                    INVALID_PARAMS, "remove_jumps needs the times of the fixes to remove"
-                )
-            threshold = _speed(params.get("threshold"))
-            catalogue.remove_jumps(
-                item, feature, times, agent, base, threshold=threshold, allow_newer_schema=allow
-            )
-            return {"changed": True, "feature": feature}
-        if method in ("debrief/preview_smoothing", "debrief/smooth_track"):
-            window = params.get("window")
-            if type(window) is not int:
-                raise RpcError(INVALID_PARAMS, f"{method} needs the window: an odd number of fixes")
-            if method == "debrief/preview_smoothing":
-                after, smoothing = catalogue.smoothing_preview(
-                    item, feature, window, period=period, base=base
-                )
-                return {
-                    "feature": feature,
-                    "preview": after.geometry.model_dump(mode="json"),
-                    **_smoothing(smoothing),
-                }
-            done = catalogue.smooth_track(
-                item, feature, window, agent, base, period=period, allow_newer_schema=allow
-            )
-            return {
-                "changed": done is not None,
-                "feature": feature,
-                **(_smoothing(done[1]) if done else {}),
-            }
-        time, changes = params.get("time"), params.get("changes")
-        name = params.get("colour_name")
-        if not isinstance(time, str) or not isinstance(changes, dict):
-            raise RpcError(INVALID_PARAMS, "mark_fix needs the time of the fix and its changes")
-        if name is not None and not isinstance(name, str):
-            raise RpcError(INVALID_PARAMS, "colour_name must be text")
-        step = catalogue.mark_fix(
-            item, feature, time, changes, agent, base, colour_name=name, allow_newer_schema=allow
-        )
-        return {"changed": step is not None, "feature": feature}
-
-    def _other_catalogues(self, catalogue: Catalogue) -> list[Catalogue]:
+    def other_catalogues(self, catalogue: Catalogue) -> list[Catalogue]:
         """The analyst's other catalogues, where items a plot drew from may be (CAP-10):
         each store in their configuration that holds one, other than this."""
         others = []
@@ -1151,252 +332,6 @@ class ToolService:
             if getattr(other.store, "root", None) != getattr(catalogue.store, "root", None):
                 others.append(other)
         return others
-
-    def _review_flags(self) -> dict[str, Any]:
-        """Every plot in the analyst's catalogues that drew from an item since revised, so
-        may need review (CAP-12), with the store each is in."""
-        catalogues: list[tuple[models.KnownStore, Catalogue]] = []
-        for store in self.config().stores:
-            try:
-                catalogues.append((store, Catalogue.open(Path(store.location))))
-            except (CatalogueError, OSError, ValueError):
-                continue
-        stores = {catalogue.id: store.id for store, catalogue in catalogues}
-        flags = review_flags([c for _, c in catalogues])
-        return {
-            "flags": [
-                {**f.model_dump(mode="json", exclude_none=True), "store": stores.get(f.catalogue)}
-                for f in flags
-            ]
-        }
-
-    def _collate(
-        self,
-        catalogue: Catalogue,
-        item: str,
-        method: str,
-        params: dict[str, Any],
-        base: Base | None,
-        allow: bool,
-    ) -> dict[str, Any]:
-        """Collation (CAP-08 to CAP-12). take_new_data takes a catalogue item's data into
-        the plot (source: {catalogue, item}, the catalogue by its own id, and revision,
-        the revision the analyst saw, if any), one step naming it. set_source_preference
-        chooses which item supplies a period of a track (feature, period {start, end},
-        source {catalogue, item, track, name}), one step. link_tracks confirms or links
-        (linked true), or refuses or unlinks (linked false), a track in another item as
-        the platform of the plot's track (feature, source), one step. dismiss_new_data
-        sets an item's new data aside (source with its revision), and clear_review_flag
-        clears the plot's review flag: both in the plot's island, never steps, with who
-        answered and when. take_new_data makes no step when the plot has the item's data
-        as it is now already: changed false, and a message saying so."""
-        agent = agent_ref(params)
-        others = self._other_catalogues(catalogue)
-        source = params.get("source")
-        if method == "debrief/clear_review_flag":
-            return {"changed": catalogue.clear_review_flag(item, others, agent) > 0}
-        if not isinstance(source, dict):
-            raise RpcError(INVALID_PARAMS, f"{method} needs the source: its catalogue and item")
-        if method == "debrief/take_new_data":
-            if not isinstance(source.get("catalogue"), str) or not isinstance(
-                source.get("item"), str
-            ):
-                raise RpcError(INVALID_PARAMS, "take_new_data needs source {catalogue, item}")
-            revision = source.get("revision")
-            step = catalogue.take_new_data(
-                item,
-                source["catalogue"],
-                source["item"],
-                agent,
-                base,
-                others=others,
-                revision=revision if isinstance(revision, str) and revision else None,
-                allow_newer_schema=allow,
-            )
-            if step is None:
-                # Nothing to take: the plot has the item's data as it is now already.
-                return {
-                    "changed": False,
-                    "message": "The plot already has this item's data as it is now: nothing "
-                    "was taken, and it is marked as reviewed against this revision.",
-                }
-            return {"changed": True, "step": step}
-        if method == "debrief/dismiss_new_data":
-            fields = ("catalogue", "item", "revision")
-            if not all(isinstance(source.get(f), str) for f in fields):
-                raise RpcError(
-                    INVALID_PARAMS, "dismiss_new_data needs source {catalogue, item, revision}"
-                )
-            catalogue.dismiss_new_data(item, *(source[f] for f in fields), agent)
-            return {"changed": True}
-        feature = params.get("feature")
-        if not isinstance(feature, str):
-            raise RpcError(INVALID_PARAMS, f"{method} needs the plot's track (feature)")
-        if method == "debrief/set_source_preference":
-            period = params.get("period")
-            if not isinstance(period, dict):
-                raise RpcError(INVALID_PARAMS, "set_source_preference needs the period")
-            step = catalogue.set_source_preference(
-                item, feature, period, source, agent, base, others=others, allow_newer_schema=allow
-            )
-            return {"changed": step is not None}
-        linked = params.get("linked")
-        if not isinstance(linked, bool):
-            raise RpcError(INVALID_PARAMS, "link_tracks needs linked, true or false")
-        step = catalogue.link_tracks(
-            item, feature, source, linked, agent, base, others=others, allow_newer_schema=allow
-        )
-        return {"changed": step is not None}
-
-    def _rep_tracks(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The tracks a REP file would import, so the host can ask the analyst how each is
-        plotted, over the ground or by dead reckoning, before importing it (CAP-01). A
-        legacy plot file says for itself: none are listed. Changes nothing."""
-        path = params.get("path")
-        if not isinstance(path, str) or not Path(path).is_file():
-            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
-        if _is_plot_file(Path(path)) or _is_document(Path(path)):
-            return {"tracks": []}
-        try:
-            return {"tracks": rep_track_names(Path(path))}
-        except (OSError, ValueError) as error:
-            raise rpc_error(error, f"{Path(path).name} could not be read: {error}") from None
-
-    def _preview_narrative(self, params: dict[str, Any]) -> dict[str, Any]:
-        """What a narrative file holds, before it is read, so the host can ask the analyst
-        what legacy Debrief asked (CAP-19): its format and dialect, its entry types with
-        counts, its sources with the track each would belong to, its period and, given a
-        plot (store and item), how many entries fall outside its tracks' period, whether
-        the file was read into the plot before (earlier: when, by whom, the step; known by
-        its content hash, whatever its name) and how many of its entries the plot has
-        already (already). An ASW data document says how many positions it holds
-        instead. Changes nothing."""
-        path, item = params.get("path"), params.get("item")
-        if not isinstance(path, str) or not Path(path).is_file():
-            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
-        catalogue = None
-        if item is not None:
-            if not isinstance(item, str):
-                raise RpcError(INVALID_PARAMS, "item is the plot's id")
-            store = self.store(params.get("store"), writing=False)
-            try:
-                catalogue = Catalogue.open(Path(store.location))
-                catalogue.read_item(item)
-            except (CatalogueError, StoreBusy, OSError) as error:
-                raise rpc_error(error) from None
-        try:
-            return preview_narrative(Path(path), catalogue=catalogue, item_id=item)
-        except (NoNarrativeError, CatalogueError, HistoryError, StoreBusy, OSError) as error:
-            raise rpc_error(error) from None
-
-    def _preview_sensor(self, params: dict[str, Any]) -> dict[str, Any]:
-        """What a .dsf or REP file's sensor lines hold, before they are read into a plot
-        (CAP-22), so the host can ask what legacy Debrief asked: each sensor (by track and
-        name) with its cuts, ambiguous ones and period, and the plot's track that would
-        carry it (null: ask, as legacy's "Sensor track not found"); the plot's tracks; what
-        will not be imported (frequencies, lines with no bearing, bearing accuracies);
-        whether the file was read into the plot before. Changes nothing."""
-        path, item = params.get("path"), params.get("item")
-        if not isinstance(path, str) or not Path(path).is_file():
-            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
-        if not isinstance(item, str):
-            raise RpcError(INVALID_PARAMS, "preview_sensor needs the plot (store and item)")
-        store = self.store(params.get("store"), writing=False)
-        try:
-            catalogue = Catalogue.open(Path(store.location))
-            catalogue.read_item(item)
-            return preview_sensor(Path(path), catalogue=catalogue, item_id=item)
-        except (CatalogueError, HistoryError, StoreBusy, OSError) as error:
-            raise rpc_error(error) from None
-
-    def _import(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Import a REP file (EXT-01), a legacy plot file, .dpf (EXT-14, EXT-15), or a Word
-        or PDF document (CAP-19, EXT-04: its narrative, or an ASW document's track, named
-        track_name; types as for import_narrative) as a new plot.
-        Nothing in the file is dropped silently: what is not imported is listed.
-        For a REP file, modes says how each track is plotted (otg or dr, one for all or by
-        track name), as the host asked the analyst or remembered for them; remembered, the
-        words saying how to change that choice. The service never reads that choice itself."""
-        path = params.get("path")
-        modes = params.get("modes")
-        remembered = params.get("remembered")
-        if not (modes is None or isinstance(modes, (str, dict))) or not (
-            remembered is None or isinstance(remembered, str)
-        ):
-            raise RpcError(INVALID_PARAMS, "modes is otg or dr, or one of them for each track.")
-        store = self.store(params.get("store"), writing=True)
-        if not isinstance(path, str) or not Path(path).is_file():
-            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
-        try:
-            catalogue = Catalogue.open(Path(store.location))
-            stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(path).stem).strip("-.") or "plot"
-            taken, item_id, n = set(catalogue.item_ids()), stem, 2
-            while item_id in taken:
-                item_id, n = f"{stem}-{n}", n + 1
-            options = {
-                "item_id": item_id,
-                "agent": agent_ref(params),
-                "allow_newer_schema": params.get("allow_newer_schema") is True,
-            }
-            if _is_plot_file(Path(path)):
-                report = import_dpf(catalogue, Path(path), **options)
-            elif _is_document(Path(path)):
-                track_name = params.get("track_name")
-                if track_name is not None and not isinstance(track_name, str):
-                    raise ValueError("track_name is the name of an ASW document's track")
-                report = import_document(
-                    catalogue,
-                    Path(path),
-                    choices=Choices.of(params),
-                    track_name=track_name,
-                    **options,
-                )
-            else:
-                report = import_rep(
-                    catalogue, Path(path), modes=modes, remembered=remembered, **options
-                )
-        except NewerSchemaError as error:
-            raise RpcError(NEWER_SCHEMA, str(error)) from None
-        except MAPPED as error:
-            message = str(error)
-            if not message.startswith(Path(path).name):
-                message = f"{Path(path).name} could not be imported: {message}"
-            raise rpc_error(error, message) from None
-        return {
-            "item": report.item_id,
-            "tracks": report.tracks,
-            "fixes": report.fixes,
-            "annotations": report.annotations,
-            "narrative_entries": report.narrative_entries,
-            "omitted": report.omitted,
-            "notes": report.notes,
-        }
-
-    def _add_plot_file(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Add a plot file received from a colleague (a .geojson plot) to a catalogue,
-        with its whole history, so undo, redo and provenance come with it (decision
-        13 Oct). A file whose history does not match its checksums is refused."""
-        path = params.get("path")
-        store = self.store(params.get("store"), writing=True)
-        if not isinstance(path, str) or not Path(path).is_file():
-            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
-        try:
-            catalogue = Catalogue.open(Path(store.location))
-            item = catalogue.add_plot_file(
-                Path(path),
-                agent_ref(params),
-                allow_newer_schema=params.get("allow_newer_schema") is True,
-            )
-            steps = len(catalogue.history(item).steps())
-            title = catalogue.read_item(item).properties.title or item
-        except NewerSchemaError as error:
-            raise RpcError(NEWER_SCHEMA, str(error)) from None
-        except MAPPED as error:
-            message = str(error)
-            if not message.startswith(Path(path).name):
-                message = f"{Path(path).name} could not be added: {message}"
-            raise rpc_error(error, message) from None
-        return {"item": item, "title": title, "steps": steps}
 
     def _log_run(
         self, name: str, arguments: dict[str, Any], outcome: dict[str, Any], seconds: float
@@ -1417,7 +352,8 @@ class ToolService:
             ),
         )
 
-    def _call(self, params: dict[str, Any]) -> dict[str, Any]:
+    def call(self, params: dict[str, Any], _args: None = None) -> dict[str, Any]:
+        """tools/call: run one tool in the worker (TL-02, TL-03)."""
         name, arguments = params.get("name"), params.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
             raise RpcError(INVALID_PARAMS, "tools/call needs a name and arguments")
@@ -1459,6 +395,1062 @@ class ToolService:
         }
 
 
+@dataclass(frozen=True)
+class PlotCall:
+    """A method's request on one plot, inside its history: what its handler works on."""
+
+    service: ToolService
+    method: str
+    params: dict[str, Any]
+    store: models.KnownStore
+    catalogue: Catalogue
+    item: str
+    history: Any  # debrief_stac's PlotHistory, opened
+    base: Base | None  # the base the caller passed, if any (SUB-28)
+    allow: bool  # allow_newer_schema (SUB-35)
+
+    @property
+    def agent(self) -> models.AgentRef:
+        return agent_ref(self.params)
+
+    def notes(self, step: int) -> list[str]:
+        """What the step's record says beyond its name."""
+        return self.catalogue.history(self.item).steps()[step - 1].records[0].notes
+
+    def view(self) -> dict[str, Any]:
+        """The plot's view, its island, and the view's hash."""
+        view, view_hash = self.catalogue.read_view(self.item)
+        return {
+            "view": view.model_dump(mode="json", exclude_none=True) if view else None,
+            "view_hash": view_hash,
+        }
+
+
+# Every method, registered by a decorator on its handler, or below for those whose handler
+# lives elsewhere (figures.py). handle() looks a method up here and nowhere else.
+METHODS = Methods()
+
+
+def _reads_plot(
+    name: str, does: str, params: type[Params] | None = None
+) -> Callable[[Handler], Handler]:
+    """A method that reads one plot, inside its history, and changes nothing."""
+    return METHODS.register(name, does, params, history=True)
+
+
+def _changes_plot(
+    name: str, does: str, params: type[Params] | None = None
+) -> Callable[[Handler], Handler]:
+    """A method that changes one plot, recorded with who made it (SUB-24): a step in its
+    history, or (the view, collation's marks) a change to its island."""
+    return METHODS.register(name, does, params, writes=True, agent=True, history=True)
+
+
+# Methods the service answers itself: (service, params, the params checked) -> result.
+
+
+@METHODS.register("initialize", "Negotiates the protocol version.")
+def _initialize(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    requested = params.get("protocolVersion")
+    return {
+        "protocolVersion": requested if requested in SUPPORTED_VERSIONS else PROTOCOL_VERSION,
+        "capabilities": {"tools": {"listChanged": False}},
+        "serverInfo": {"name": "debrief-tools", "version": version("debrief-tools")},
+        "instructions": (
+            "Debrief analysis tools. Each acts on features of one plot in one of the "
+            "user's stores; list stores with debrief/stores. Say who you are in agent."
+        ),
+    }
+
+
+@METHODS.register("ping", "Answers `{}`.")
+def _ping(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    return {}
+
+
+@METHODS.register(
+    "tools/list",
+    "The tools the libraries declare, with each one's input schema, and those unavailable.",
+)
+def _tools_list(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    """The tools the worker's libraries declare, and those unavailable. Only tools: the
+    debrief/ methods are not offered here (TL-17)."""
+    return {
+        "tools": [_describe(d, service.raw[n]) for n, d in service.declarations.items()],
+        "_meta": {"debrief/unavailable": service.unavailable},
+    }
+
+
+@METHODS.register("tools/call", "Runs a tool on a plot, in the worker; it may change the plot.")
+def _tools_call(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    return service.call(params)
+
+
+@METHODS.register(
+    "debrief/tools_for_selection",
+    "The tools on offer for a selection, by its feature kinds (TL-08).",
+    mp.ToolsForSelection,
+)
+def _tools_for_selection(
+    service: ToolService, params: dict[str, Any], asked: mp.ToolsForSelection
+) -> dict[str, Any]:
+    return {"tools": offered_tools(service.declarations, asked.kinds)}
+
+
+@METHODS.register("debrief/stores", "The stores in the analyst's configuration.")
+def _stores(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    return {
+        "stores": [
+            {"id": s.id, "title": s.title, "read_only": bool(s.read_only)}
+            for s in service.config().stores
+        ]
+    }
+
+
+@METHODS.register(
+    "debrief/create_catalogue",
+    "Creates an empty catalogue in a folder and adds it to the configuration.",
+    mp.CreateCatalogue,
+)
+def _create_catalogue(
+    service: ToolService, params: dict[str, Any], asked: mp.CreateCatalogue
+) -> dict[str, Any]:
+    """Create an empty catalogue in a folder and add it to the user's configuration."""
+    title = asked.title.strip()
+    folder = Path(asked.location)
+    if folder.exists() and any(folder.iterdir()) and not (folder / "catalog.json").exists():
+        raise RpcError(INVALID_PARAMS, f"{folder} is not empty. Choose an empty folder.")
+    try:
+        if not (folder / "catalog.json").exists():
+            folder.mkdir(parents=True, exist_ok=True)
+            identifier = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "catalogue"
+            Catalogue.create(folder, identifier, title, "")
+        store = {}
+
+        def add(config: models.UserConfig) -> models.UserConfig:
+            changed, added = add_store(config, title=title, location=str(folder))
+            store["id"] = added.id
+            return changed
+
+        update_config(add, Path(service.config_path) if service.config_path else None)
+    except (CatalogueError, ConfigError, StoreBusy, OSError) as error:
+        raise rpc_error(error) from None
+    return {"store": store["id"]}
+
+
+@METHODS.register(
+    "debrief/import_rep", "`debrief/import` under its old name.", mp.Import, agent=True
+)
+@METHODS.register(
+    "debrief/import",
+    "Imports a REP file, a legacy plot or a Word or PDF document as a new plot.",
+    mp.Import,
+    agent=True,
+)
+def _import(service: ToolService, params: dict[str, Any], asked: mp.Import) -> dict[str, Any]:
+    """Import a REP file (EXT-01), a legacy plot file, .dpf (EXT-14, EXT-15), or a Word
+    or PDF document (CAP-19, EXT-04: its narrative, or an ASW document's track, named
+    track_name; types as for import_narrative) as a new plot.
+    Nothing in the file is dropped silently: what is not imported is listed.
+    For a REP file, modes says how each track is plotted (otg or dr, one for all or by
+    track name), as the host asked the analyst or remembered for them; remembered, the
+    words saying how to change that choice. The service never reads that choice itself."""
+    path = params.get("path")
+    store = service.store(params.get("store"), writing=True)
+    if not isinstance(path, str) or not Path(path).is_file():
+        raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+    try:
+        catalogue = Catalogue.open(Path(store.location))
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(path).stem).strip("-.") or "plot"
+        taken, item_id, n = set(catalogue.item_ids()), stem, 2
+        while item_id in taken:
+            item_id, n = f"{stem}-{n}", n + 1
+        options = {
+            "item_id": item_id,
+            "agent": agent_ref(params),
+            "allow_newer_schema": params.get("allow_newer_schema") is True,
+        }
+        if _is_plot_file(Path(path)):
+            report = import_dpf(catalogue, Path(path), **options)
+        elif _is_document(Path(path)):
+            track_name = params.get("track_name")
+            if track_name is not None and not isinstance(track_name, str):
+                raise ValueError("track_name is the name of an ASW document's track")
+            report = import_document(
+                catalogue,
+                Path(path),
+                choices=Choices.of(params),
+                track_name=track_name,
+                **options,
+            )
+        else:
+            report = import_rep(
+                catalogue, Path(path), modes=asked.modes, remembered=asked.remembered, **options
+            )
+    except NewerSchemaError as error:
+        raise RpcError(NEWER_SCHEMA, str(error)) from None
+    except MAPPED as error:
+        message = str(error)
+        if not message.startswith(Path(path).name):
+            message = f"{Path(path).name} could not be imported: {message}"
+        raise rpc_error(error, message) from None
+    return {
+        "item": report.item_id,
+        "tracks": report.tracks,
+        "fixes": report.fixes,
+        "annotations": report.annotations,
+        "narrative_entries": report.narrative_entries,
+        "omitted": report.omitted,
+        "notes": report.notes,
+    }
+
+
+@METHODS.register(
+    "debrief/add_plot_file",
+    "Adds a plot file from a colleague, with its whole history.",
+    agent=True,
+)
+def _add_plot_file(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    """Add a plot file received from a colleague (a .geojson plot) to a catalogue,
+    with its whole history, so undo, redo and provenance come with it (decision
+    13 Oct). A file whose history does not match its checksums is refused."""
+    path = params.get("path")
+    store = service.store(params.get("store"), writing=True)
+    if not isinstance(path, str) or not Path(path).is_file():
+        raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+    try:
+        catalogue = Catalogue.open(Path(store.location))
+        item = catalogue.add_plot_file(
+            Path(path),
+            agent_ref(params),
+            allow_newer_schema=params.get("allow_newer_schema") is True,
+        )
+        steps = len(catalogue.history(item).steps())
+        title = catalogue.read_item(item).properties.title or item
+    except NewerSchemaError as error:
+        raise RpcError(NEWER_SCHEMA, str(error)) from None
+    except MAPPED as error:
+        message = str(error)
+        if not message.startswith(Path(path).name):
+            message = f"{Path(path).name} could not be added: {message}"
+        raise rpc_error(error, message) from None
+    return {"item": item, "title": title, "steps": steps}
+
+
+@METHODS.register(
+    "debrief/rep_tracks",
+    "The tracks a REP file would import, to ask how each is plotted.",
+    mp.RepTracks,
+)
+def _rep_tracks(
+    service: ToolService, params: dict[str, Any], asked: mp.RepTracks
+) -> dict[str, Any]:
+    """The tracks a REP file would import, so the host can ask the analyst how each is
+    plotted, over the ground or by dead reckoning, before importing it (CAP-01). A
+    legacy plot file says for itself: none are listed. Changes nothing."""
+    path = Path(asked.path)
+    if _is_plot_file(path) or _is_document(path):
+        return {"tracks": []}
+    try:
+        return {"tracks": rep_track_names(path)}
+    except (OSError, ValueError) as error:
+        raise rpc_error(error, f"{path.name} could not be read: {error}") from None
+
+
+@METHODS.register(
+    "debrief/preview_narrative",
+    "What a narrative file holds, before it is read.",
+    mp.PreviewNarrative,
+)
+def _preview_narrative(
+    service: ToolService, params: dict[str, Any], asked: mp.PreviewNarrative
+) -> dict[str, Any]:
+    """What a narrative file holds, before it is read, so the host can ask the analyst
+    what legacy Debrief asked (CAP-19): its format and dialect, its entry types with
+    counts, its sources with the track each would belong to, its period and, given a
+    plot (store and item), how many entries fall outside its tracks' period, whether
+    the file was read into the plot before (earlier: when, by whom, the step; known by
+    its content hash, whatever its name) and how many of its entries the plot has
+    already (already). An ASW data document says how many positions it holds
+    instead. Changes nothing."""
+    catalogue = None
+    if asked.item is not None:
+        store = service.store(params.get("store"), writing=False)
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            catalogue.read_item(asked.item)
+        except (CatalogueError, StoreBusy, OSError) as error:
+            raise rpc_error(error) from None
+    try:
+        return preview_narrative(Path(asked.path), catalogue=catalogue, item_id=asked.item)
+    except (NoNarrativeError, CatalogueError, HistoryError, StoreBusy, OSError) as error:
+        raise rpc_error(error) from None
+
+
+@METHODS.register(
+    "debrief/preview_sensor",
+    "What a file's sensor lines hold, before they are read.",
+    mp.PreviewSensor,
+)
+def _preview_sensor(
+    service: ToolService, params: dict[str, Any], asked: mp.PreviewSensor
+) -> dict[str, Any]:
+    """What a .dsf or REP file's sensor lines hold, before they are read into a plot
+    (CAP-22), so the host can ask what legacy Debrief asked: each sensor (by track and
+    name) with its cuts, ambiguous ones and period, and the plot's track that would
+    carry it (null: ask, as legacy's "Sensor track not found"); the plot's tracks; what
+    will not be imported (frequencies, lines with no bearing, bearing accuracies);
+    whether the file was read into the plot before. Changes nothing."""
+    store = service.store(params.get("store"), writing=False)
+    try:
+        catalogue = Catalogue.open(Path(store.location))
+        catalogue.read_item(asked.item)
+        return preview_sensor(Path(asked.path), catalogue=catalogue, item_id=asked.item)
+    except (CatalogueError, HistoryError, StoreBusy, OSError) as error:
+        raise rpc_error(error) from None
+
+
+@METHODS.register(
+    "debrief/tote", "Measures between a primary track and its secondaries at one time.", mp.Tote
+)
+def _tote(service: ToolService, params: dict[str, Any], asked: mp.Tote) -> dict[str, Any]:
+    """The Tote at one time (CAP-06): a ToteResult. tote, a ToteView, says which
+    tracks and which measure group; left out, the plot's island says. One call per
+    change of current time, so it reads nothing it need not (NFR-04)."""
+    store = service.store(params.get("store"), writing=False)
+    try:
+        catalogue = Catalogue.open(Path(store.location))
+        revision = params.get("revision")
+        return tote(
+            catalogue,
+            asked.item,
+            asked.time,
+            asked.tote,
+            revision if isinstance(revision, str) else None,
+        )
+    except FileNotFoundError:
+        raise RpcError(
+            INVALID_PARAMS, f"There is no plot {asked.item!r} in {store.title}."
+        ) from None
+    except MAPPED as error:
+        raise rpc_error(error) from None
+
+
+@METHODS.register("debrief/measure_groups", "The measure groups the Tote can show.")
+def _measure_groups(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    return measure_groups()
+
+
+@METHODS.register("debrief/review_flags", "Every plot that may need review.")
+def _review_flags(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
+    """Every plot in the analyst's catalogues that drew from an item since revised, so
+    may need review (CAP-12), with the store each is in."""
+    catalogues: list[tuple[models.KnownStore, Catalogue]] = []
+    for store in service.config().stores:
+        try:
+            catalogues.append((store, Catalogue.open(Path(store.location))))
+        except (CatalogueError, OSError, ValueError):
+            continue
+    stores = {catalogue.id: store.id for store, catalogue in catalogues}
+    flags = review_flags([c for _, c in catalogues])
+    return {
+        "flags": [
+            {**f.model_dump(mode="json", exclude_none=True), "store": stores.get(f.catalogue)}
+            for f in flags
+        ]
+    }
+
+
+# Methods on one plot, inside its history: (PlotCall, the params checked) -> what the
+# method adds to {recovered, base, latest}.
+
+
+@_reads_plot("debrief/open", "Makes the plot whole and returns its base and view.")
+def _open(call: PlotCall, _: None) -> dict[str, Any]:
+    """The plot made whole (recovered). Opening a plot that still has a retired
+    presentation.json: a writer that says who it is (agent) makes it one recorded step
+    and deletes it; where that cannot be done (a read-only store, or no agent) the plot
+    comes back with it applied in memory, for display."""
+    out: dict[str, Any] = {}
+    catalogue, item = call.catalogue, call.item
+    if catalogue.legacy_presentation(item) is not None:
+        # Migrating is a change, recorded with who made it: only with an agent (SUB-24).
+        migrated = False
+        if not call.store.read_only and call.params.get("agent") is not None:
+            try:
+                out = {"migrated": catalogue.migrate_presentation(item, call.agent)}
+                migrated = True
+            except (NewerSchemaError, OSError):
+                pass
+        if not migrated:
+            out = {"plot": json.loads(dump_document(DocumentKind.PLOT, catalogue.read_plot(item)))}
+    return {**out, **call.view()}
+
+
+@_reads_plot("debrief/history", "The plot's steps.")
+def _steps(call: PlotCall, _: None) -> dict[str, Any]:
+    """The plot's steps: seq, status, kind, tool, agent, at."""
+    return {"steps": history_steps(call.history)}
+
+
+@METHODS.register("debrief/goto", "Moves to a step.", mp.Goto, writes=True, history=True)
+@METHODS.register("debrief/redo", "Redoes the step undone last.", writes=True, history=True)
+@METHODS.register("debrief/undo", "Undoes the last step.", writes=True, history=True)
+def _move(call: PlotCall, asked: mp.Goto | None) -> dict[str, Any]:
+    """Undo, redo or goto a step: recorded with no one, since the steps name theirs."""
+    step = asked.step if asked else call.params.get("step")
+    how = call.method.removeprefix("debrief/")
+    move(call.history, how, call.base, step, allow_newer_schema=call.allow)
+    return {}
+
+
+@_changes_plot("debrief/set_colour", "Colours features.", mp.SetColour)
+def _set_colour(call: PlotCall, asked: mp.SetColour) -> dict[str, Any]:
+    """Colour tracks (and anything else with a colour)."""
+    step = call.catalogue.set_colour(
+        call.item,
+        asked.features,
+        asked.colour,
+        call.agent,
+        call.base,
+        colour_name=asked.colour_name,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": step is not None}
+
+
+@_changes_plot("debrief/set_hidden", "Hides or shows features, cuts among them.", mp.SetHidden)
+def _set_hidden(call: PlotCall, asked: mp.SetHidden) -> dict[str, Any]:
+    """Hide or show features; cuts among them are left out of every solution's residuals
+    until shown again, which notes says."""
+    step = call.catalogue.set_hidden(
+        call.item,
+        asked.features,
+        asked.hidden,
+        call.agent,
+        call.base,
+        allow_newer_schema=call.allow,
+    )
+    if step is None:
+        return {"changed": False}
+    return {"changed": True, "notes": list(call.notes(step))}
+
+
+@_changes_plot(
+    "debrief/set_track_frequencies",
+    "How often tracks are labelled, marked and arrowed.",
+    mp.SetTrackFrequencies,
+)
+def _set_track_frequencies(call: PlotCall, asked: mp.SetTrackFrequencies) -> dict[str, Any]:
+    """How often tracks are labelled, marked with a symbol and given a direction arrow
+    (CAP-32): each of label_interval, symbol_interval and arrow_interval given."""
+    changes = {f: call.params[f] for f in frequencies.FIELDS if f in call.params}
+    step = call.catalogue.set_track_frequencies(
+        call.item, asked.features, changes, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": step is not None}
+
+
+@_changes_plot("debrief/set_view", "Changes the plot's view, outside its history.", mp.SetView)
+def _set_view(call: PlotCall, asked: mp.SetView) -> dict[str, Any]:
+    """The plot's view, its island, kept outside its history (SUB-22, decision 12 Oct):
+    changed only if hash is the view's hash as last read."""
+    call.catalogue.write_view(
+        call.item, asked.view, asked.hash, agent=call.agent, allow_newer_schema=call.allow
+    )
+    return call.view()
+
+
+@_changes_plot("debrief/add_annotation", "Adds an annotation.", mp.AddAnnotation)
+def _add_annotation(call: PlotCall, asked: mp.AddAnnotation) -> dict[str, Any]:
+    """An annotation, described as an AnnotationSpec (the forms' description; its
+    positions numbers or text in any notation the analyst types), added as one step
+    named like "Circle 'Exclusion zone' added" (CAP-03)."""
+    _, feature = call.catalogue.add_annotation(
+        call.item, asked.annotation, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": True, "feature": feature}
+
+
+@_changes_plot("debrief/edit_annotation", "Changes an annotation.", mp.EditAnnotation)
+def _edit_annotation(call: PlotCall, asked: mp.EditAnnotation) -> dict[str, Any]:
+    """An annotation changed: only the members that change need be given."""
+    step = call.catalogue.edit_annotation(
+        call.item,
+        asked.feature,
+        asked.annotation,
+        call.agent,
+        call.base,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": step is not None, "feature": asked.feature}
+
+
+@_changes_plot("debrief/delete_annotations", "Deletes annotations.", mp.DeleteAnnotations)
+def _delete_annotations(call: PlotCall, asked: mp.DeleteAnnotations) -> dict[str, Any]:
+    call.catalogue.delete_annotations(
+        call.item, asked.features, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": True}
+
+
+@_changes_plot("debrief/set_north_arrow", "Shows or hides the north arrow.", mp.SetNorthArrow)
+def _set_north_arrow(call: PlotCall, asked: mp.SetNorthArrow) -> dict[str, Any]:
+    step = call.catalogue.set_north_arrow(
+        call.item, asked.shown, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": step is not None}
+
+
+@_changes_plot("debrief/add_narrative", "Adds a narrative entry.", mp.AddNarrative)
+def _add_narrative(call: PlotCall, asked: mp.AddNarrative) -> dict[str, Any]:
+    """A narrative entry, described as a NarrativeSpec: time (UTC to the millisecond),
+    source, entry_type, text and track_id (left out, the track named as its source),
+    added as one step named like "Narrative entry by BLUE ONE at 08:40:00Z added"
+    (CAP-20)."""
+    _, feature = call.catalogue.add_narrative(
+        call.item, asked.entry, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": True, "feature": feature}
+
+
+@_changes_plot("debrief/edit_narrative", "Changes a narrative entry.", mp.EditNarrative)
+def _edit_narrative(call: PlotCall, asked: mp.EditNarrative) -> dict[str, Any]:
+    """An entry changed: only the members that change need be given; None clears one."""
+    step = call.catalogue.edit_narrative(
+        call.item, asked.feature, asked.entry, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": step is not None, "feature": asked.feature}
+
+
+@_changes_plot("debrief/delete_narrative", "Deletes narrative entries.", mp.DeleteNarrative)
+def _delete_narrative(call: PlotCall, asked: mp.DeleteNarrative) -> dict[str, Any]:
+    call.catalogue.delete_narrative(
+        call.item, asked.features, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": True}
+
+
+@_changes_plot(
+    "debrief/import_narrative", "Reads a file's narrative into the plot.", mp.ImportNarrative
+)
+def _import_narrative(call: PlotCall, asked: mp.ImportNarrative) -> dict[str, Any]:
+    """The narrative of a REP file or a Word (.docx, .doc) or PDF document (path) read
+    into the plot as one step, with the analyst's choices as legacy Debrief asked them
+    (see debrief_io.Choices): types, the entry types to read ("" for none; left out,
+    all); within_period, only entries within the plot's tracks' period; tracks, the
+    track id (or null) of a platform; platform, the source of entries whose document
+    names none. A file read into the plot before (known by its content, whatever its
+    name) or with entries the plot has already (the same time, source and text) is
+    refused (NEEDS_CONFIRMATION, the message saying when it was read in and how many
+    entries are there) unless duplicates says "skip" (read only the entries not in the
+    plot) or "add" (read them all again)."""
+    try:
+        choices = Choices.of(call.params)
+    except ValueError as error:
+        raise RpcError(INVALID_PARAMS, str(error)) from None
+    try:
+        done = import_narrative(
+            call.catalogue,
+            call.item,
+            Path(asked.path),
+            call.agent,
+            call.base,
+            allow_newer_schema=call.allow,
+            choices=choices,
+        )
+    except AlreadyInPlotError as error:
+        raise RpcError(NEEDS_CONFIRMATION, str(error)) from None
+    except NoNarrativeError as error:
+        raise RpcError(INVALID_PARAMS, str(error)) from None
+    return {
+        "changed": True,
+        "entries": done.entries,
+        "sources": done.sources,
+        "omitted": done.omitted,
+        "notes": done.notes,
+    }
+
+
+@_reads_plot(
+    "debrief/narrative", "The plot's narrative entries, filtered and paged.", mp.NarrativeQuery
+)
+def _narrative(call: PlotCall, asked: mp.NarrativeQuery) -> dict[str, Any]:
+    """The plot's narrative on one Zulu time axis (CAP-20), all its sources merged in one
+    order, with what agents filter by: sources and types (lists; "" is an entry with no
+    type), text (found in an entry's text, source or type, ignoring case), start and end
+    (UTC, ends included); offset and limit page through (at most NARRATIVE_LIMIT a call).
+    at, a UTC time, also gives the entry current time would be at among those matching:
+    the last at or before it. Returns the entries, how many match in all, and each
+    source's and type's count over the whole narrative."""
+    plot = call.history.plot()
+    wanted = narrative.Query(
+        sources=frozenset(asked.sources) if asked.sources is not None else None,
+        types=frozenset(asked.types) if asked.types is not None else None,
+        text=asked.text or None,
+        start_ms=asked.start,
+        end_ms=asked.end,
+    )
+    every = narrative.order(narrative.entries(plot))
+    matching = [f for f in every if wanted.matches(f, parse_utc(f.properties.time))]
+    page = matching[asked.offset : asked.offset + min(asked.limit, mp.NARRATIVE_LIMIT)]
+    out: dict[str, Any] = {
+        "entries": [narrative.as_json(f) for f in page],
+        "total": len(matching),
+        "offset": asked.offset,
+        **narrative.summary(every),
+    }
+    if asked.at is not None:
+        times = [parse_utc(f.properties.time) for f in matching]
+        index = narrative.current_index(times, asked.at)
+        out["current"] = matching[index].id if index >= 0 else None
+    return out
+
+
+# The most cuts debrief/sensors lists in one call.
+CUT_LIMIT = 20_000
+
+
+@_reads_plot("debrief/sensors", "The plot's sensors, and perhaps their cuts.", mp.SensorQuery)
+def _sensors(call: PlotCall, asked: mp.SensorQuery) -> dict[str, Any]:
+    """The plot's sensors (CAP-22), each with its host track, colour, whether it is
+    hidden, how many cuts it has, how many are still ambiguous and how many resolved,
+    and its first and last cut's time. sensor_ids narrows them; cuts true also lists
+    each sensor's cuts within period ({start, end}, ends included; at most CUT_LIMIT in
+    all), each with its time, bearing, ambiguous bearing and which was kept, the side
+    its first bearing is on, its range, label and comment, and where it is drawn from
+    (the host's position then, as the map places it; null outside the host's span):
+    what a TMA solution (CAP-21) is rooted in."""
+    found = sensors.describe(
+        call.history.plot(),
+        sensor_ids=asked.sensor_ids,
+        period=asked.period,
+        with_cuts=asked.cuts,
+    )
+    if asked.cuts:
+        total = sum(len(s["cut_list"]) for s in found)
+        if total > CUT_LIMIT:
+            raise RpcError(
+                INVALID_PARAMS,
+                f"{total:,} cuts match: ask for at most {CUT_LIMIT:,}, by a shorter period or "
+                "fewer sensors.",
+            )
+    return {"sensors": found}
+
+
+@_changes_plot(
+    "debrief/resolve_ambiguity", "Keeps one side of ambiguous cuts, or makes them ambiguous again."
+)
+def _resolve_ambiguity(call: PlotCall, _: None) -> dict[str, Any]:
+    """Keep one side of ambiguous cuts, or make them ambiguous again: keep is port or
+    starboard (of the course logged where the sensor was at each cut's time, as legacy
+    Debrief's Keep port bearing), bearing or ambiguous_bearing (the bearing recorded
+    first, or its twin), or ambiguous; the cuts are cut_ids, or sensor_ids and perhaps a
+    period ({start, end}: the time window, say), hidden cuts left out unless named. One
+    step, named like "Port kept: 42 Towed array cuts 09:00:00Z–09:59:30Z"."""
+    asked = {k: call.params[k] for k in mp.RESOLVE_ASKED if k in call.params}
+    step = call.catalogue.resolve_ambiguity(
+        call.item, asked, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": True, "notes": call.notes(step)}
+
+
+@_changes_plot(
+    "debrief/import_sensor", "Reads a file's sensor lines into the plot.", mp.ImportSensor
+)
+def _import_sensor(call: PlotCall, asked: mp.ImportSensor) -> dict[str, Any]:
+    """A .dsf (or REP) file's ;SENSOR:, ;SENSOR2: and ;SENSOR3: lines read into the plot
+    (path), the file kept as its source, as one step. hosts gives, for a track name the
+    lines give, the id of the plot's track that carries its sensors (or null: not read);
+    names matching a track (ignoring case, or by their first six letters) need not be
+    said. A sensor whose track is neither is refused (NEEDS_CONFIRMATION, naming the
+    plot's tracks), as is a file read in before unless again is true.
+    debrief/preview_sensor says what a file holds first."""
+    try:
+        done = import_sensor(
+            call.catalogue,
+            call.item,
+            Path(asked.path),
+            call.agent,
+            call.base,
+            hosts=asked.hosts,
+            again=asked.again,
+            allow_newer_schema=call.allow,
+        )
+    except (HostNeeded, SensorReadBefore) as error:
+        raise RpcError(NEEDS_CONFIRMATION, str(error)) from None
+    except NoSensorDataError as error:
+        raise RpcError(INVALID_PARAMS, str(error)) from None
+    return {
+        "changed": True,
+        "sensors": done.sensors,
+        "cuts": done.cuts,
+        "omitted": done.omitted,
+        "notes": done.notes,
+    }
+
+
+@_changes_plot(
+    "debrief/set_array_offset",
+    "How far astern a towed array is, and how it follows.",
+    mp.SetArrayOffset,
+)
+def _set_array_offset(call: PlotCall, asked: mp.SetArrayOffset) -> dict[str, Any]:
+    """How far astern a towed array is (offset {value, unit}, or null for at the ship)
+    and how it follows (mode worm_in_hole, legacy's default, or plain), for sensor_ids;
+    the cuts are then drawn, and their sides told, from the array. One step, named like
+    "Towed array: 300 yd astern, worm in the hole"; changed false if the sensors were so
+    already."""
+    step = call.catalogue.set_array_offset(
+        call.item,
+        asked.sensor_ids,
+        asked.offset,
+        call.agent,
+        call.base,
+        mode=asked.mode,
+        allow_newer_schema=call.allow,
+    )
+    if step is None:
+        return {"changed": False}
+    return {"changed": True, "notes": call.notes(step)}
+
+
+@_changes_plot("debrief/delete_cuts", "Deletes cuts.", mp.DeleteCuts)
+def _delete_cuts(call: PlotCall, asked: mp.DeleteCuts) -> dict[str, Any]:
+    """Cuts deleted as one step, the solutions rooted in them dropping them, which notes
+    says (product owner, 27 Oct 2026)."""
+    step = call.catalogue.delete_cuts(
+        call.item, asked.cut_ids, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    return {"changed": True, "notes": call.notes(step)}
+
+
+@_reads_plot(
+    "debrief/tma_residuals", "A solution's bearing residuals and RMS error.", mp.TmaResiduals
+)
+def _tma_residuals(call: PlotCall, asked: mp.TmaResiduals) -> dict[str, Any]:
+    """A TMA solution's bearing residuals and RMS error (CAP-21)."""
+    return {"residuals": call.catalogue.tma_residuals(call.item, asked.feature, call.base)}
+
+
+@_changes_plot("debrief/tma_create", "Makes a TMA solution from a sensor's cuts.", mp.TmaCreate)
+def _tma_create(call: PlotCall, asked: mp.TmaCreate) -> dict[str, Any]:
+    """A TMA solution (CAP-21; product owner, 24 Oct 2026) as one step, from the cuts
+    (sensor_ids and perhaps a period, or cut_ids), perhaps a contact, a name and a
+    colour, and a first guess: range, course and speed (and, for an ambiguous first cut,
+    first_bearing), or first_position and last_position (on or near the first cut's
+    line and the last's); with none, Debrief's (10,000 yd along the first cut's bearing,
+    across it, 8 kn). A TmaRequest, in request or as the params themselves. Returns the
+    solution's id and its residuals."""
+    request = asked.request
+    if request is None:
+        request = {k: v for k, v in call.params.items() if k in mp.TMA_ASKED}
+    step, feature = call.catalogue.create_tma(
+        call.item, request, call.agent, call.base, allow_newer_schema=call.allow
+    )
+    notes = call.notes(step)
+    residuals = call.catalogue.tma_residuals(call.item, feature)
+    return {"changed": True, "feature": feature, "notes": notes, "residuals": residuals}
+
+
+@_changes_plot(
+    "debrief/tma_split_leg", "Splits a solution into legs, or joins two.", mp.TmaSplitLeg
+)
+def _tma_split_leg(call: PlotCall, asked: mp.TmaSplitLeg) -> dict[str, Any]:
+    """A solution (feature) split into legs at a time (at), or before or after the fix
+    there (side); join true joins the leg starting then to the one before."""
+    step = call.catalogue.tma_split_leg(
+        call.item,
+        asked.feature,
+        asked.at,
+        call.agent,
+        call.base,
+        join=asked.join,
+        side=asked.side,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": True, "notes": call.notes(step)}
+
+
+@_changes_plot(
+    "debrief/tma_exclude_cut",
+    "Leaves cuts out of a solution's RMS error, or counts them again.",
+    mp.TmaExcludeCut,
+)
+def _tma_exclude_cut(call: PlotCall, asked: mp.TmaExcludeCut) -> dict[str, Any]:
+    """A solution's cuts (cut_ids) left out of its RMS error (excluded true) or counted
+    again (false); changed is false if none would change."""
+    step = call.catalogue.tma_exclude(
+        call.item,
+        asked.feature,
+        asked.cut_ids,
+        asked.excluded,
+        call.agent,
+        call.base,
+        allow_newer_schema=call.allow,
+    )
+    if step is None:
+        return {"changed": False}
+    return {
+        "changed": True,
+        "notes": call.notes(step),
+        "residuals": call.catalogue.tma_residuals(call.item, asked.feature),
+    }
+
+
+@_changes_plot(
+    "debrief/edit_track",
+    "Moves, rotates, shears or stretches a track, moves a fix, or plots it by dead reckoning.",
+    mp.EditTrack,
+)
+def _edit_track(call: PlotCall, asked: mp.EditTrack) -> dict[str, Any]:
+    """A track moved, rotated, sheared or stretched by hand as one step, named like
+    "BLUE ONE moved 1.20 nmi 045.0°T" (CAP-01, CAP-02, CAP-21). edit is a TrackEdit: move
+    with distance and bearing; rotate with angle and perhaps pivot; shear with anchor and
+    either distance and bearing for the dragged end or course and speed; stretch with
+    anchor and speed; each for a period or the whole track; a single fix moved
+    (move_fix) or the track plotted by dead reckoning (set_plotting_mode). current_time
+    is a rotation's default pivot. A TMA solution is a track, so it is dragged here."""
+    step = call.catalogue.edit_track(
+        call.item,
+        asked.feature,
+        asked.edit,
+        call.agent,
+        call.base,
+        current_time=asked.current_time,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": step is not None, "feature": asked.feature}
+
+
+@_changes_plot("debrief/split_track", "Splits a track in two.", mp.SplitTrack)
+def _split_track(call: PlotCall, asked: mp.SplitTrack) -> dict[str, Any]:
+    """A track split in two at a time (at), with perhaps names for the parts."""
+    _, parts = call.catalogue.split_track(
+        call.item,
+        asked.feature,
+        asked.at,
+        call.agent,
+        call.base,
+        names=asked.names,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": True, "features": parts}
+
+
+@_changes_plot("debrief/merge_tracks", "Merges tracks into one.", mp.MergeTracks)
+def _merge_tracks(call: PlotCall, asked: mp.MergeTracks) -> dict[str, Any]:
+    """Tracks merged into one, perhaps named; notes says what was not kept (speeds,
+    courses or depths some of the tracks had not)."""
+    _, merged, lost = call.catalogue.merge_tracks(
+        call.item,
+        asked.features,
+        call.agent,
+        call.base,
+        name=asked.name,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": True, "feature": merged, "notes": lost}
+
+
+@_reads_plot("debrief/find_jumps", "A track's jumps.", mp.FindJumps)
+def _find_jumps(call: PlotCall, asked: mp.FindJumps) -> dict[str, Any]:
+    """A track's jumps, shown before any is removed (CAP-01, EXT-14): fixes reached
+    faster than threshold (a speed; left out, three times the track's median speed, at
+    least 10 kn), within period. Changes nothing."""
+    used, median, jumps = call.catalogue.find_jumps(
+        call.item, asked.feature, threshold=asked.threshold, period=asked.period, base=call.base
+    )
+    return {
+        "feature": asked.feature,
+        "threshold": _quantity(used),
+        "median_speed": _quantity(median) if median else None,
+        "jumps": [
+            {
+                "time": j.time,
+                "position": list(j.position),
+                # None when it is at the same time as the fix before, somewhere else.
+                "speed": None
+                if math.isinf(j.speed_kn)
+                else {"value": j.speed_kn, "unit": "[kn_i]"},
+                "since": j.since,
+                # A DR track's jump: its logged speed, on to the fix at since.
+                **({"logged": True} if j.logged else {}),
+            }
+            for j in jumps
+        ],
+    }
+
+
+@_changes_plot("debrief/remove_jumps", "Removes fixes found as jumps.", mp.RemoveJumps)
+def _remove_jumps(call: PlotCall, asked: mp.RemoveJumps) -> dict[str, Any]:
+    """The fixes at times removed as one step; threshold, what they were found at, for
+    the record."""
+    call.catalogue.remove_jumps(
+        call.item,
+        asked.feature,
+        asked.times,
+        call.agent,
+        call.base,
+        threshold=asked.threshold,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": True, "feature": asked.feature}
+
+
+@_reads_plot("debrief/preview_smoothing", "A track as smoothing would leave it.", mp.Smoothing)
+def _preview_smoothing(call: PlotCall, asked: mp.Smoothing) -> dict[str, Any]:
+    """The track as smoothing over window (an odd number of fixes) within period would
+    leave it. Changes nothing."""
+    after, smoothing = call.catalogue.smoothing_preview(
+        call.item, asked.feature, asked.window, period=asked.period, base=call.base
+    )
+    return {
+        "feature": asked.feature,
+        "preview": after.geometry.model_dump(mode="json"),
+        **_smoothing(smoothing),
+    }
+
+
+@_changes_plot("debrief/smooth_track", "Smooths a track.", mp.Smoothing)
+def _smooth_track(call: PlotCall, asked: mp.Smoothing) -> dict[str, Any]:
+    """The track smoothed over window within period, as one step."""
+    done = call.catalogue.smooth_track(
+        call.item,
+        asked.feature,
+        asked.window,
+        call.agent,
+        call.base,
+        period=asked.period,
+        allow_newer_schema=call.allow,
+    )
+    return {
+        "changed": done is not None,
+        "feature": asked.feature,
+        **(_smoothing(done[1]) if done else {}),
+    }
+
+
+@_changes_plot("debrief/mark_fix", "Gives a fix a colour, label or comment of its own.", mp.MarkFix)
+def _mark_fix(call: PlotCall, asked: mp.MarkFix) -> dict[str, Any]:
+    """A fix (at time) given a colour, label or comment of its own (changes: null or ""
+    takes one away; show_label, show_symbol: true to always show its time label or
+    symbol, false to stop), as one step; colour_name for the step's name."""
+    step = call.catalogue.mark_fix(
+        call.item,
+        asked.feature,
+        asked.time,
+        asked.changes,
+        call.agent,
+        call.base,
+        colour_name=asked.colour_name,
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": step is not None, "feature": asked.feature}
+
+
+@_reads_plot(
+    "debrief/coverage", "The plot's coverage: its platforms and the items with data for each."
+)
+def _coverage(call: PlotCall, _: None) -> dict[str, Any]:
+    """The plot's coverage (CAP-08 to CAP-12): its platforms and every catalogue item with
+    data for each, the items marked as new data for it, and whether it may need review."""
+    report = call.catalogue.coverage(call.item, call.service.other_catalogues(call.catalogue))
+    return {"coverage": report.model_dump(mode="json", exclude_none=True)}
+
+
+@_changes_plot("debrief/take_new_data", "Takes an item's new data into the plot.", mp.TakeNewData)
+def _take_new_data(call: PlotCall, asked: mp.TakeNewData) -> dict[str, Any]:
+    """A catalogue item's data taken into the plot (source: {catalogue, item}, the
+    catalogue by its own id, and revision, the revision the analyst saw, if any), one
+    step naming it. No step when the plot has the item's data as it is now already:
+    changed false, and a message saying so."""
+    source = asked.source
+    revision = source.get("revision")
+    step = call.catalogue.take_new_data(
+        call.item,
+        source["catalogue"],
+        source["item"],
+        call.agent,
+        call.base,
+        others=call.service.other_catalogues(call.catalogue),
+        revision=revision if isinstance(revision, str) and revision else None,
+        allow_newer_schema=call.allow,
+    )
+    if step is None:
+        # Nothing to take: the plot has the item's data as it is now already.
+        return {
+            "changed": False,
+            "message": "The plot already has this item's data as it is now: nothing "
+            "was taken, and it is marked as reviewed against this revision.",
+        }
+    return {"changed": True, "step": step}
+
+
+@_changes_plot(
+    "debrief/set_source_preference",
+    "Chooses which item supplies a period of a track.",
+    mp.SetSourcePreference,
+)
+def _set_source_preference(call: PlotCall, asked: mp.SetSourcePreference) -> dict[str, Any]:
+    """Which item supplies a period of a track (feature, period {start, end}, source
+    {catalogue, item, track, name}), one step."""
+    step = call.catalogue.set_source_preference(
+        call.item,
+        asked.feature,
+        asked.period,
+        asked.source,
+        call.agent,
+        call.base,
+        others=call.service.other_catalogues(call.catalogue),
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": step is not None}
+
+
+@_changes_plot(
+    "debrief/link_tracks", "Links or unlinks a track in another item as a platform.", mp.LinkTracks
+)
+def _link_tracks(call: PlotCall, asked: mp.LinkTracks) -> dict[str, Any]:
+    """A track in another item (source) confirmed or linked (linked true), or refused or
+    unlinked (false), as the platform of the plot's track (feature), one step."""
+    step = call.catalogue.link_tracks(
+        call.item,
+        asked.feature,
+        asked.source,
+        asked.linked,
+        call.agent,
+        call.base,
+        others=call.service.other_catalogues(call.catalogue),
+        allow_newer_schema=call.allow,
+    )
+    return {"changed": step is not None}
+
+
+@_changes_plot(
+    "debrief/dismiss_new_data",
+    "Sets an item's new data aside, in the plot's island.",
+    mp.DismissNewData,
+)
+def _dismiss_new_data(call: PlotCall, asked: mp.DismissNewData) -> dict[str, Any]:
+    """An item's new data set aside (source with its revision): in the plot's island,
+    never a step, with who answered and when."""
+    source = asked.source
+    call.catalogue.dismiss_new_data(
+        call.item, source["catalogue"], source["item"], source["revision"], call.agent
+    )
+    return {"changed": True, **call.view()}
+
+
+@_changes_plot("debrief/clear_review_flag", "Clears the plot's review flag, in its island.")
+def _clear_review_flag(call: PlotCall, _: None) -> dict[str, Any]:
+    """The plot's review flag cleared: in the plot's island, never a step, with who
+    answered and when."""
+    others = call.service.other_catalogues(call.catalogue)
+    changed = call.catalogue.clear_review_flag(call.item, others, call.agent) > 0
+    return {"changed": changed, **call.view()}
+
+
 def _outcome(outcome: dict[str, Any]) -> str:
     if "conflict" in outcome:
         return "conflict"
@@ -1493,137 +1485,53 @@ def _argument_problem(arguments: dict[str, Any]) -> str | None:
     return None
 
 
-NARRATIVE_LIMIT = 1000
+# Exported images (SUB-25), and a host (VS Code) waiting for what the service asks of it
+# (an agent's export, drawn by an open map) and answering: see figures.py.
+for _method in (
+    Method("debrief/figure_id", "A fresh image ID for an export of the plot.", figures.figure_id),
+    Method(
+        "debrief/export_image",
+        "Stamps and logs a host's image, or has an open map draw an agent's.",
+        figures.export_image,
+        agent=True,
+        large=True,
+    ),
+    Method(
+        "debrief/find_image_source",
+        "The plots an image came from, by its file or its ID.",
+        figures.find_image_source,
+    ),
+    Method(
+        "debrief/open_revision",
+        "The plot as it was at a revision, to show read-only.",
+        figures.open_revision,
+    ),
+    Method(
+        "debrief/host_poll",
+        "A host waits here for what the service asks of it.",
+        figures.host_poll,
+    ),
+    Method("debrief/host_answer", "A host's answer to one such request.", figures.host_answer),
+):
+    METHODS.add(_method)
+
+# Read from METHODS, never kept by hand.
+KNOWN_METHODS = frozenset(METHODS)
+# Change the plot they name (SUB-25: VS Code refuses them on a revision shown read-only).
+WRITING_METHODS = METHODS.names(writes=True)
+# Run on one plot, inside its history.
+HISTORY_METHODS = METHODS.names(history=True)
+READING_METHODS = METHODS.names(history=True, writes=False)
+# Refused without agent, never attributed to the analyst by default (SUB-24). Undo, redo
+# and goto record no one: they return to steps that already name theirs.
+AGENT_METHODS = METHODS.names(agent=True)
+# Only an exported image travels in its request (debrief/export_image): an A4 PNG at twice
+# its size on screen is a few megabytes, as base 64 a third more. Every other method keeps
+# MAX_BODY_BYTES (expert panel, 16 Oct 2026).
+IMAGE_METHODS = METHODS.names(large=True)
 
 
-def _narrative_query(plot: DebriefFeatureCollection, params: dict[str, Any]) -> dict[str, Any]:
-    """debrief/narrative: the plot's narrative on one Zulu time axis (CAP-20), all its
-    sources merged in one order, with what agents filter by: sources and types (lists;
-    "" is an entry with no type), text (found in an entry's text, source or type,
-    ignoring case), start and end (UTC, ends included); offset and limit page through
-    (at most NARRATIVE_LIMIT a call). at, a UTC time, also gives the entry current time
-    would be at among those matching: the last at or before it. Returns the entries,
-    how many match in all, and each source's and type's count over the whole narrative."""
-
-    def names(member: str) -> frozenset[str] | None:
-        value = params.get(member)
-        if value is None:
-            return None
-        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
-            raise RpcError(INVALID_PARAMS, f"{member} must be a list of names")
-        return frozenset(value)
-
-    def time_of(member: str) -> int | None:
-        value = params.get(member)
-        if value is None:
-            return None
-        problem = f"{member} must be a UTC time, such as 2026-10-11T09:30:00.000Z"
-        if not isinstance(value, str):
-            raise RpcError(INVALID_PARAMS, problem)
-        try:
-            return parse_utc(value)
-        except ValueError:
-            raise RpcError(INVALID_PARAMS, problem) from None
-
-    text = params.get("text")
-    if text is not None and not isinstance(text, str):
-        raise RpcError(INVALID_PARAMS, "text must be text to find")
-    offset, limit = params.get("offset", 0), params.get("limit", NARRATIVE_LIMIT)
-    if type(offset) is not int or type(limit) is not int or offset < 0 or limit < 0:
-        raise RpcError(INVALID_PARAMS, "offset and limit must be whole numbers, not negative")
-    asked = narrative.Query(
-        sources=names("sources"),
-        types=names("types"),
-        text=text or None,
-        start_ms=time_of("start"),
-        end_ms=time_of("end"),
-    )
-    at = time_of("at")
-    every = narrative.order(narrative.entries(plot))
-    matching = [f for f in every if asked.matches(f, parse_utc(f.properties.time))]
-    page = matching[offset : offset + min(limit, NARRATIVE_LIMIT)]
-    out: dict[str, Any] = {
-        "entries": [narrative.as_json(f) for f in page],
-        "total": len(matching),
-        "offset": offset,
-        **narrative.summary(every),
-    }
-    if at is not None:
-        times = [parse_utc(f.properties.time) for f in matching]
-        index = narrative.current_index(times, at)
-        out["current"] = matching[index].id if index >= 0 else None
-    return out
-
-
-def _sensor_query(plot: DebriefFeatureCollection, params: dict[str, Any]) -> dict[str, Any]:
-    """debrief/sensors: the plot's sensors (CAP-22), each with its host track, colour,
-    whether it is hidden, how many cuts it has, how many are still ambiguous and how many
-    resolved, and its first and last cut's time. sensor_ids narrows them; cuts true also
-    lists each sensor's cuts within period ({start, end}, ends included; at most
-    CUT_LIMIT in all), each with its time, bearing, ambiguous bearing and which was kept,
-    the side its first bearing is on, its range, label and comment, and where it is drawn
-    from (the host's position then, as the map places it; null outside the host's span):
-    what a TMA solution (CAP-21) is rooted in."""
-    ids = params.get("sensor_ids")
-    if ids is not None and not (isinstance(ids, list) and all(isinstance(i, str) for i in ids)):
-        raise RpcError(INVALID_PARAMS, "sensor_ids must be a list of sensor ids")
-    with_cuts = params.get("cuts", False)
-    if not isinstance(with_cuts, bool):
-        raise RpcError(INVALID_PARAMS, "cuts is true or false")
-    period = _period(params.get("period"))
-    window = None
-    if period is not None:
-        try:
-            window = (parse_utc(period[0]), parse_utc(period[1]))
-        except ValueError as error:
-            raise RpcError(INVALID_PARAMS, f"period: {error}") from None
-    found = sensors.describe(plot, sensor_ids=ids, period=window, with_cuts=with_cuts)
-    if with_cuts:
-        total = sum(len(s["cut_list"]) for s in found)
-        if total > CUT_LIMIT:
-            raise RpcError(
-                INVALID_PARAMS,
-                f"{total:,} cuts match: ask for at most {CUT_LIMIT:,}, by a shorter period or "
-                "fewer sensors.",
-            )
-    return {"sensors": found}
-
-
-# What debrief/tma_create reads from its params when no request object is given.
-_TMA_ASKED = frozenset(models.TmaRequest.model_fields)
-
-# The most cuts debrief/sensors lists in one call.
-CUT_LIMIT = 20_000
-
-
-def _period(value: Any) -> tuple[str, str] | None:
-    """A period given as {start, end}, UTC times; None if not given."""
-    if value is None:
-        return None
-    if not (
-        isinstance(value, dict)
-        and isinstance(value.get("start"), str)
-        and isinstance(value.get("end"), str)
-    ):
-        raise RpcError(INVALID_PARAMS, "period must be {start, end}, each a UTC time")
-    return value["start"], value["end"]
-
-
-def _speed(value: Any) -> Quantity | None:
-    """A speed given as {value, unit}; None if not given."""
-    if value is None:
-        return None
-    try:
-        quantity = Quantity(float(value["value"]), str(value["unit"]))
-        quantity.to("m/s")
-    except (KeyError, TypeError, ValueError, IncompatibleUnitsError):
-        raise RpcError(
-            INVALID_PARAMS, 'threshold must be a speed, such as {"value": 30, "unit": "[kn_i]"}'
-        ) from None
-    return quantity
-
-
-def _quantity(quantity: Quantity) -> dict[str, Any]:
+def _quantity(quantity: UnitQuantity) -> dict[str, Any]:
     return {"value": quantity.value, "unit": quantity.unit}
 
 
