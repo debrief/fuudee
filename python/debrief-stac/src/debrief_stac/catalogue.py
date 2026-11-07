@@ -951,6 +951,7 @@ class Catalogue:
         )
 
     # --- Annotations: made, changed and deleted by hand (CAP-03 to CAP-05) ------
+    # The changes themselves are debrief_stac.annotations' (the template for the rest).
 
     def add_annotation(
         self,
@@ -965,13 +966,9 @@ class Catalogue:
         like "Circle 'Exclusion zone' added". Returns the step and the new feature's id.
         AnnotationError says, in plain words, what is wrong with the description."""
         described = annotations.spec_from(spec)
-
-        def change(plot: DebriefFeatureCollection):
-            feature_id = annotations.new_id(described.name, {f.id for f in plot.features})
-            feature = annotations.build(described, feature_id)
-            return Changes(added=[feature]), f"{annotations.title_of(feature)} added", feature_id
-
-        return self._change(item_id, change, agent, base, allow_newer_schema)
+        return self._change(
+            item_id, lambda plot: annotations.add(plot, described), agent, base, allow_newer_schema
+        )
 
     def edit_annotation(
         self,
@@ -988,34 +985,13 @@ class Catalogue:
         say). A dict may give only what changes; the rest is kept, and a member given
         as None is cleared. A time given replaces a period, and a period a time.
         None if nothing changed."""
-
-        def change(plot: DebriefFeatureCollection):
-            before = self._annotation(plot, feature_id)
-            if before.properties.furniture is not None:
-                raise CatalogueError(
-                    f"The {before.properties.name.lower()} is chart furniture: it can be "
-                    "shown or removed, but has nothing to change."
-                )
-            if isinstance(spec, dict):
-                merged = annotations.spec_of(before).model_dump(mode="json", exclude_none=True)
-                merged.update(spec)
-                # A time given replaces a period, and a period a time; a note has no position.
-                if spec.get("time") is not None and "time_range" not in spec:
-                    merged.pop("time_range", None)
-                if spec.get("time_range") is not None and "time" not in spec:
-                    merged.pop("time", None)
-                if merged.get("shape") == "note" and "positions" not in spec:
-                    merged.pop("positions", None)
-                described = annotations.spec_from(merged)
-            else:
-                described = spec
-            after = annotations.build(described, feature_id, previous=before)
-            note = annotations.describe_change(before, after)
-            if note is None:
-                return None
-            return Changes(modified=[after]), note, None
-
-        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        result = self._change(
+            item_id,
+            lambda plot: annotations.edit(plot, feature_id, spec),
+            agent,
+            base,
+            allow_newer_schema,
+        )
         return None if result is None else result[0]
 
     def delete_annotations(
@@ -1031,29 +1007,13 @@ class Catalogue:
         a set left empty goes too. Undo brings them all back."""
         if not feature_ids:
             raise CatalogueError("Choose the annotations to delete.")
-
-        def change(plot: DebriefFeatureCollection):
-            gone = [self._annotation(plot, i) for i in dict.fromkeys(feature_ids)]
-            ids = {f.id for f in gone}
-            sets, emptied = [], []
-            for named in plot.named_sets or []:
-                if ids & set(named.feature_ids):
-                    kept = [i for i in named.feature_ids if i not in ids]
-                    if kept:
-                        sets.append(named.model_copy(update={"feature_ids": kept}))
-                    else:
-                        emptied.append(named.id)
-            note = (
-                f"{annotations.title_of(gone[0])} deleted"
-                if len(gone) == 1
-                else f"{len(gone)} annotations deleted"
-            )
-            changes = Changes(
-                deleted_ids=[f.id for f in gone], named_sets=sets, deleted_named_set_ids=emptied
-            )
-            return changes, note, None
-
-        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+        return self._change(
+            item_id,
+            lambda plot: annotations.delete(plot, feature_ids),
+            agent,
+            base,
+            allow_newer_schema,
+        )[0]
 
     def set_north_arrow(
         self,
@@ -1066,24 +1026,13 @@ class Catalogue:
     ) -> int | None:
         """Add the north arrow to the plot, or remove it: chart furniture is content,
         so either is a recorded, undoable step (CAP-03). None if already so."""
-
-        def change(plot: DebriefFeatureCollection):
-            present = [
-                f.id
-                for f in plot.features
-                if f.properties.kind == "annotation"
-                and str(f.properties.furniture or "") == "north_arrow"
-            ]
-            if shown and not present:
-                arrow = annotations.north_arrow()
-                if arrow.id in {f.id for f in plot.features}:
-                    arrow.id = annotations.new_id("north arrow", {f.id for f in plot.features})
-                return Changes(added=[arrow]), "North arrow added", None
-            if not shown and present:
-                return Changes(deleted_ids=present), "North arrow removed", None
-            return None
-
-        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        result = self._change(
+            item_id,
+            lambda plot: annotations.set_north_arrow(plot, shown),
+            agent,
+            base,
+            allow_newer_schema,
+        )
         return None if result is None else result[0]
 
     # --- Narrative entries: added, changed and deleted by hand (CAP-20) --------
@@ -2238,15 +2187,6 @@ class Catalogue:
             raise CatalogueError(f"The plot has no feature {feature_id!r}.")
         if feature.properties.kind != "track":
             raise CatalogueError(f"{feature.properties.name} is not a track.")
-        return feature
-
-    @staticmethod
-    def _annotation(plot: DebriefFeatureCollection, feature_id: str) -> models.AnnotationFeature:
-        feature = next((f for f in plot.features if f.id == feature_id), None)
-        if feature is None:
-            raise CatalogueError(f"The plot has no feature {feature_id!r}.")
-        if feature.properties.kind != "annotation":
-            raise CatalogueError(f"{feature.properties.name} is not an annotation.")
         return feature
 
     @staticmethod

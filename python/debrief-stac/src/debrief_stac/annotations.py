@@ -13,6 +13,26 @@ Their own properties (shape, centre, radius, or semi-axes and orientation)
 say exactly what they are; Debrief draws and edits them from those, and makes
 the polygon again whenever they change, so the two never disagree (a rule
 checked on reading, in debrief_schemas).
+
+Changes made by hand: the shape every domain should follow. add, edit, delete
+and set_north_arrow are plain functions of the plot as the analyst saw it,
+shaped (plot, ...) -> (changes, note, value) or None if nothing would change,
+which is what Catalogue._change expects. They read the plot, apply, and name
+the change; they never commit. A refusal is an AnnotationError (a DomainError),
+which _change gives the caller as a CatalogueError with the same message. The
+Catalogue keeps only thin public methods that check their arguments and pass
+one of these to _change, the single commit path, e.g.:
+
+    def delete_annotations(self, item_id, feature_ids, agent, base=None, *, ...):
+        if not feature_ids:
+            raise CatalogueError("Choose the annotations to delete.")
+        made = self._change(
+            item_id, lambda plot: annotations.delete(plot, feature_ids), agent, ...
+        )
+        return made[0]
+
+A change may return a fourth member, a dict of more for its record (notes,
+parameters, selected): see Catalogue._change.
 """
 
 from __future__ import annotations
@@ -24,8 +44,9 @@ from debrief_kernel.formatting import PositionError, parse_position
 from debrief_kernel.geodesy import CURVE_SIDES, Position, circle_ring, ellipse_ring
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import Quantity
-from debrief_schemas import models
+from debrief_schemas import DebriefFeatureCollection, models
 from debrief_stac.errors import DomainError
+from debrief_stac.history import Changes
 
 SHAPE_TITLES = {
     "line": "Line",
@@ -354,14 +375,115 @@ def north_arrow() -> models.AnnotationFeature:
     )
 
 
+# --- Changes made by hand: (plot, ...) -> (changes, note, value), for Catalogue._change ---
+
+# What a change gives Catalogue._change: the changes, the note naming them, and a
+# value for the caller (the new feature's id, say); None when nothing would change.
+Made = tuple[Changes, str, Any]
+
+
+def annotation_in(plot: DebriefFeatureCollection, feature_id: str) -> models.AnnotationFeature:
+    """The plot's annotation feature_id; AnnotationError if it has none."""
+    feature = next((f for f in plot.features if f.id == feature_id), None)
+    if feature is None:
+        raise AnnotationError(f"The plot has no feature {feature_id!r}.")
+    if feature.properties.kind != "annotation":
+        raise AnnotationError(f"{feature.properties.name} is not an annotation.")
+    return feature
+
+
+def add(plot: DebriefFeatureCollection, spec: models.AnnotationSpec) -> Made:
+    """Add the annotation spec describes; its new id is the value."""
+    feature_id = new_id(spec.name, {f.id for f in plot.features})
+    feature = build(spec, feature_id)
+    return Changes(added=[feature]), f"{title_of(feature)} added", feature_id
+
+
+def edit(
+    plot: DebriefFeatureCollection,
+    feature_id: str,
+    spec: models.AnnotationSpec | dict[str, Any],
+) -> Made | None:
+    """Change an annotation to the description given. A dict may give only what
+    changes; the rest is kept, and a member given as None is cleared. A time given
+    replaces a period, and a period a time. None if nothing would change."""
+    before = annotation_in(plot, feature_id)
+    if before.properties.furniture is not None:
+        raise AnnotationError(
+            f"The {before.properties.name.lower()} is chart furniture: it can be "
+            "shown or removed, but has nothing to change."
+        )
+    if isinstance(spec, dict):
+        merged = spec_of(before).model_dump(mode="json", exclude_none=True)
+        merged.update(spec)
+        # A time given replaces a period, and a period a time; a note has no position.
+        if spec.get("time") is not None and "time_range" not in spec:
+            merged.pop("time_range", None)
+        if spec.get("time_range") is not None and "time" not in spec:
+            merged.pop("time", None)
+        if merged.get("shape") == "note" and "positions" not in spec:
+            merged.pop("positions", None)
+        described = spec_from(merged)
+    else:
+        described = spec
+    after = build(described, feature_id, previous=before)
+    note = describe_change(before, after)
+    if note is None:
+        return None
+    return Changes(modified=[after]), note, None
+
+
+def delete(plot: DebriefFeatureCollection, feature_ids: list[str]) -> Made:
+    """Delete annotations. Named sets keep the rest of their members; a set left
+    empty goes too."""
+    gone = [annotation_in(plot, i) for i in dict.fromkeys(feature_ids)]
+    ids = {f.id for f in gone}
+    sets, emptied = [], []
+    for named in plot.named_sets or []:
+        if ids & set(named.feature_ids):
+            kept = [i for i in named.feature_ids if i not in ids]
+            if kept:
+                sets.append(named.model_copy(update={"feature_ids": kept}))
+            else:
+                emptied.append(named.id)
+    note = f"{title_of(gone[0])} deleted" if len(gone) == 1 else f"{len(gone)} annotations deleted"
+    changes = Changes(
+        deleted_ids=[f.id for f in gone], named_sets=sets, deleted_named_set_ids=emptied
+    )
+    return changes, note, None
+
+
+def set_north_arrow(plot: DebriefFeatureCollection, shown: bool) -> Made | None:
+    """Add the north arrow, or remove it; None if already so."""
+    present = [
+        f.id
+        for f in plot.features
+        if f.properties.kind == "annotation" and str(f.properties.furniture or "") == "north_arrow"
+    ]
+    if shown and not present:
+        arrow = north_arrow()
+        if arrow.id in {f.id for f in plot.features}:
+            arrow.id = new_id("north arrow", {f.id for f in plot.features})
+        return Changes(added=[arrow]), "North arrow added", None
+    if not shown and present:
+        return Changes(deleted_ids=present), "North arrow removed", None
+    return None
+
+
 __all__ = [
     "CURVE_SIDES",
     "NORTH_ARROW_ID",
     "AnnotationError",
+    "Made",
+    "add",
+    "annotation_in",
     "build",
+    "delete",
     "describe_change",
+    "edit",
     "new_id",
     "north_arrow",
+    "set_north_arrow",
     "shape_of",
     "spec_from",
     "spec_of",
