@@ -11,7 +11,7 @@
 import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
 import { UNIT_LABELS } from "@debrief/kernel";
-import type { AnnotationSpec, TimeRange } from "@debrief/schemas";
+import type { TimeRange } from "@debrief/schemas";
 import { parseTime } from "../src/timeinput.js";
 import { type AnnotationDraft, draftOf, drawnDraft, EXAMPLE_COLOUR, echoPositions, FILLED, type Field as DraftField, LENGTH_UNITS, newDraft, positionsLabel, replacing, SHAPES, specOf } from "./annotationdraft.js";
 import type { Shape } from "./annotationlook.js";
@@ -38,14 +38,14 @@ function Form() {
   useEffect(() => {
     onMessage((message) => {
       if (message.kind === "show_annotation_form") {
-        const spec = message.annotation as AnnotationSpec | undefined;
-        const id = message.feature_id as string | undefined;
+        const spec = message.annotation ?? undefined;
+        const id = message.feature_id ?? undefined;
         setFeatureId(id);
-        setRange(message.time_range as TimeRange | undefined);
+        setRange(message.time_range ?? undefined);
         // Changing one: its fields as they are. Adding one: what was drawn on the map, if anything, to name.
         const next = id && spec ? draftOf(spec) : spec ? drawnDraft(spec) : newDraft();
         // A new annotation's time starts at current time, as a tool form's does (SUB-26).
-        const now = message.current_time as string | undefined;
+        const now = message.current_time ?? undefined;
         if (!id && now) next.time = showTime(Date.parse(now));
         setDraft(next);
         setOtherColour(!!next.colour && !ANNOTATION_COLOURS.some((c) => c.colour === next.colour));
@@ -59,7 +59,7 @@ function Form() {
         setBusy(true);
       } else if (message.kind === "form_error") {
         setBusy(false);
-        setProblem(message.message as string);
+        setProblem(message.message);
       }
     });
     host.postMessage({ kind: "ready" });

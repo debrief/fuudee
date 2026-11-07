@@ -8,7 +8,6 @@
 import { pageReady, pageShown } from "./timing.js";
 import "./timeline.css";
 import "./time.css";
-import type { TimeState, TimelineEntry, ToteTrack } from "@debrief/schemas";
 import { TimelineControl } from "./timelinecontrol.js";
 import { timelineEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
@@ -27,24 +26,24 @@ const control = new TimelineControl(
 
 onMessage((message) => {
   if (message.kind === "show_timeline") {
-    const entries = message.timeline_entries as TimelineEntry[] | undefined;
-    const tracks = message.timeline_tracks as ToteTrack[] | undefined;
+    const entries = message.timeline_entries ?? undefined;
+    const tracks = message.timeline_tracks ?? undefined;
     const shown = entries || tracks;
     control.show(
       shown
-        ? { entries: entries ?? [], tracks, plotId: message.plot_id as string | undefined, narrativeOnMap: message.narrative_on_map as boolean | undefined }
+        ? { entries: entries ?? [], tracks, plotId: message.plot_id ?? undefined, narrativeOnMap: message.narrative_on_map ?? undefined }
         : undefined,
     );
-    control.setTime(message.time as TimeState | undefined);
+    control.setTime(message.time ?? undefined);
     pageShown(!!entries);
   } else if (message.kind === "set_time") {
-    control.setTime(message.time as TimeState);
+    control.setTime(message.time);
   } else if (message.kind === "playing_changed") {
     control.setPlaying(message.playing === true);
   } else if (message.kind === "narrative_saved") {
-    control.saved(message.feature_id as string | undefined, message.message as string | undefined);
+    control.saved(message.feature_id ?? undefined, message.message ?? undefined);
   } else if (message.kind === "open_narrative_form") {
-    control.openForm(message.feature_id as string | undefined);
+    control.openForm(message.feature_id ?? undefined);
   }
 });
 pageReady();

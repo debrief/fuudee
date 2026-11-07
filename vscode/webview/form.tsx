@@ -41,13 +41,13 @@ function Form() {
   useEffect(() => {
     onMessage((message) => {
       if (message.kind === "show_form") {
-        const declaration = message.tool as ToolDeclaration;
-        setNames(message.selected_names as string[]);
-        setRange(message.time_range as TimeRange | undefined);
+        const declaration = message.tool;
+        setNames(message.selected_names);
+        setRange(message.time_range ?? undefined);
         // Re-sent when only the selection changed: keep what the analyst typed.
         setTool((previous) => {
           if (previous?.name !== declaration.name) {
-            const now = message.current_time as string | undefined;
+            const now = message.current_time ?? undefined;
             setDraft(Object.fromEntries((declaration.parameters ?? []).map((p) => [p.name, initial(p, now)])));
             setBusy(false);
             setProblem(undefined);
@@ -58,7 +58,7 @@ function Form() {
         setBusy(true);
       } else if (message.kind === "form_error") {
         setBusy(false);
-        setProblem(message.message as string);
+        setProblem(message.message);
       }
     });
     host.postMessage({ kind: "ready" });

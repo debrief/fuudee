@@ -11,7 +11,8 @@ import path from "node:path";
 const out = path.resolve(process.argv[2] ?? "dist/play");
 mkdirSync(out, { recursive: true });
 const common = { bundle: true, minify: true, sourcemap: false, logLevel: "warning", target: "es2022" };
-// The webview messages' validator, compiled now: the page checks every message as VS Code does (PAR-13).
+// The webview messages' validator, compiled now: the page checks every message as VS Code does, and
+// so do the webviews in its frames (PAR-13).
 const validator = writeMessageValidator(path.resolve("dist-gen"));
 
 await build({
@@ -31,6 +32,8 @@ await build({
   jsx: "automatic",
   loader: { ".png": "dataurl", ".svg": "dataurl" },
   define: { "process.env.NODE_ENV": '"production"' },
+  alias: { "debrief-webview-message-validator": validator.file },
+  nodePaths: validator.nodePaths,
 });
 await build({
   ...common,

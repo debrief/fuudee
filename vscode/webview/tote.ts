@@ -8,7 +8,6 @@
 import { pageReady, pageShown } from "./timing.js";
 import "./tote.css";
 import "./time.css";
-import type { ToteResult, ToteTrack, ToteView } from "@debrief/schemas";
 import { ToteControl } from "./totecontrol.js";
 import { toteEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
@@ -22,9 +21,9 @@ const control = new ToteControl(panel, toteEvents((m) => host.postMessage(m)));
 
 onMessage((message) => {
   if (message.kind !== "show_tote") return;
-  const tracks = message.tote_tracks as ToteTrack[] | undefined;
-  const view = message.tote_view as ToteView | undefined;
-  const result = message.tote as ToteResult | undefined;
+  const tracks = message.tote_tracks ?? undefined;
+  const view = message.tote_view ?? undefined;
+  const result = message.tote ?? undefined;
   const open = !!(tracks || view || result);
   empty.hidden = open;
   panel.hidden = !open;

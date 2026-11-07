@@ -45,7 +45,7 @@ function Results() {
   useEffect(() => {
     onMessage((message) => {
       if (message.kind === "show_results") {
-        setState({ tool: message.tool as ToolDeclaration, result: message.result as ToolResult });
+        setState({ tool: message.tool, result: message.result });
         setCopied(undefined);
       }
     });

@@ -58,7 +58,7 @@
 import { keptLegs, legIndices, legNear } from "./tma.js";
 import L from "leaflet";
 import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
-import type { DebriefFeatureCollection } from "@debrief/schemas";
+import type { DebriefFeatureCollection, WebviewMessage } from "@debrief/schemas";
 import { densify, type LonLat } from "./geodesic.js";
 import {
   changesNothing,
@@ -106,7 +106,7 @@ export interface TrackHost {
   map: L.Map;
   /** The map's own element, which takes keyboard focus. */
   element: HTMLElement;
-  post(message: Record<string, unknown>): void;
+  post(message: WebviewMessage): void;
   /** The track with this id, if it is drawn on the map now. */
   track(id: string): { feature: Track; times: number[]; colour: string } | undefined;
   /** Current time, and the time window shown with its ends as written. */
@@ -640,7 +640,8 @@ export class TrackEditor {
     if (s.tma) {
       // The bearing view works the solution's residuals out again as it moves (NFR-04).
       this.previewing = true;
-      this.host.post({ kind: "tma_preview", feature_id: s.id, preview: { type: "LineString", coordinates: change.positions } });
+      // A solution has two positions or more: a line.
+      this.host.post({ kind: "tma_preview", feature_id: s.id, preview: { type: "LineString", coordinates: change.positions as [LonLat, LonLat, ...LonLat[]] } });
     }
     L.polyline(densify(s.positions).map(toLatLng), { color: s.colour, weight: 1.5, opacity: 0.6, dashArray: "4 4", interactive: false, className: "track-before" }).addTo(this.preview);
     L.polyline(densify(change.positions).map(toLatLng), { color: s.colour, weight: 3, interactive: false, className: "track-moved" }).addTo(this.preview);

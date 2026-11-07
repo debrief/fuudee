@@ -8,8 +8,7 @@
 import { pageReady, pageShown } from "./timing.js";
 import "./timecontrol.css";
 import "./time.css";
-import type { TimeRange, TimeState } from "@debrief/schemas";
-import type { ContextTracks } from "./contrast.js";
+import type { TimeState, WebviewMessage } from "@debrief/schemas";
 import { TimeControl } from "./timecontrol.js";
 import { timeEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
@@ -22,10 +21,10 @@ const empty = root.querySelector<HTMLElement>(".empty")!;
 // requestAnimationFrame, so playing goes on with the view collapsed.
 let pending: TimeState | undefined;
 /** The page's transport: time_changed at most once a frame; whatever moved last reaches the host before the window is saved. */
-const send = (message: Record<string, unknown>) => {
+const send = (message: WebviewMessage) => {
   if (message.kind === "time_changed") {
     const first = !pending;
-    pending = message.time as TimeState;
+    pending = message.time;
     if (first) {
       setTimeout(() => {
         const time = pending;
@@ -54,12 +53,12 @@ const control = new TimeControl(
 
 onMessage((message) => {
   if (message.kind !== "show_time") return;
-  const time = message.time as TimeState | undefined;
+  const time = message.time ?? undefined;
   empty.hidden = !!time;
   // The plot's choice of context tracks is shown in the window's summary; it is chosen from the view's title menu.
-  control.show(time, message.time_range as TimeRange | undefined, {
-    saved: message.saved_window as TimeRange | undefined,
-    context: message.context_tracks as ContextTracks | undefined,
+  control.show(time, message.time_range ?? undefined, {
+    saved: message.saved_window ?? undefined,
+    context: message.context_tracks ?? undefined,
   });
   pageShown(!!time);
 });

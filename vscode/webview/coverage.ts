@@ -7,7 +7,6 @@
 import { pageReady, pageShown } from "./timing.js";
 import "./coverage.css";
 import "./time.css";
-import type { CoverageReport, TimeState } from "@debrief/schemas";
 import { CoverageControl } from "./coveragecontrol.js";
 import { coverageEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
@@ -17,15 +16,15 @@ const control = new CoverageControl(root, coverageEvents((m) => host.postMessage
 
 onMessage((message) => {
   if (message.kind === "show_coverage") {
-    const report = message.coverage as CoverageReport | undefined;
+    const report = message.coverage ?? undefined;
     // A message alone says why a choice was not made, and leaves what is shown.
-    if (message.message !== undefined && !report) return control.say(String(message.message));
+    if (message.message !== undefined && message.message !== null && !report) return control.say(message.message);
     control.show(report);
-    const time = message.time as TimeState | undefined;
+    const time = message.time;
     control.setTime(time ? Date.parse(time.current) : undefined);
     pageShown(!!report);
   } else if (message.kind === "set_time") {
-    control.setTime(Date.parse((message.time as TimeState).current));
+    control.setTime(Date.parse(message.time.current));
   }
 });
 pageReady();

@@ -455,6 +455,7 @@ function timelineMessage(plot) {
 export async function vscodeTimelineView(browser, files, errors, shot, plot) {
   const view = await browser.newPage({ viewport: { width: 280, height: 420 }, colorScheme: "dark" });
   view.on("pageerror", (e) => errors.push(String(e)));
+  view.on("console", (m) => m.text().startsWith("webview_message_refused") && errors.push(m.text())); // a message the page refused (CON-08)
   const posted = [];
   await view.exposeFunction("tellTest", (message) => posted.push(message));
   await view.route("**/timeline-view.html", (route) =>

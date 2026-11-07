@@ -59,7 +59,7 @@ import "leaflet/dist/leaflet.css";
 import "./map.css";
 import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatPosition, formatQuantity, UNIT_LABELS } from "@debrief/kernel";
-import type { DebriefFeatureCollection, TimelineEntry, TimeState, ToteView } from "@debrief/schemas";
+import type { DebriefFeatureCollection, MessageOf, TimelineEntry, TimeState, ToteView } from "@debrief/schemas";
 import type { AnnotationProperties } from "@debrief/schemas";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
 import { circleRing, densify, ellipseRing, pointAt, positionAt as trackPositionAt, type LonLat } from "./geodesic.js";
@@ -76,8 +76,8 @@ import { toteOf, toteMapLines } from "./totelogic.js";
 import { composeSvg, rasterise, type PaintedMark } from "./exportimage.js";
 import { SensorLayer } from "./sensormap.js";
 import { cutChoices, cutClick, describeCut } from "./sensors.js";
-import { clipIdFor, footerFontSize, layoutFor, pixelsOf, type ImageFormat, type ImagePreset, type ImageTheme } from "./exportlogic.js";
-import type { RenderedImage, RevisionShown } from "@debrief/schemas";
+import { clipIdFor, footerFontSize, layoutFor, pixelsOf } from "./exportlogic.js";
+import type { ImageRequest, RenderedImage, RevisionShown, WebviewMessage } from "@debrief/schemas";
 
 type Feature = DebriefFeatureCollection["features"][number];
 type Track = Extract<Feature, { properties: { kind: "track" } }>;
@@ -779,7 +779,7 @@ const checks = L.layerGroup().addTo(map);
 let checkNote = "";
 /** Where the fixes ringed for the analyst to check are, so none is ever off the map unseen. */
 let checkBounds: L.LatLngBounds | undefined;
-function showFixes(message: { feature_id?: string; fix_times?: string[]; preview?: { coordinates: number[][] }; message?: string }): void {
+function showFixes(message: MessageOf<"show_fixes">): void {
   checks.clearLayers();
   checkBounds = undefined;
   const entry = tracks.find((t) => t.track.id === message.feature_id);
@@ -792,8 +792,7 @@ function showFixes(message: { feature_id?: string; fix_times?: string[]; preview
   const ring = css("--vscode-editorWarning-foreground") || css("--vscode-focusBorder");
   if (message.preview) {
     // The track as the change would leave it, over the track as it is.
-    const coordinates = message.preview.coordinates as LonLat[];
-    L.polyline(densify(coordinates).map(toLatLng), { color: css("--vscode-focusBorder"), weight: 2.5, dashArray: "6 4", interactive: false, className: "fix-preview" }).addTo(checks);
+    L.polyline(densify(message.preview.coordinates).map(toLatLng), { color: css("--vscode-focusBorder"), weight: 2.5, dashArray: "6 4", interactive: false, className: "fix-preview" }).addTo(checks);
   }
   const wanted = new Set(message.fix_times ?? []);
   const ringed: L.LatLng[] = [];
@@ -1663,12 +1662,12 @@ map.on("moveend", () => {
     const wrap = (lon: number) => L.Util.wrapNum(lon, [-180, 180], true);
     const clamp = (lat: number) => Math.max(-90, Math.min(90, lat));
     const round = (x: number) => Math.round(x * 1e6) / 1e6;
-    const bbox = [
-      whole ? -180 : wrap(bounds.getWest()),
-      clamp(bounds.getSouth()),
-      whole ? 180 : wrap(bounds.getEast()),
-      clamp(bounds.getNorth()),
-    ].map(round);
+    const bbox: [number, number, number, number] = [
+      round(whole ? -180 : wrap(bounds.getWest())),
+      round(clamp(bounds.getSouth())),
+      round(whole ? 180 : wrap(bounds.getEast())),
+      round(clamp(bounds.getNorth())),
+    ];
     host.postMessage({ kind: "viewport_changed", viewport: { bbox } });
   }, 150);
 });
@@ -1850,7 +1849,7 @@ async function coverMap(): Promise<() => void> {
   return () => cover.remove();
 }
 /** Messages that came while an image was being drawn: shown once the map is put back, so none is undone by it (a selection set meanwhile, say). */
-const whileExporting: Record<string, unknown>[] = [];
+const whileExporting: WebviewMessage[] = [];
 /** The map's own colours swapped for light ones (LIGHT_EXPORT_THEME); returns how to put them back. */
 function lightTheme(): () => void {
   const style = document.documentElement.style;
@@ -1882,7 +1881,7 @@ function paintedMarks(): PaintedMark[] {
  * exactly as it was. What is drawn is what the map draws at that size: its labels kept
  * clear of one another as on screen.
  */
-async function exportImage(request: { format: ImageFormat; preset: ImagePreset; theme: ImageTheme; footer_text?: string }): Promise<RenderedImage> {
+async function exportImage(request: ImageRequest): Promise<RenderedImage> {
   if (!shownPlot) throw new Error("The map has no plot to draw.");
   if (exporting) throw new Error("The map is preparing another image. Try again when it has finished.");
   const restore: (() => void)[] = [];
@@ -1984,52 +1983,51 @@ onMessage((message) => {
   if (exporting && message.kind !== "export_image") whileExporting.push(message);
   else handle(message);
 });
-function handle(message: Record<string, unknown>): void {
+function handle(message: WebviewMessage): void {
   if (message.kind === "show_plot") {
-    const sel = message.selection as { plot: string; feature_ids: string[] };
+    const sel = message.selection;
     const firstShow = sel.plot !== shownPlot;
     shownPlot = plotId = sel.plot;
     selection = new Set(sel.feature_ids);
-    showTime(message.time as TimeState | undefined);
-    contextMode = (message.context_tracks as ContextTracks | undefined) ?? "visible";
-    toteView = toteOf(message.plot as DebriefFeatureCollection);
-    draw(message.plot as DebriefFeatureCollection);
+    showTime(message.time ?? undefined);
+    contextMode = message.context_tracks ?? "visible";
+    toteView = toteOf(message.plot);
+    draw(message.plot);
     if (!tmaGuess.active) tmaGuess.stop(); // the solution two clicks made is drawn now
     editing.clear();
     editor.plotDrawn();
     trackEditor.plotDrawn([...selection]);
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
-    showRevision(message.revision_shown as RevisionShown | undefined);
+    showRevision(message.revision_shown ?? undefined);
     if (firstShow) fit(plotBounds);
     pageShown(true);
   } else if (message.kind === "export_image") {
-    const request = message.image_request as Parameters<typeof exportImage>[0];
-    exportImage(request).then(
+    exportImage(message.image_request).then(
       (image) => host.postMessage({ kind: "image_rendered", image }),
       (error: Error) => host.postMessage({ kind: "image_rendered", message: `The image could not be drawn: ${error.message}` }),
     );
   } else if (message.kind === "set_selection") {
-    selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);
+    selection = new Set(message.selection.feature_ids);
     restyle();
     editor.setSelection([...selection]);
     trackEditor.setSelection([...selection]);
   } else if (message.kind === "set_time") {
-    showTime(message.time as TimeState);
+    showTime(message.time);
   } else if (message.kind === "set_viewport") {
-    showViewport((message.viewport as { bbox: number[] }).bbox);
+    showViewport(message.viewport.bbox);
   } else if (message.kind === "set_context") {
-    contextMode = message.context_tracks as ContextTracks;
+    contextMode = message.context_tracks;
     applyContext();
   } else if (message.kind === "set_tote") {
-    toteView = (message.tote_view as ToteView | undefined) ?? {};
+    toteView = message.tote_view ?? {};
     drawToteLines(time ? Date.parse(time.current) : NaN);
   } else if (message.kind === "set_narrative") {
-    narrativeShown = message.timeline_entry as TimelineEntry | undefined;
+    narrativeShown = message.timeline_entry ?? undefined;
     drawNarrative(time ? Date.parse(time.current) : NaN);
   } else if (message.kind === "show_fixes") {
-    showFixes(message as Parameters<typeof showFixes>[0]);
+    showFixes(message);
   } else if (message.kind === "tma_guess") {
-    tmaGuess.start(message.tma_request as Parameters<TmaGuess["start"]>[0]);
+    tmaGuess.start(message.tma_request ?? undefined);
   }
 }
 pageReady();
