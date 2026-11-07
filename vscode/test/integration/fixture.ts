@@ -5,7 +5,7 @@
  * the waiting. Each feature is a Mocha suite of its own; DEBRIEF_IT_ONLY chooses some of them.
  */
 import { execFileSync } from "node:child_process";
-import { cpSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import * as vscode from "vscode";
 import type { OpenedPlot } from "../../src/catalogue.js";
@@ -97,18 +97,18 @@ export type Row = { kind: string; current: boolean; nextToUndo: boolean; step: {
 export const rows = () => vscode.commands.executeCommand<Row[]>("debrief.historyRows");
 
 /** Every file under a folder, by its path under it. */
-function files(folder: string): string[] {
-  return readdirSync(folder, { recursive: true }).map(String).filter((name) => statSync(path.join(folder, name)).isFile());
-}
-
-/** Serial 1's files put back as the sample builder made them (run.ts kept a copy), and anything added since removed. */
+/**
+ * Serial 1's files put back as the sample builder made them (run.ts kept a copy), and anything
+ * added since removed. Everything in the folder goes first: the builder writes sources and media
+ * read-only (SUB-10), and a copy cannot overwrite a read-only file except as root, whereas
+ * removing one needs only its folder to be writable.
+ */
 function restoreSerial1(): void {
   const pristine = process.env.DEBRIEF_PRISTINE;
   if (!pristine) throw new Error("DEBRIEF_PRISTINE is not set: run the tracer through dist-test/run.js");
   const folder = serial1Folder();
-  const keep = new Set(files(pristine));
-  for (const name of files(folder)) if (!keep.has(name)) rmSync(path.join(folder, name), { force: true });
-  cpSync(pristine, folder, { recursive: true, force: true });
+  for (const entry of readdirSync(folder)) rmSync(path.join(folder, entry), { recursive: true, force: true });
+  cpSync(pristine, folder, { recursive: true });
 }
 
 /**
