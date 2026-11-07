@@ -22,7 +22,7 @@
  * what that surface's page says is acted on, so the popped-out view is linked exactly as the
  * panel's is. It needs nothing of VS Code's at run time, so the unit tests drive it with stand-ins.
  */
-import type { AmbiguityResolution, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
+import type { AmbiguityResolution, LineStringGeometry, TimeState, WebviewMessage, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { receiveBearings } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
@@ -65,7 +65,7 @@ export type BearingsWhere = "panel" | "window";
 export interface BearingsSurface {
   readonly where: BearingsWhere;
   /** Post a message to its page; whether the page was there to take it. */
-  post(message: unknown): PromiseLike<boolean>;
+  post(message: WebviewMessage): PromiseLike<boolean>;
   /** Whether it is in sight now. */
   readonly visible: boolean;
   /** Bring it into sight; with preserveFocus, the keyboard left where it was. */
@@ -297,7 +297,7 @@ export class BearingsView {
   }
 
   /** A drag on the map moved a solution (or ended): passed on, for the view to work its residuals out again. */
-  preview(featureId: string, preview?: { type: "LineString"; coordinates: number[][] }): void {
+  preview(featureId: string, preview?: LineStringGeometry): void {
     this.post(preview ? { kind: "tma_preview", feature_id: featureId, preview } : { kind: "tma_preview", feature_id: featureId });
   }
 
@@ -360,16 +360,16 @@ export class BearingsView {
     return { coverage, ownship: ownshipOf(plot, solutionId, period) };
   }
 
-  private post(message: Record<string, unknown>): void {
+  private post(message: WebviewMessage): void {
     const live = this.live;
     if (!live || !this.ready) return;
     const checked = checkMessage(message);
-    const kind = message.kind as string;
+    const kind = message.kind;
     void Promise.resolve(live.post(checked)).then(
-      (delivered) => this.posted.set(kind, { where: live.where, delivered, message }),
-      () => this.posted.set(kind, { where: live.where, delivered: false, message }),
+      (delivered) => this.posted.set(kind, { where: live.where, delivered, message: { ...message } }),
+      () => this.posted.set(kind, { where: live.where, delivered: false, message: { ...message } }),
     );
-    if (kind === "show_tma") startup.shown(BEARINGS_VIEW, !!message.tma);
+    if (checked.kind === "show_tma") startup.shown(BEARINGS_VIEW, !!checked.tma);
   }
 }
 

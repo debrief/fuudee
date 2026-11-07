@@ -21,18 +21,17 @@ import { checkMessage } from "../messages.js";
 import { receiveTime } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
-import { webviewHtml } from "./html.js";
+import { WebviewHost } from "./webviewhost.js";
 
 export const TIME_VIEW = "debrief.time";
 /** The context key holding the open plot's choice of context tracks; empty with no plot open. */
 export const CONTEXT_TRACKS_KEY = "debrief.contextTracks";
 
 export class TimeView implements vscode.WebviewViewProvider {
-  private view?: vscode.WebviewView;
-  private ready = false;
+  private readonly host: WebviewHost<vscode.WebviewView>;
 
   constructor(
-    private readonly extension: vscode.Uri,
+    extension: vscode.Uri,
     private readonly session: Session,
     private readonly windowSaved: (window: TimeRange) => void,
     private readonly log: (line: string) => void,
@@ -44,33 +43,11 @@ export class TimeView implements vscode.WebviewViewProvider {
     session.onState((change, origin) => {
       if (change.time && origin !== TIME_VIEW) this.showTime();
     });
-    this.showContext();
-  }
-
-  /** Whether the controller has loaded and shown the current plot's time, for tests and agents. */
-  get showing(): boolean {
-    return this.ready && !!this.view;
-  }
-
-  resolveWebviewView(view: vscode.WebviewView): void {
-    startup.mark(TIME_VIEW, "resolve");
-    this.view = view;
-    this.ready = false;
-    view.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
-    };
-    view.webview.html = webviewHtml(view.webview, this.extension, "time", "Time");
-    startup.mark(TIME_VIEW, "html");
-    view.onDidDispose(() => {
-      if (this.view === view) this.view = undefined;
-    });
     // The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here.
     const receive = receiveTime(
       {
         ready: () => {
-          startup.mark(TIME_VIEW, "ready");
-          this.ready = true;
+          this.host.readied();
           this.showTime();
         },
         timeChanged: (time) => this.session.setTime(time, TIME_VIEW),
@@ -80,29 +57,34 @@ export class TimeView implements vscode.WebviewViewProvider {
       checkMessage,
       (panel) => this.log(`webview_message_refused panel=${panel}`),
     );
-    view.webview.onDidReceiveMessage((raw) => {
-      if (startup.fromPage(TIME_VIEW, raw)) return;
-      void receive(raw);
-    });
+    this.host = new WebviewHost(extension, { bundle: "time", marks: TIME_VIEW, receive: (raw) => void receive(raw) });
+    this.showContext();
+  }
+
+  /** Whether the controller has loaded and shown the current plot's time, for tests and agents. */
+  get showing(): boolean {
+    return this.host.ready;
+  }
+
+  resolveWebviewView(view: vscode.WebviewView): void {
+    this.host.resolve(view, "Time");
     this.showContext();
   }
 
   /** Current time, the window shown and as saved, and how context tracks are drawn. */
   private showTime(): void {
     this.showContext();
-    if (!this.view || !this.ready) return;
+    if (!this.host.ready) return;
     const time = this.session.current ? this.session.time : undefined;
     const period = this.session.period();
     const saved = this.session.savedWindow;
-    void this.view.webview.postMessage(
-      checkMessage({
-        kind: "show_time",
-        ...(time && { time }),
-        ...(time && period && { time_range: period }),
-        ...(time && saved && { saved_window: saved }),
-        ...(time && { context_tracks: this.session.contextTracks(), minimum_context_contrast: this.session.minimumContextContrast }),
-      }),
-    );
+    this.host.post({
+      kind: "show_time",
+      ...(time && { time }),
+      ...(time && period && { time_range: period }),
+      ...(time && saved && { saved_window: saved }),
+      ...(time && { context_tracks: this.session.contextTracks(), minimum_context_contrast: this.session.minimumContextContrast }),
+    });
     startup.shown(TIME_VIEW, !!time);
   }
 
@@ -110,8 +92,9 @@ export class TimeView implements vscode.WebviewViewProvider {
   private showContext(): void {
     const context = this.session.current ? this.session.contextTracks() : "";
     void vscode.commands.executeCommand("setContext", CONTEXT_TRACKS_KEY, context);
-    if (!this.view) return;
+    const view = this.host.target;
+    if (!view) return;
     const floor = context === "faint" && this.session.minimumContextContrast;
-    this.view.description = floor ? "context tracks: faint shown as visible by your setting" : undefined;
+    view.description = floor ? "context tracks: faint shown as visible by your setting" : undefined;
   }
 }
