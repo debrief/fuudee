@@ -1,0 +1,7 @@
+{
+ "number": "102",
+ "title": "Fix: the map's Make ambiguous again does nothing (resolve_asked keep ambiguous refused)",
+ "url": "https://github.com/debrief/fuudee/pull/102",
+ "sha": "6c6d251",
+ "built": "2026-11-07 12:29 UTC"
+}
