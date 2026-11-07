@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, LineStringGeometry, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, LineStringGeometry, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, formatTime, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { legExtent } from "../webview/tma.js";
@@ -58,6 +58,8 @@ import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as
 import { importNarrative as importNarrativeFlow } from "../webview/panels/flows/narrative.js";
 import { importSensor as importSensorFlow } from "../webview/panels/flows/sensor.js";
 import { exportImage as exportFlow, findImageSource as findSourceFlow, type ExportHost } from "../webview/panels/flows/exportimage.js";
+import { registerBearings } from "../webview/panels/flows/bearings.js";
+import type { Host } from "../webview/panels/flows/register.js";
 import { operationContext as contextOf, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import { AFTER_OPEN, BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 import { doneLabel, nextLabel, NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
@@ -1450,6 +1452,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // --- Commands ---------------------------------------------------------------------
   const command = (name: string, handler: (...args: never[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(name, handler));
+  /** What the shared features register their commands with (webview/panels/flows/register.ts): VS Code's commands. */
+  const host: Host = { command };
 
   command("debrief.openPlot", async (storeId: string, itemId: string) => {
     const store = storeById(storeId);
@@ -2632,50 +2636,39 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (notes.length) void vscode.window.showInformationMessage(notes.join(" "));
     return done;
   });
-  // --- TMA solutions (CAP-21; product owner, 24 Oct 2026) ---------------------------------
-  // Made from a period of a sensor's cuts in the Bearings view, with a first guess by form or
-  // by two clicks on the map: one step. Given a request (agents, tests, the view), it asks
-  // nothing; without one, the Bearings view, where the period is chosen.
-  command("debrief.tmaCreate", async (request?: TmaRequest) => {
-    // Without a request: TMA solution from cuts…, on what the Outline has selected (product owner, 27 Oct 2026).
-    if (!request) return runOperation("tma-from-cuts");
-    const asked = request;
-    const done = await sense((o, allow) => service!.tmaCreate(o.store.id, o.item.id, o.base!, agent, asked, allow));
-    if (done.problem) return (report(done.problem), { problem: done.problem });
-    const feature = done.answer?.feature;
-    if (feature) session.select([feature], "command");
-    return { feature, notes: done.answer?.notes, residuals: done.answer?.residuals };
-  });
-  // A solution split into legs at a time (current time unless given), or with join the leg
-  // starting then joined to the one before: one step. It stays one track.
-  command("debrief.tmaSplitLeg", async (target?: string | Target, options?: { at?: string; join?: boolean }) => {
-    const track = trackTarget(target);
-    if (!track?.properties.tma) return { problem: report("Select one TMA solution to split into legs.") };
-    const at = options?.at ?? session.time?.current;
-    if (!at) return { problem: report("Set current time first: the solution is split into legs there.") };
-    const done = await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, track.id, at, !!options?.join, allow));
-    if (done.problem) return (report(done.problem), { problem: done.problem });
-    return { notes: done.answer?.notes };
-  });
-  // Rooted cuts left out of a solution's RMS error, such as wild bearings, or counted again: one step.
-  command("debrief.tmaExclude", async (solutionId: string, cutIds: string[], excluded = true) => {
-    if (!solutionId || !cutIds?.length) return { problem: report("Choose the cuts to leave out in Bearings.") };
-    const done = await sense((o, allow) => service!.tmaExclude(o.store.id, o.item.id, o.base!, agent, solutionId, cutIds, excluded, allow));
-    if (done.problem) return (report(done.problem), { problem: done.problem });
-    return { changed: done.answer?.changed, notes: done.answer?.notes };
-  });
-  // Bearings popped out into a window of its own, for a second monitor, as legacy's Stacked Dots
-  // could be; brought back to the panel; its window brought to the front (product owner, 28 Oct 2026).
-  command("debrief.popOutBearings", () => bearingsHost.popOut());
-  command("debrief.bringBackBearings", () => bearingsHost.bringBack());
-  command("debrief.focusBearingsWindow", () => bearingsHost.focusWindow());
-  // Bearings, showing a sensor's cuts or a solution; with focus (a walkthrough's step, an agent),
-  // something chosen there once: a cut, a period and its first guess, or the largest residual.
-  // Wherever it is live: popped out, its tab or window; else the panel.
-  command("debrief.showBearings", async (target?: string | Target, focus?: TmaFocus) => {
-    await bearingsView.reveal(false);
-    const id = typeof target === "string" ? target : targets(target)[0];
-    if (id) await bearingsView.choose(id, focus);
+  // --- Bearings and TMA solutions (CAP-21): the shared registration (webview/panels/flows/bearings.ts) ---
+  // This says how VS Code shows Bearings and how the service makes each change.
+  registerBearings(host, {
+    message: flowHost.message,
+    show: async (id, focus) => {
+      await bearingsView.reveal(false);
+      if (id) await bearingsView.choose(id, focus);
+    },
+    popOut: () => bearingsHost.popOut(),
+    bringBack: () => bearingsHost.bringBack(),
+    focusWindow: () => bearingsHost.focusWindow(),
+    idOf: (target) => (typeof target === "string" ? target : targets(target)[0]),
+    solutionOf: (target) => {
+      const track = trackTarget(target);
+      return track?.properties.tma ? track.id : undefined;
+    },
+    currentTime: () => session.time?.current,
+    runOperation: (id) => runOperation(id),
+    create: async (request) => {
+      const done = await sense((o, allow) => service!.tmaCreate(o.store.id, o.item.id, o.base!, agent, request, allow));
+      if (done.problem) return { problem: done.problem };
+      const feature = done.answer?.feature;
+      if (feature) session.select([feature], "command");
+      return { feature, notes: done.answer?.notes, residuals: done.answer?.residuals };
+    },
+    splitLeg: async (solution, at, join) => {
+      const done = await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, solution, at, join, allow));
+      return { problem: done.problem, notes: done.answer?.notes };
+    },
+    exclude: async (solution, cutIds, excluded) => {
+      const done = await sense((o, allow) => service!.tmaExclude(o.store.id, o.item.id, o.base!, agent, solution, cutIds, excluded, allow));
+      return { problem: done.problem, changed: done.answer?.changed, notes: done.answer?.notes };
+    },
   });
   // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ------------
   // Split before and after a position of a TMA solution's leg; hide, show and delete cuts; leave
