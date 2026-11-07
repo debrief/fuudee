@@ -80,6 +80,7 @@ import { fillHistory } from "./historylist.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choices, type FlowHost, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
 import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
+import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -2518,21 +2519,8 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   "debrief.setColour": () => outlineBar?.openColour(),
   "debrief.hide": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: true }),
   "debrief.show": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: false }),
-  "debrief.setTrackFrequencies": () => setTrackFrequencies(),
   "debrief.editAnnotation": (keys) => editAnnotation(keys[0]),
   "debrief.deleteAnnotation": () => deleteAnnotations(),
-  "debrief.moveTrack": () => moveTrack(),
-  "debrief.rotateTrack": () => rotateTrack(),
-  "debrief.shearTrack": () => shearTrack(),
-  "debrief.stretchTrack": () => stretchTrack(),
-  "debrief.splitTrack": () => splitTrack(),
-  "debrief.mergeTracks": () => mergeTracks(),
-  "debrief.removeJumps": () => findJumps(),
-  "debrief.smoothTrack": () => smoothTrack(),
-  // The fixes listed, to colour, label, comment on or move one.
-  "debrief.markFix": () => listFixes(),
-  "debrief.moveFix": () => listFixes(),
-  "debrief.plottingMode": () => plottingMode(),
   "debrief.tote.setPrimary": (keys) => changeTote(keys, (tote, tracks) => withPrimary(tote, tracks[0])),
   "debrief.tote.add": (keys) => changeTote(keys, (tote, tracks) => withSecondaries(tote, tracks)),
   "debrief.tote.remove": (keys) => changeTote(keys, (tote, tracks) => tracks.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote)),
@@ -2586,6 +2574,22 @@ registerBearings(playHost, {
 // The Tools' entries' commands (webview/panels/flows/operation.ts), on the rows they were run on.
 registerOperations(playHost, { ...operationHost, rowsOf: (target) => (target as Target | undefined)?.ids });
 
+// Track edits (webview/panels/flows/tracks.ts): run from a row's menu, its rows are selected first, and each asks with its own form.
+registerTrackEdits(playHost, {
+  frequencies: () => setTrackFrequencies(),
+  move: () => moveTrack(),
+  rotate: () => rotateTrack(),
+  shear: () => shearTrack(),
+  stretch: () => stretchTrack(),
+  split: () => splitTrack(),
+  merge: () => mergeTracks(),
+  removeJumps: () => findJumps(),
+  smooth: () => smoothTrack(),
+  // The fixes listed, to colour, label, comment on or move one.
+  markFix: () => listFixes(),
+  moveFix: () => listFixes(),
+  plottingMode: () => plottingMode(),
+});
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
 

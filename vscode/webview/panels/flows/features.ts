@@ -9,6 +9,7 @@ import { COLLATION_COMMANDS, registerCollation } from "./collation.js";
 import { EXPORT_COMMANDS, registerExport } from "./exportimage.js";
 import { NARRATIVE_COMMANDS, registerNarrativeImport } from "./narrative.js";
 import { HISTORY_COMMANDS, registerHistory } from "./move.js";
+import { registerTrackEdits, TRACK_EDIT_COMMANDS } from "./tracks.js";
 import { OPERATION_FEATURE_COMMANDS, registerOperations } from "./operation.js";
 import { registerSensorImport, SENSOR_COMMANDS } from "./sensor.js";
 import { commandsOf, type CommandIds, type Host } from "./register.js";
@@ -28,6 +29,7 @@ export const FEATURES: readonly Feature[] = [
   { name: "Reading narrative", commands: NARRATIVE_COMMANDS, register: registerNarrativeImport },
   { name: "Exported images", commands: EXPORT_COMMANDS, register: registerExport },
   { name: "History", commands: HISTORY_COMMANDS, register: registerHistory },
+  { name: "Track edits", commands: TRACK_EDIT_COMMANDS, register: registerTrackEdits },
 ];
 
 /** Every command the shared features register, in each host. */
