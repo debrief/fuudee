@@ -8,7 +8,8 @@ import { describePeriod } from "../../../src/format.js";
 import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../../../src/sensorimport.js";
 import { REASONS } from "../actions.js";
 import { changeStep } from "./step.js";
-import type { FlowHost, OpenSpec, PickedFile, PlotRef } from "./host.js";
+import type { FileAt, FlowHost, OpenSpec, PickedFile, PlotRef } from "./host.js";
+import { registerCommands, type Host } from "./register.js";
 
 /** What reading the file did. */
 export interface SensorRead {
@@ -82,4 +83,17 @@ export async function importSensor(host: SensorHost, given: { file?: PickedFile;
   const answer = done.answer!;
   void host.message("info", [sensorReadSummary(answer, file.name.split(/[\\/]/).pop()!), ...(answer.notes ?? []), ...answer.omitted].join(" "));
   return { answer };
+}
+
+export const SENSOR_COMMANDS = { importSensor: "debrief.importSensor" } as const;
+
+/**
+ * Reading sensor data, registered once for both hosts (PAR-09). Given a path (agents and tests), it
+ * asks nothing: hosts and again, if given, say; else the file is chosen and the questions asked.
+ */
+export function registerSensorImport(host: Host, sensor: SensorHost & { fileAt: FileAt }): void {
+  registerCommands(host, SENSOR_COMMANDS, {
+    importSensor: (given?: unknown, hosts?: Record<string, string | null>, again?: boolean) =>
+      importSensor(sensor, { ...(typeof given === "string" && given && { file: sensor.fileAt(given), quiet: true }), ...(hosts && { hosts }), ...(again !== undefined && { again }) }),
+  });
 }

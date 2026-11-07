@@ -27,7 +27,7 @@ export const STARTING = "Starting tools…";
 export const NO_PLOT = "Open a plot to use tools.";
 
 /** The action each of the Outline's entries runs (the action catalogue's, PAR-05). */
-export const OPERATION_COMMANDS: Record<OperationId, string> = {
+export const OPERATION_COMMANDS: Record<OperationId, `debrief.${string}`> = {
   "split-before": "debrief.splitBeforeFix",
   "split-after": "debrief.splitAfterFix",
   "hide-cuts": "debrief.hideCuts",

@@ -10,8 +10,10 @@
 import type { CoverageReport, ItemRevision, ReviewFlag, SourceTrackRef, TimeRange } from "@debrief/schemas";
 import { count } from "../../../src/format.js";
 import { REASONS } from "../actions.js";
+import { plotTargetOf, trackTargetOf, type CataloguesNode } from "../catalogues.js";
 import { changeStep } from "./step.js";
 import type { FlowHost, PlotRef } from "./host.js";
+import { registerCommands, type Host } from "./register.js";
 
 /** What Coverage, the Catalogues tree or an agent asks of collation. */
 export type CoverageAsk =
@@ -189,4 +191,29 @@ export function sayReviewFlags(host: FlowHost, flags: readonly ReviewFlag[], sai
   const text = fresh.length === 1 ? `${fresh[0].note}.` : `${count(fresh.length, "plot")} may need review: items they took data from were revised (${fresh.map((f) => f.title).join(", ")}).`;
   void host.message("info", text, [SHOW_IN_CATALOGUES]).then((choice) => choice === SHOW_IN_CATALOGUES && host.openPanel("catalogues"));
   return text;
+}
+
+/** Collation's commands on Catalogues' rows (CAP-08 to CAP-12). */
+export const COLLATION_COMMANDS = {
+  takeNewData: "debrief.takeNewData",
+  dismissNewData: "debrief.dismissNewData",
+  clearReviewFlag: "debrief.clearReviewFlag",
+  linkTrack: "debrief.linkTrack",
+  unlinkTrack: "debrief.unlinkTrack",
+} as const;
+
+/**
+ * Collation's commands, registered once for both hosts (PAR-09): each on the Catalogues row it was run
+ * on (a plot, or a track in it), else the open plot. Take new data may be given the item instead
+ * (agents, tests); a track linked, the open plot's feature it is the same platform as.
+ */
+export function registerCollation(host: Host, collation: CollationHost): void {
+  registerCommands(host, COLLATION_COMMANDS, {
+    takeNewData: (node?: CataloguesNode, given?: { catalogue: string; item: string; revision?: string }) => takeNewData(collation, given ?? plotTargetOf(node)),
+    dismissNewData: (node?: CataloguesNode) => dismissNewData(collation, plotTargetOf(node)),
+    // Clear a review flag (CAP-12): on the open plot, or the product the tree names.
+    clearReviewFlag: (node?: CataloguesNode) => clearReviewFlag(collation, plotTargetOf(node)),
+    linkTrack: (node?: CataloguesNode, feature?: string) => linkTrack(collation, trackTargetOf(node), feature),
+    unlinkTrack: (node?: CataloguesNode) => unlinkTrack(collation, trackTargetOf(node)),
+  });
 }

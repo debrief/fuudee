@@ -27,7 +27,8 @@ import {
 } from "../../../src/narrativeimport.js";
 import { REASONS } from "../actions.js";
 import { changeStep } from "./step.js";
-import type { FlowHost, OpenSpec, PickedFile, PlotRef } from "./host.js";
+import type { FileAt, FlowHost, OpenSpec, PickedFile, PlotRef } from "./host.js";
+import { registerCommands, type Host } from "./register.js";
 
 /** Answers remembered for a dialect (debrief-config's; the playground's settings file). */
 export type RememberedAnswers = { skipTypes: string[]; withinPeriod: boolean; tracks: Record<string, string | null> };
@@ -167,4 +168,16 @@ async function askDocument(host: NarrativeHost, preview: NarrativePreview): Prom
   // Not remembered if it cannot be: these answers still apply to this file.
   await host.rememberNarrativeAnswers(dialect, answersToRemember(preview, tracks, answers, before)).catch(() => undefined);
   return choicesOf(preview, answers);
+}
+
+export const NARRATIVE_COMMANDS = { importNarrative: "debrief.importNarrative" } as const;
+
+/**
+ * Reading a platform's log into the open plot, registered once for both hosts (PAR-09). Given a path
+ * (agents and tests), it asks nothing: choices, if given, say; else the file is chosen and asked about.
+ */
+export function registerNarrativeImport(host: Host, narrative: NarrativeHost & { fileAt: FileAt }): void {
+  registerCommands(host, NARRATIVE_COMMANDS, {
+    importNarrative: (given?: unknown, choices?: NarrativeChoices) => importNarrative(narrative, { ...(typeof given === "string" && given && { file: narrative.fileAt(given), quiet: true }), ...(choices && { choices }) }),
+  });
 }

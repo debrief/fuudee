@@ -67,7 +67,7 @@ import { OutlineTree } from "./outline.js";
 import { fillOutlineRow } from "./outlinerow.js";
 import { filesOf, isBranch, OutlineModel, selectable, type OutlineNode, type OutlineRow } from "../webview/panels/outline.js";
 import { actionOf, editorMenu, entryOf, inPlayground, rowMenu, titleMenu, type Context } from "../webview/panels/actions.js";
-import { CataloguesModel, plotTargetOf, trackTargetOf, type PlotSummary } from "../webview/panels/catalogues.js";
+import { CataloguesModel, type PlotSummary } from "../webview/panels/catalogues.js";
 import { fillCatalogues } from "./cataloguelist.js";
 import { bearingsEvents, coverageEvents, receiveAnnotation, receiveBearings, receiveCoverage, receiveForm, receiveMap, receiveResults, receiveTime, receiveTimeline, receiveTote, timeEvents, timelineEvents, toteEvents } from "../webview/dispatch.js";
 import { checkMessage } from "./messagecheck.js";
@@ -80,14 +80,14 @@ import { fillHistory } from "./historylist.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choices, type FlowHost, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
 import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
-import { clearReviewFlag, collate as collateFlow, dismissNewData, linkTrack, sayReviewFlags, takeNewData, unlinkTrack, type CollationHost } from "../webview/panels/flows/collation.js";
+import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
-import { importNarrative, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
-import { importSensor, type SensorHost, type SensorRead } from "../webview/panels/flows/sensor.js";
-import { exportImage, type ExportHost, type FindHost, findImageSource, type Traced } from "../webview/panels/flows/exportimage.js";
+import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
+import { importSensor, registerSensorImport, type SensorHost, type SensorRead } from "../webview/panels/flows/sensor.js";
+import { exportImage, registerExport, type ExportHost, type FindHost, type Traced } from "../webview/panels/flows/exportimage.js";
 import { registerBearings, type Made } from "../webview/panels/flows/bearings.js";
-import type { Host, Target } from "../webview/panels/flows/register.js";
-import { operationContext as sharedOperationContext, operationsFor, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
+import type { Host, Run, Target } from "../webview/panels/flows/register.js";
+import { operationContext as sharedOperationContext, operationsFor, registerOperations, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import type { TreeNode } from "../webview/outlinetree.js";
 import {
   bearingsFor,
@@ -2539,19 +2539,24 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   "debrief.clearSelection": () => chooseInOutline([]),
   "debrief.addAnnotation": () => addAnnotation(),
   "debrief.toggleNorthArrow": () => toggleNorthArrow(),
-  "debrief.importSensor": () => importSensor(sensorHost),
-  "debrief.exportImage": () => exportImage(exportHost),
-  // A walkthrough's step runs these, as VS Code's step runs the command (PAR-14): their places are Catalogues'.
-  "debrief.findImageSource": () => findImageSource(findHost),
-  "debrief.takeNewData": () => takeNewData(collationHost),
+  // Reading sensor data, exporting an image, finding an image's source and taking new data are the
+  // shared features' (registered below, by playHost): a walkthrough's step runs them as VS Code's step
+  // runs the command (PAR-14).
 };
 /**
  * What the shared features register their commands with (webview/panels/flows/register.ts): this
  * action table. Run from a menu or a toolbar, a command is given its rows as its Target.
  */
 const playHost: Host = {
-  command: (id, run) => void (PLAY_ACTIONS[id] = (keys) => (run as (target: Target) => unknown)({ ids: keys })),
+  command: (id, run) => {
+    PLAY_COMMANDS.set(id, run);
+    PLAY_ACTIONS[id] = (keys) => runCommand(id, { ids: keys });
+  },
 };
+/** The commands the shared features registered (webview/panels/flows/features.ts), by id. */
+const PLAY_COMMANDS = new Map<string, Run>();
+/** A registered command run with its own arguments, as VS Code's executeCommand runs one. */
+const runCommand = (id: string, ...args: unknown[]): unknown => (PLAY_COMMANDS.get(id) as ((...a: unknown[]) => unknown) | undefined)?.(...args);
 /** The first of a command's rows. */
 const firstOf = (target?: string | Target) => (typeof target === "string" ? target : (target?.ids?.[0] ?? target?.feature?.id));
 // Bearings and TMA solutions (webview/panels/flows/bearings.ts): this says how the playground shows
@@ -2577,6 +2582,8 @@ registerBearings(playHost, {
     return { problem: outcome.error, notes: outcome.notes };
   },
 });
+// The Tools' entries' commands (webview/panels/flows/operation.ts), on the rows they were run on.
+registerOperations(playHost, { ...operationHost, rowsOf: (target) => (target as Target | undefined)?.ids });
 
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
@@ -2591,11 +2598,11 @@ async function runAction(id: string, keys: string[] = outlinePicks, at: Where = 
   const { context, reasons } = playContext(keys);
   const entry = entryOf(action, undefined, context, reasons);
   if (!entry.enabled) return toast(entry.reason!, "warning");
-  if (action.operation) return runOperation(action.operation as OperationId, keys);
   const run = PLAY_ACTIONS[id];
   if (!run) return toast(`${action.title.replace(/…$/, "")}: not in the playground yet.`, "warning");
   // Those that work on the selection (the track edits, the fix list) act on these rows selected first.
-  if (!ON_ROWS.has(id) && keys.join() !== outlinePicks.join()) await chooseInOutline(keys);
+  // The Outline's entries (an action with an operation) act on the rows given too.
+  if (!ON_ROWS.has(id) && !action.operation && keys.join() !== outlinePicks.join()) await chooseInOutline(keys);
   await run(keys, at);
 }
 
@@ -2760,6 +2767,9 @@ const sensorHost: SensorHost = {
     return outcome;
   },
 };
+// Reading sensor data (webview/panels/flows/sensor.ts): a file chosen, then asked about. A path
+// is never given here: files are uploaded.
+registerSensorImport(playHost, { ...sensorHost, fileAt: (name) => ({ name }) });
 $<HTMLInputElement>("sensor-file").onchange = async (e) => {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -3044,6 +3054,8 @@ const collationHost: CollationHost = {
   refreshCollation,
   refreshHistory: async () => renderHistory(),
 };
+// Collation's commands (webview/panels/flows/collation.ts), on Catalogues' rows.
+registerCollation(playHost, collationHost);
 const sayCollated = (problem: string | undefined) => void (problem && coverageControl.say(problem));
 // Coverage's messages, checked and handled by the shared receiver (webview/dispatch.ts, PAR-13): each ask the shared collation flow.
 const fromCoverage = receiveCoverage({ ready: () => undefined, asked: (ask) => void collateFlow(collationHost, ask).then(sayCollated) }, checkMessage, refused);
@@ -3134,19 +3146,15 @@ async function runCatalogueAction(id: string, key?: string): Promise<void> {
       if (node?.kind === "plot") await openPlot(node.plot.id);
       return;
     case "debrief.takeNewData":
-      return void (await takeNewData(collationHost, plotTargetOf(node)));
     case "debrief.dismissNewData":
-      return void (await dismissNewData(collationHost, plotTargetOf(node)));
     case "debrief.clearReviewFlag":
-      return void (await clearReviewFlag(collationHost, plotTargetOf(node)));
     case "debrief.linkTrack":
-      return void (await linkTrack(collationHost, trackTargetOf(node)));
     case "debrief.unlinkTrack":
-      return void (await unlinkTrack(collationHost, trackTargetOf(node)));
+      return void (await runCommand(id, node));
     case "debrief.importRep":
       return void (await importPlot(importHost));
     case "debrief.findImageSource":
-      return void (await findImageSource(findHost));
+      return void (await runCommand(id));
     case "debrief.showCoverage":
       return showPanel("panel-coverage");
     case "debrief.walkthroughs":
@@ -3284,6 +3292,8 @@ const findHost: FindHost = {
     if (opened?.revision) await openPlot(opened.item.id);
   },
 };
+// Exporting an image and finding an image's source (webview/panels/flows/exportimage.ts): files are uploaded, never named.
+registerExport(playHost, { exportImage: () => exportImage(exportHost), find: findHost, fileAt: (name) => ({ name }) });
 /** Show a plot as it was at an image's revision, read-only, with the view and time it was exported at. */
 async function openRevision(source: FigureSource, id: string, short: string): Promise<{ title: string } | { problem: string }> {
   const shown = await pythonJson<Opened & { error?: string }>("open_revision", source.item, source.revision, id.startsWith("DBF1") ? id : source.export?.id ?? null);
@@ -3774,6 +3784,8 @@ const narrativeHost: NarrativeHost = {
     return outcome;
   },
 };
+// Reading a platform's log (webview/panels/flows/narrative.ts): a file chosen, then asked about.
+registerNarrativeImport(playHost, { ...narrativeHost, fileAt: (name) => ({ name }) });
 $<HTMLInputElement>("narrative-file").onchange = async (e) => {
   const file = await uploaded(e.target as HTMLInputElement);
   if (file) await importNarrative(narrativeHost, { file });

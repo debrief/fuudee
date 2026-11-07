@@ -11,7 +11,9 @@
 import type { TmaRequest } from "@debrief/schemas";
 import type { FormatSettings } from "@debrief/kernel";
 import { exclusionTarget, outlineOperations, pickedCuts, pickOf, splitPlace, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineIndex, type OutlinePick } from "../../outlinemodel.js";
+import { OPERATION_COMMANDS } from "../tools.js";
 import type { Done, FlowHost } from "./host.js";
+import { registerCommands, type CommandIds, type Host, type Run } from "./register.js";
 
 /** What the entries act on, as a host has it now. */
 export interface OperationState {
@@ -118,4 +120,25 @@ export async function runOperation(host: OperationHost, id: OperationId, keys?: 
   if (typeof made === "string") return refuse(made);
   await host.makeSolution(made.cuts[0].properties.sensor_id, made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
   return {};
+}
+
+/** The Tools' entries' commands (webview/panels/tools.ts's OPERATION_COMMANDS), with split before and after a cut. */
+export const OPERATION_FEATURE_COMMANDS = {
+  ...OPERATION_COMMANDS,
+  // Split before and after a cut, on the Outline's cut menu: the solution Bearings shows (else the
+  // one the cut is rooted in) split at the cut's time, as at its position then (product owner, 29 Oct 2026).
+  "split-before-cut": "debrief.splitBeforeCut",
+  "split-after-cut": "debrief.splitAfterCut",
+} as const satisfies CommandIds;
+
+export interface OperationsHost extends OperationHost {
+  /** The rows a command acts on: the keys given (agents, tests), or those it was run on from a menu (its Target, with the rest chosen with it); undefined for the Outline's rows chosen. */
+  rowsOf(target?: unknown, nodes?: unknown): string[] | undefined;
+}
+
+/** The Tools' entries' commands, each run on the rows it was given, else the Outline's rows chosen (PAR-09). */
+export function registerOperations(host: Host, ops: OperationsHost): void {
+  const run = (id: OperationId) => (target?: unknown, nodes?: unknown) => runOperation(ops, id, ops.rowsOf(target, nodes));
+  const runs = Object.fromEntries((Object.keys(OPERATION_COMMANDS) as OperationId[]).map((id) => [id, run(id)])) as Record<string, Run> as Record<OperationId, Run>;
+  registerCommands(host, OPERATION_FEATURE_COMMANDS, { ...runs, "split-before-cut": run("split-before"), "split-after-cut": run("split-after") });
 }

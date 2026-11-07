@@ -27,6 +27,7 @@ import { checkMessage } from "../messages.js";
 import { receiveBearings } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
+import type { PoppableSurface, PoppableWhere } from "./poppableview.js";
 import { coverageOf, cutColours, cutRowsOf, FocusOnce, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
 import { bearingsFor, bearingsTitle, outlineIndex, type BearingsShown, type OutlinePick } from "../../webview/outlinemodel.js";
 import { PANES, type PanesShown } from "../../webview/stackeddots.js";
@@ -59,18 +60,10 @@ export interface BearingsAct {
 }
 
 /** Where Bearings shows: the panel below the editor, or popped out into an editor tab or window of its own. */
-export type BearingsWhere = "panel" | "window";
+export type BearingsWhere = PoppableWhere;
 
-/** A surface Bearings' page shows in: the panel's WebviewView, or the popped-out WebviewPanel. */
-export interface BearingsSurface {
-  readonly where: BearingsWhere;
-  /** Post a message to its page; whether the page was there to take it. */
-  post(message: WebviewMessage): PromiseLike<boolean>;
-  /** Whether it is in sight now. */
-  readonly visible: boolean;
-  /** Bring it into sight; with preserveFocus, the keyboard left where it was. */
-  show(preserveFocus: boolean): void;
-}
+/** A surface Bearings' page shows in: the panel's WebviewView, or the popped-out WebviewPanel (poppableview.ts). */
+export type BearingsSurface = PoppableSurface;
 
 /** What a message last posted to the page was, and where it went: for tests and agents. */
 export interface BearingsPosted {

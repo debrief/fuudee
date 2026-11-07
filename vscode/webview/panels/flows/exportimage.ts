@@ -20,7 +20,8 @@ import { describeExported, describeSource, NOT_FOUND, rememberedOf, startingChoi
 import type { ExportedImage, TracedImage } from "../../../src/service.js";
 import { fileNameFor, PRESETS, type ImageFormat } from "../../exportlogic.js";
 import { REASONS } from "../actions.js";
-import type { FlowHost, OpenSpec, PickedFile, PlotRef, SaveTarget } from "./host.js";
+import type { FileAt, FlowHost, OpenSpec, PickedFile, PlotRef, SaveTarget } from "./host.js";
+import { registerCommands, type Host } from "./register.js";
 
 export interface ExportHost extends FlowHost {
   /** The size and colours chosen last time, as kept (VS Code's global state; the playground's localStorage). */
@@ -204,4 +205,25 @@ export async function findImageSource(host: FindHost, given: { file?: PickedFile
     .message("info", `${shown.title} at step ${chosen.source.step}, as when image ${chosen.image.short} was exported. It is shown read-only.`, [GO_TO_LATEST])
     .then((go) => (go === GO_TO_LATEST ? host.openLatestRevision() : undefined));
   return undefined;
+}
+
+export const EXPORT_COMMANDS = { exportImage: "debrief.exportImage", findImageSource: "debrief.findImageSource" } as const;
+
+/** What a host does to export the map (VS Code: also for an agent, given the choices and the file), and to find an image's source. */
+export interface ExportFeatureHost {
+  exportImage(given?: unknown): unknown;
+  find: FindHost;
+  fileAt: FileAt;
+}
+
+/**
+ * Exporting an image and finding an image's source, registered once for both hosts (PAR-09). Agents and
+ * tests pass the file or the ID, and, having seen the list, which to choose.
+ */
+export function registerExport(host: Host, exporting: ExportFeatureHost): void {
+  registerCommands(host, EXPORT_COMMANDS, {
+    exportImage: (given?: unknown) => exporting.exportImage(given),
+    findImageSource: (given?: { file?: string; id?: string; choose?: number }) =>
+      findImageSource(exporting.find, { ...(given?.file && { file: exporting.fileAt(given.file) }), ...(given?.id && { id: given.id }), ...(given?.choose !== undefined && { choose: given.choose }) }),
+  });
 }
