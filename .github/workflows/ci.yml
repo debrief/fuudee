@@ -128,13 +128,14 @@ jobs:
     # The blog's playable demos: Debrief's webviews and Python, in the browser
     # (CON-09). Builds the playground and the site, then plays every demo in
     # Chromium as a reader would, including one started from a blog post. The
-    # demos play in five parts side by side, each from a fresh page.
+    # demos play in six parts side by side, each from a fresh page (sensor bearings
+    # and TMA are part 6, out of part 3: review of 7 Nov 2026, finding 5).
     name: playground (part ${{ matrix.part }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        part: [1, 2, 3, 4, 5]
+        part: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -178,7 +179,8 @@ jobs:
           if-no-files-found: ignore
 
   playground:
-    # The check pull requests wait on: every part of the playground played.
+    # The check pull requests wait on: every part of the playground played (all six
+    # matrix entries of playground-part; any one failed, cancelled or skipped fails it).
     needs: playground-part
     if: always()
     runs-on: ubuntu-latest

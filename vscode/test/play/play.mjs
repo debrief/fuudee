@@ -55,10 +55,13 @@ const browser = await chromium.launch({
   args: proxy ? [`--proxy-server=https=${new URL(proxy).host}`, "--proxy-bypass-list=<-loopback>"] : [],
 });
 const errors = [];
-// The suite plays in five parts, each on a fresh page with Python started anew, so CI can play
-// them side by side; DEBRIEF_PLAY_PART picks one (1 to 5), and without it all five play in turn.
+// The suite plays in six parts, each on a fresh page with Python started anew, so CI can play
+// them side by side; DEBRIEF_PLAY_PART picks one (1 to 6), and without it all six play in turn.
+// Sensor bearings and TMA are part six of their own, out of part three, the longest and flakiest
+// (review of 7 Nov 2026, finding 5).
+const PARTS = 6;
 const part = process.env.DEBRIEF_PLAY_PART ? Number(process.env.DEBRIEF_PLAY_PART) : undefined;
-assert.ok(part === undefined || [1, 2, 3, 4, 5].includes(part), `DEBRIEF_PLAY_PART is 1 to 5, not ${process.env.DEBRIEF_PLAY_PART}`);
+assert.ok(part === undefined || (Number.isInteger(part) && part >= 1 && part <= PARTS), `DEBRIEF_PLAY_PART is 1 to ${PARTS}, not ${process.env.DEBRIEF_PLAY_PART}`);
 const plays = (n) => part === undefined || part === n;
 let page;
 async function freshPage() {
@@ -84,15 +87,17 @@ try {
   if (plays(3)) await playPartThree();
   if (plays(4)) await playPartFour();
   if (plays(5)) await playPartFive();
+  if (plays(6)) await playPartSix();
   assert.deepEqual(errors, []);
   const played = [
     "map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing",
     "tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline, narrative from Word and the Timeline's extras, labels, symbols and arrows, the Outline's toolbar",
-    "sensor bearings, TMA solutions, collation, export, import, narrow, the geodesic demo",
+    "collation, export, import, narrow, the geodesic demo",
     `the VS Code views, CDN blocked, the docked layout${site ? ", from a blog post" : ""}, the Timeline at 60,000 entries`,
     `the walkthroughs and the onboarding speed run${site ? ", and the web demo" : ""}`,
+    "sensor bearings, TMA solutions, Select bearings, Bearings popped out",
   ];
-  console.log(`Playground played${part ? ` (part ${part} of 5)` : ""}: ${played.filter((_, i) => plays(i + 1)).join("; ")}.`);
+  console.log(`Playground played${part ? ` (part ${part} of ${PARTS})` : ""}: ${played.filter((_, i) => plays(i + 1)).join("; ")}.`);
 
   /** A fresh page, Python ready, and the panels arranged as part one leaves them. */
   async function freshStart() {
@@ -411,9 +416,9 @@ try {
   }
 
   /** Sensors, TMA, collation, export, import, narrow, the geodesic demo. */
-  async function playPartThree() {
+  /** Sensor bearings and TMA, a part of their own (review of 7 Nov 2026, finding 5). */
+  async function playPartSix() {
     await freshStart();
-    const mapFrame = page.frameLocator(".frame-map");
     // Sensor bearings: cuts in the window from their track, the current one emphasised; an ambiguous
     // cut's line clicked keeps it, a sensor's menu keeps port for the window from the keyboard, each
     // one step; coloured, hidden; a .dsf read in, its track asked for; narrow and in a wide font (CAP-22).
@@ -426,6 +431,11 @@ try {
     await playSelectBearings(page, shot);
     // Bearings popped out into a window of its own and brought back, linked as the panel's is (product owner, 28 Oct 2026).
     await playBearingsPopOut(page, shot);
+  }
+
+  async function playPartThree() {
+    await freshStart();
+    const mapFrame = page.frameLocator(".frame-map");
     // Collation: new data marked and taken, a period's source chosen, a proposal refused, an item
     // revised and the plot flagged for review until reviewed; narrow and in a wide font (CAP-08 to CAP-12).
     await playCollation(page, shot);
