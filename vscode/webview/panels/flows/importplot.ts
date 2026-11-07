@@ -14,7 +14,9 @@ import { count } from "../../../src/format.js";
 import { chooseModes, modeChoices, modeQuestion, REMEMBER_LABEL, type ModeChoice, type PlottingMode } from "../../../src/importmode.js";
 import type { NarrativePreview } from "../../../src/narrativeimport.js";
 import { confirmNewerSchema } from "./runtool.js";
-import { isRefusal, type FlowHost, type OpenSpec, type PickedFile } from "./host.js";
+import { isRefusal, type FileAt, type FlowHost, type OpenSpec, type PickedFile } from "./host.js";
+import type { CataloguesNode } from "../catalogues.js";
+import { registerCommands, type Host } from "./register.js";
 
 /** What an import brought in (debrief/import_file). */
 export interface ImportReport {
@@ -216,4 +218,35 @@ async function addPlot(host: ImportHost, store: string, file: PickedFile, quiet?
 export async function askAgain(host: ImportHost): Promise<void> {
   await host.setImportMode("ask");
   void host.message("info", ASK_AGAIN_SAID);
+}
+
+export const IMPORT_COMMANDS = { importRep: "debrief.importRep", askTrackImportMode: "debrief.askTrackImportMode" } as const;
+
+/** What an agent or a test gives Import: the catalogue, the file by its path, and answers. */
+export interface ImportAsk {
+  store?: string;
+  path?: string;
+  modes?: string | Record<string, PlottingMode>;
+  track_name?: string;
+}
+
+/**
+ * Importing a plot, registered once for both hosts (review of 7 Nov 2026, finding 2): a REP, .dpf,
+ * Word or PDF file, or a Debrief plot file, into the catalogue of the row it was run on (or the one
+ * given); given a path (agents and tests), only what must be is asked. Ask again: imported tracks'
+ * plotting asked again from the next import.
+ */
+export function registerImportPlot(host: Host, imports: ImportHost & { fileAt: FileAt }): void {
+  registerCommands(host, IMPORT_COMMANDS, {
+    importRep: (node?: CataloguesNode, given?: ImportAsk) => {
+      const store = given?.store ?? (node?.kind === "catalogue" ? node.catalogue.store : undefined);
+      return importPlot(imports, {
+        ...(store && { store }),
+        ...(given?.path && { file: imports.fileAt(given.path), quiet: true }),
+        ...(given?.modes && { modes: given.modes }),
+        ...(given?.track_name && { trackName: given.track_name }),
+      });
+    },
+    askTrackImportMode: () => askAgain(imports),
+  });
 }

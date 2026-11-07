@@ -60,7 +60,7 @@ import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { registerArrayOffset } from "../webview/panels/flows/arrayoffset.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
-import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
+import { addPlotFile as addPlotFileFlow, registerImportPlot, type ImportHost } from "../webview/panels/flows/importplot.js";
 import { registerNarrativeImport } from "../webview/panels/flows/narrative.js";
 import { registerSensorImport } from "../webview/panels/flows/sensor.js";
 import { exportImage as exportFlow, registerExport, type ExportHost } from "../webview/panels/flows/exportimage.js";
@@ -3073,16 +3073,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     },
     openPlotIn: async (store, item) => void (await vscode.commands.executeCommand("debrief.openPlot", store, item)),
   };
-  command("debrief.askTrackImportMode", () => askAgainFlow(importHost));
-  // Import a REP, .dpf, Word or PDF file, or a Debrief plot file: the shared flow. Given { store, path, modes, track_name } (agents and tests), it asks only what it must.
-  command("debrief.importRep", (node?: CataloguesNode, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode>; track_name?: string }) =>
-    importPlotFlow(importHost, {
-      ...((given?.store ?? (node?.kind === "catalogue" ? node.catalogue.store : undefined)) && { store: given?.store ?? (node as { catalogue: { store: string } }).catalogue.store }),
-      ...(given?.path && { file: fileAt(given.path), quiet: true }),
-      ...(given?.modes && { modes: given.modes }),
-      ...(given?.track_name && { trackName: given.track_name }),
-    }),
-  );
+  // Import a REP, .dpf, Word or PDF file, or a Debrief plot file, and ask again how imported tracks
+  // are plotted: the shared registration (webview/panels/flows/importplot.ts). Given { store, path,
+  // modes, track_name } (agents and tests), it asks only what it must.
+  registerImportPlot(host, { ...importHost, fileAt });
 
   /**
    * Add a plot file received from a colleague (VS Code only, §5: the playground adds one through
