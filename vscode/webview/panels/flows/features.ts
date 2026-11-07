@@ -13,6 +13,7 @@ import { registerTrackEdits, TRACK_EDIT_COMMANDS } from "./tracks.js";
 import { PRESENTATION_COMMANDS, registerPresentation } from "./presentation.js";
 import { ANNOTATION_COMMANDS, registerAnnotations } from "./annotations.js";
 import { registerTote, TOTE_COMMANDS } from "./tote.js";
+import { CUT_COMMANDS, registerCuts } from "./cuts.js";
 import { OPERATION_FEATURE_COMMANDS, registerOperations } from "./operation.js";
 import { registerSensorImport, SENSOR_COMMANDS } from "./sensor.js";
 import { commandsOf, type CommandIds, type Host } from "./register.js";
@@ -36,6 +37,7 @@ export const FEATURES: readonly Feature[] = [
   { name: "Colour, hiding and the Outline toolbar", commands: PRESENTATION_COMMANDS, register: registerPresentation },
   { name: "Annotations", commands: ANNOTATION_COMMANDS, register: registerAnnotations },
   { name: "The Tote's entries", commands: TOTE_COMMANDS, register: registerTote },
+  { name: "Ambiguous cuts and the cut at current time", commands: CUT_COMMANDS, register: registerCuts },
 ];
 
 /** Every command the shared features register, in each host. */

@@ -56,6 +56,7 @@ import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
 import { registerPresentation } from "../webview/panels/flows/presentation.js";
 import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { registerTote } from "../webview/panels/flows/tote.js";
+import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
 import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
@@ -2598,7 +2599,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Outline's sensor menu, the Command Palette, or the map (Alt-click on one of a cut's two
   // lines keeps it; a plain click selects the cut and shows its choices). Given a
   // resolution (agents, the map and tests), it asks nothing.
-  command("debrief.resolveAmbiguity", async (target?: Target | AmbiguityResolution, keepGiven?: Keep, scopeGiven?: CutScope) => {
+  const resolveAmbiguityCommand = async (target?: Target | AmbiguityResolution, keepGiven?: Keep, scopeGiven?: CutScope) => {
     const opened = session.current;
     if (!opened) return report("Open a plot first.");
     let resolution: AmbiguityResolution | string;
@@ -2637,7 +2638,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const notes = done.answer?.notes ?? [];
     if (notes.length) void vscode.window.showInformationMessage(notes.join(" "));
     return done;
-  });
+  };
   // --- Bearings and TMA solutions (CAP-21): the shared registration (webview/panels/flows/bearings.ts) ---
   // This says how VS Code shows Bearings and how the service makes each change.
   registerBearings(host, {
@@ -2822,7 +2823,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   });
   // A cut's menu (right-click, or press and hold, on one of its lines on the map): keep
   // either of its bearings, make it ambiguous again, select it, or keep a side for more.
-  command("debrief.cutMenu", async (cutId?: string) => {
+  const cutMenuCommand = async (cutId?: string) => {
     const opened = session.current;
     const entry = opened ? sensorsOf(opened.plot).find((e) => e.cuts.some((c) => c.id === cutId)) : undefined;
     const cut = entry?.cuts.find((c) => c.id === cutId);
@@ -2847,11 +2848,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const picked = await vscode.window.showQuickPick(picks, { title: cutTitle(cut, entry.sensor.properties.name), placeHolder: said });
     if (picked) await picked.run();
     return undefined;
-  });
+  };
   // The cut current time is at, for a sensor (the Outline's sensor menu, the Command
   // Palette): its bearings and sides said, and its menu, so a keyboard reaches every cut
   // the map shows emphasised.
-  command("debrief.currentCut", async (target?: Target | string) => {
+  const currentCutCommand = async (target?: Target | string) => {
     const opened = session.current;
     if (!opened) return report("Open a plot first.");
     const entries = sensorsOf(opened.plot);
@@ -2866,7 +2867,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const now = session.time ? cutNow(entry, Date.parse(session.time.current), range && { start: Date.parse(range.start), end: Date.parse(range.end) }) : undefined;
     if (!now) return report(`${entry.sensor.properties.name} has no cut at or before current time in the time window.`);
     return vscode.commands.executeCommand("debrief.cutMenu", now.id);
-  });
+  };
+  // Ambiguous cuts, a cut's menu and the cut at current time: the shared registration (webview/panels/flows/cuts.ts).
+  registerCuts(host, { resolveAmbiguity: resolveAmbiguityCommand, cutMenu: cutMenuCommand, currentCut: currentCutCommand });
   /** A file named by an agent or a test, as the flows take a file chosen. */
   const fileAt = (file: string): PickedFile => ({ name: path.basename(file), path: file });
   // A .dsf or REP file's sensor lines read into the open plot (CAP-22): the shared flow

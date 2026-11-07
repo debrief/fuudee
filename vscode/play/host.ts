@@ -84,6 +84,7 @@ import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
 import { registerPresentation } from "../webview/panels/flows/presentation.js";
 import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { registerTote } from "../webview/panels/flows/tote.js";
+import { registerCuts } from "../webview/panels/flows/cuts.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -582,7 +583,7 @@ const fromMap = receiveMap(
     fixChosen: (id, at) => void openFixes(id, at),
     // One of an ambiguous cut's two lines clicked: that bearing kept, as one step; right-click or press and hold: its menu (CAP-22).
     resolve: (cut, keep) => void resolveSensor({ keep, cut_ids: [cut] }),
-    cutChosen: (cut) => void cutMenu(cut),
+    cutChosen: (cut) => void runCommand("debrief.cutMenu", cut),
     // A TMA solution dragged: the bearing view works its residuals out again as it moves (CAP-21, NFR-04).
     tmaPreview: (id, preview) => bearingsView.preview(id, preview),
     // Two clicks for a first guess made, or cancelled.
@@ -2509,19 +2510,14 @@ function playContext(keys: readonly string[] = outlinePicks): { context: Context
 }
 
 type Where = { x: number; y: number; from?: HTMLElement };
+/** A command's rows, run from a menu or a toolbar, and where that menu was: a menu it opens opens there. */
+type RowsTarget = Target & { where?: Where };
 /**
  * What each catalogued action does in the playground, on the rows it was chosen on: those rows are
  * the selection by then. An action that runs an Outline operation (a cut's or a position's) needs no
  * entry here: it runs that operation on its rows.
  */
 const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
-  // Which side to keep, then which cuts (the cut at current time, the window, those selected, or all).
-  "debrief.resolveAmbiguity": (keys, at) =>
-    openMenu(
-      KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, at.from ?? $("outline"), at.x, at.y, keys) })),
-      { label: "Ambiguous bearings: keep", x: at.x, y: at.y, from: at.from },
-    ),
-  "debrief.currentCut": (keys) => currentCutMenu(keys[0]),
   "debrief.setArrayOffset": (keys) => arrayOffsetForm(keys[0]),
   // Reading sensor data, exporting an image, finding an image's source and taking new data are the
   // shared features' (registered below, by playHost): a walkthrough's step runs them as VS Code's step
@@ -2601,6 +2597,20 @@ registerTote(playHost, {
     void chooseTote(change(toteChoice()));
   },
 });
+// Ambiguous cuts, a cut's menu and the cut at current time (webview/panels/flows/cuts.ts): the playground's menus ask.
+registerCuts(playHost, {
+  // Which side to keep, then which cuts (the cut at current time, the window, those selected, or all).
+  resolveAmbiguity: (target?: RowsTarget) => {
+    const keys = target?.ids ?? [];
+    const at = target?.where ?? { x: 0, y: 0 };
+    openMenu(
+      KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, at.from ?? $("outline"), at.x, at.y, keys) })),
+      { label: "Ambiguous bearings: keep", x: at.x, y: at.y, from: at.from },
+    );
+  },
+  cutMenu: (cutId?: unknown) => (typeof cutId === "string" ? cutMenu(cutId) : undefined),
+  currentCut: onRows((keys) => currentCutMenu(keys[0])),
+});
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
 
@@ -2614,7 +2624,7 @@ async function runAction(id: string, keys: string[] = outlinePicks, at: Where = 
   const { context, reasons } = playContext(keys);
   const entry = entryOf(action, undefined, context, reasons);
   if (!entry.enabled) return toast(entry.reason!, "warning");
-  const run = PLAY_ACTIONS[id] ?? (PLAY_COMMANDS.has(id) ? (rows: string[]) => runCommand(id, { ids: rows }) : undefined);
+  const run = PLAY_ACTIONS[id] ?? (PLAY_COMMANDS.has(id) ? (rows: string[], where: Where) => runCommand(id, { ids: rows, where } satisfies RowsTarget) : undefined);
   if (!run) return toast(`${action.title.replace(/…$/, "")}: not in the playground yet.`, "warning");
   // Those that work on the selection (the track edits, the fix list) act on these rows selected first.
   // The Outline's entries (an action with an operation) act on the rows given too.
