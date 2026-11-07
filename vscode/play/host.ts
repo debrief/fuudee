@@ -806,6 +806,48 @@ const flowHost: FlowHost = {
     return undefined;
   },
 };
+// --- Bearings popped out: made before anything renders, since the panels' title bars and the
+// context keys ask whether it is popped out from the first render on (see bearingsWindow, below).
+/** A browser window Bearings is popped out into. */
+interface BrowserWindow extends PoppedWindow {
+  win: Window;
+}
+/**
+ * Popped out and brought back: the lifecycle VS Code's PoppableView runs too (webview/panels/popout.ts).
+ * Brought back, Bearings is made afresh in the panel, as VS Code's page loads afresh.
+ */
+const bearingsPopOut = new PopOut<BrowserWindow>({
+  open: () => {
+    const opened = window.open(`frame-bearings.html?frame=bearings&theme=${theme}`, "debrief-bearings", "popup,width=960,height=640");
+    if (!opened) return void toast("The browser blocked the new window. Allow pop-ups for this page, then try again.", "warning");
+    const popped: BrowserWindow = { win: opened, focus: () => opened.focus(), close: () => void (opened.closed || opened.close()) };
+    // Closed by the reader (its close box): Bearings back in the panel, as closing VS Code's tab brings it back.
+    const watch = setInterval(() => {
+      if (!opened.closed) return;
+      clearInterval(watch);
+      bearingsPopOut.closed(popped);
+    }, 400);
+    return popped;
+  },
+  poppedOut: () => {
+    bearingsWindowReady = false;
+    bearingsWindowShown = undefined;
+    showPanel("panel-bearings");
+    renderBearingsPlace();
+    bearingsWidth();
+  },
+  placed: () => ({ where: "window" }),
+  cameBack: () => {
+    bearingsWindowReady = false;
+    bearingsWindowShown = undefined;
+    $("bearings").replaceChildren();
+    tmaControl = makeTmaControl();
+    (window as unknown as { debriefTma: TmaControl }).debriefTma = tmaControl;
+    renderBearingsPlace();
+    showPanel("panel-bearings");
+    void refreshBearings();
+  },
+});
 // --- The shared features' commands (webview/panels/flows/features.ts) -----------------------------
 /** The commands the shared features registered, by id: run from a menu or a toolbar (runAction), given their rows as their Target. */
 const PLAY_COMMANDS = new Map<string, Run>();
@@ -2200,46 +2242,6 @@ const bearingsView = {
 };
 FRAMES.bearings = (raw) => (bearingsWindow() ? fromBearings(raw) : Promise.resolve());
 
-/** A browser window Bearings is popped out into. */
-interface BrowserWindow extends PoppedWindow {
-  win: Window;
-}
-/**
- * Popped out and brought back: the lifecycle VS Code's PoppableView runs too (webview/panels/popout.ts).
- * Brought back, Bearings is made afresh in the panel, as VS Code's page loads afresh.
- */
-const bearingsPopOut = new PopOut<BrowserWindow>({
-  open: () => {
-    const opened = window.open(`frame-bearings.html?frame=bearings&theme=${theme}`, "debrief-bearings", "popup,width=960,height=640");
-    if (!opened) return void toast("The browser blocked the new window. Allow pop-ups for this page, then try again.", "warning");
-    const popped: BrowserWindow = { win: opened, focus: () => opened.focus(), close: () => void (opened.closed || opened.close()) };
-    // Closed by the reader (its close box): Bearings back in the panel, as closing VS Code's tab brings it back.
-    const watch = setInterval(() => {
-      if (!opened.closed) return;
-      clearInterval(watch);
-      bearingsPopOut.closed(popped);
-    }, 400);
-    return popped;
-  },
-  poppedOut: () => {
-    bearingsWindowReady = false;
-    bearingsWindowShown = undefined;
-    showPanel("panel-bearings");
-    renderBearingsPlace();
-    bearingsWidth();
-  },
-  placed: () => ({ where: "window" }),
-  cameBack: () => {
-    bearingsWindowReady = false;
-    bearingsWindowShown = undefined;
-    $("bearings").replaceChildren();
-    tmaControl = makeTmaControl();
-    (window as unknown as { debriefTma: TmaControl }).debriefTma = tmaControl;
-    renderBearingsPlace();
-    showPanel("panel-bearings");
-    void refreshBearings();
-  },
-});
 /** The window Bearings is popped out into, while it is. */
 function bearingsWindow(): Window | undefined {
   return bearingsPopOut.window?.win;
