@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from debrief_schemas import models
-from debrief_stac import CatalogueError, Conflict, HistoryError, NewerSchemaError, StoreBusy
+from debrief_stac import Base, CatalogueError, Conflict, HistoryError, NewerSchemaError, StoreBusy
 
 
 class RpcError(Exception):
@@ -82,3 +82,21 @@ AGENT_NEEDED = (
     "needs agent: say who is making the change, with kind (person or software_agent) "
     "and a name, which provenance records (SUB-24)."
 )
+
+
+BASE_SHAPE = "base must be {current, plot_hash}"
+
+
+def base_of(value: Any) -> Base | None:
+    """The base a request names, as debrief/open returns it (SUB-28): {current, plot_hash},
+    or None when it names none. Raises ValueError (BASE_SHAPE) for anything else. The one
+    check of a request's base, for the service's methods and for tools/call in the worker."""
+    if value is None:
+        return None
+    if not (
+        isinstance(value, dict)
+        and type(value.get("current")) is int
+        and isinstance(value.get("plot_hash"), str)
+    ):
+        raise ValueError(BASE_SHAPE)
+    return Base(value["current"], value["plot_hash"])

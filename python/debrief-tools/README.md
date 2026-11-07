@@ -11,7 +11,8 @@ Debrief's tool framework and service (section 6 of the SRD), and the core tools.
 | `parameters` | Checks form values against the declaration, fills defaults, and converts quantities and times (TL-07) |
 | `run` | Reads the plot and runs the tool on a copy. It validates the result and refuses any output the tool didn't declare. It applies the result, records provenance and saves atomically, refusing to overwrite a change saved while the tool ran (SUB-18, SUB-19, NFR-11). |
 | `worker` | Runs tool code in a separate process. A hung tool is stopped (after 120 s by default), and one that exits or crashes takes only the worker with it (TL-02, TL-03). |
-| `service` | MCP over HTTP: per user, loopback only, with a per-session token (TL-01, SEC-06 to SEC-08) |
+| `service` | MCP over HTTP: per user, loopback only, with a per-session token (TL-01, SEC-06 to SEC-08). Its JSON-RPC methods are registered once, in `METHODS`. |
+| `methods`, `method_params` | A method's declaration (`Method`: its parameters, whether it changes the plot, needs `agent` or runs on one plot, and its handler) and the registry; the parameters of each `debrief/` method, as Pydantic models whose refusals keep the service's words |
 | `testing` | `sample_plot()` and `try_tool()`, so a tool's tests see exactly what Debrief would |
 | `core` | Track summary, closest approach, range rings, add note |
 
@@ -27,7 +28,77 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
 2. starts the service with the token in its environment;
 3. reads the port from the service's first line of output.
 
-**Protocol.** MCP's Streamable HTTP transport: JSON-RPC 2.0 over `POST /mcp`, with JSON responses. It supports `initialize`, `ping`, `tools/list` and `tools/call`, plus Debrief methods:
+**Protocol.** MCP's Streamable HTTP transport: JSON-RPC 2.0 over `POST /mcp`, with JSON responses. It supports `initialize`, `ping`, `tools/list` and `tools/call`, plus Debrief methods. Every method it answers is in this table, which `python -m debrief_tools methods` prints from the service's registry (`service.METHODS`); a test fails if the two differ. Every method marked "A tool" is also offered in `tools/list` and runs through `tools/call` (below), read from the same registry. The others are the protocol's: MCP's own, and `debrief/host_poll` and `debrief/host_answer`, the bridge between the service and VS Code's open map. "Changes the plot" means VS Code refuses the method on a revision shown read-only (`schemas/vectors/service-methods.json`), and a read-only store refuses it too.
+
+<!-- methods: printed by python -m debrief_tools methods -->
+| Method | Changes the plot | Needs `agent` | A tool | Does |
+| --- | --- | --- | --- | --- |
+| `initialize` |  |  |  | Negotiates the protocol version. |
+| `ping` |  |  |  | Answers `{}`. |
+| `tools/list` |  |  |  | The tools the libraries declare and every method not the protocol's, each with its input schema, and the tools unavailable. |
+| `tools/call` |  |  |  | Runs a tool on a plot, in the worker, or a method tools/list offers; it may change the plot. |
+| `debrief/tools_for_selection` |  |  | yes | The tools on offer for a selection, by its feature kinds (TL-08). |
+| `debrief/stores` |  |  | yes | The stores in the analyst's configuration. |
+| `debrief/create_catalogue` |  |  | yes | Creates an empty catalogue in a folder and adds it to the configuration. |
+| `debrief/import` |  | yes | yes | Imports a REP file, a legacy plot or a Word or PDF document as a new plot. |
+| `debrief/import_rep` |  | yes | yes | `debrief/import` under its old name. |
+| `debrief/add_plot_file` |  | yes | yes | Adds a plot file from a colleague, with its whole history. |
+| `debrief/rep_tracks` |  |  | yes | The tracks a REP file would import, to ask how each is plotted. |
+| `debrief/preview_narrative` |  |  | yes | What a narrative file holds, before it is read. |
+| `debrief/preview_sensor` |  |  | yes | What a file's sensor lines hold, before they are read. |
+| `debrief/tote` |  |  | yes | Measures between a primary track and its secondaries at one time. |
+| `debrief/measure_groups` |  |  | yes | The measure groups the Tote can show. |
+| `debrief/review_flags` |  |  | yes | Every plot that may need review. |
+| `debrief/open` |  |  | yes | Makes the plot whole and returns its base and view. |
+| `debrief/history` |  |  | yes | The plot's steps. |
+| `debrief/undo` | yes |  | yes | Undoes the last step. |
+| `debrief/redo` | yes |  | yes | Redoes the step undone last. |
+| `debrief/goto` | yes |  | yes | Moves to a step. |
+| `debrief/set_colour` | yes | yes | yes | Colours features. |
+| `debrief/set_hidden` | yes | yes | yes | Hides or shows features, cuts among them. |
+| `debrief/set_track_frequencies` | yes | yes | yes | How often tracks are labelled, marked and arrowed. |
+| `debrief/set_view` | yes | yes | yes | Changes the plot's view, outside its history. |
+| `debrief/add_annotation` | yes | yes | yes | Adds an annotation. |
+| `debrief/edit_annotation` | yes | yes | yes | Changes an annotation. |
+| `debrief/delete_annotations` | yes | yes | yes | Deletes annotations. |
+| `debrief/set_north_arrow` | yes | yes | yes | Shows or hides the north arrow. |
+| `debrief/add_narrative` | yes | yes | yes | Adds a narrative entry. |
+| `debrief/edit_narrative` | yes | yes | yes | Changes a narrative entry. |
+| `debrief/delete_narrative` | yes | yes | yes | Deletes narrative entries. |
+| `debrief/import_narrative` | yes | yes | yes | Reads a file's narrative into the plot. |
+| `debrief/narrative` |  |  | yes | The plot's narrative entries, filtered and paged. |
+| `debrief/sensors` |  |  | yes | The plot's sensors, and perhaps their cuts. |
+| `debrief/resolve_ambiguity` | yes | yes | yes | Keeps one side of ambiguous cuts, or makes them ambiguous again. |
+| `debrief/import_sensor` | yes | yes | yes | Reads a file's sensor lines into the plot. |
+| `debrief/set_array_offset` | yes | yes | yes | How far astern a towed array is, and how it follows. |
+| `debrief/delete_cuts` | yes | yes | yes | Deletes cuts. |
+| `debrief/tma_residuals` |  |  | yes | A solution's bearing residuals and RMS error. |
+| `debrief/tma_create` | yes | yes | yes | Makes a TMA solution from a sensor's cuts. |
+| `debrief/tma_split_leg` | yes | yes | yes | Splits a solution into legs, or joins two. |
+| `debrief/tma_exclude_cut` | yes | yes | yes | Leaves cuts out of a solution's RMS error, or counts them again. |
+| `debrief/edit_track` | yes | yes | yes | Moves, rotates, shears or stretches a track, moves a fix, or plots it by dead reckoning. |
+| `debrief/split_track` | yes | yes | yes | Splits a track in two. |
+| `debrief/merge_tracks` | yes | yes | yes | Merges tracks into one. |
+| `debrief/find_jumps` |  |  | yes | A track's jumps. |
+| `debrief/remove_jumps` | yes | yes | yes | Removes fixes found as jumps. |
+| `debrief/preview_smoothing` |  |  | yes | A track as smoothing would leave it. |
+| `debrief/smooth_track` | yes | yes | yes | Smooths a track. |
+| `debrief/mark_fix` | yes | yes | yes | Gives a fix a colour, label or comment of its own. |
+| `debrief/coverage` |  |  | yes | The plot's coverage: its platforms and the items with data for each. |
+| `debrief/take_new_data` | yes | yes | yes | Takes an item's new data into the plot. |
+| `debrief/set_source_preference` | yes | yes | yes | Chooses which item supplies a period of a track. |
+| `debrief/link_tracks` | yes | yes | yes | Links or unlinks a track in another item as a platform. |
+| `debrief/dismiss_new_data` | yes | yes | yes | Sets an item's new data aside, in the plot's island. |
+| `debrief/clear_review_flag` | yes | yes | yes | Clears the plot's review flag, in its island. |
+| `debrief/figure_id` |  |  | yes | A fresh image ID for an export of the plot. |
+| `debrief/export_image` |  | yes | yes | Stamps and logs a host's image, or has an open map draw an agent's. |
+| `debrief/find_image_source` |  |  | yes | The plots an image came from, by its file or its ID. |
+| `debrief/open_revision` |  |  | yes | The plot as it was at a revision, to show read-only. |
+| `debrief/host_poll` |  |  |  | A host waits here for what the service asks of it. |
+| `debrief/host_answer` |  |  |  | A host's answer to one such request. |
+<!-- /methods -->
+
+More on some of them:
 
 - `debrief/tools_for_selection` (`{"kinds": ["track", "track"]}`), which returns the names of the tools on offer;
 - `debrief/stores`, `debrief/create_catalogue` and `debrief/import` (`{"store", "path", "agent"}`: a REP file, a legacy `.dpf` plot, or a Word (`.docx`, `.doc`) or PDF narrative, a plot of its entries, or of an ASW document's track named `track_name`; returns the new item and what was not imported, `omitted`). `debrief/import_rep` is the same method under its old name;
@@ -44,7 +115,9 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
 - the Tote (CAP-06, CAP-07), reading only: `debrief/tote` (`{"store", "item", "time", "tote"?}`, `tote` a `ToteView`: `primary`, `secondaries`, `measure_group`, `map_lines`; left out, the plot's island says) returns a `ToteResult`: the group and its measure definitions, the primary's own measures and, for each secondary, range, bearing and relative bearing from the primary and its own course, speed and depth, values in metres, degrees and metres per second, or a `status` of `no_data` or `missing` with a `note`. One call per change of current time: a plot's tracks are prepared once and kept while its file is unchanged, so a call takes a few milliseconds (NFR-04). `debrief/measure_groups` lists the groups (core, for now) and their measures. Which tracks the Tote compares is view state: set it with `debrief/set_view`, a `tote` member beside the time window.
 - exported images (SUB-25, EXT-05, OUT-04), see `debrief_tools.figures`: `debrief/figure_id` (`{"store", "item", "revision"?}`) gives a fresh image ID for an export of the plot, `id` in full and its `short` form for the footer, at its current revision or the one given (an earlier revision shown read-only), reading only; `debrief/export_image`, from an agent (`{"store", "item", "file", "preset"?, "theme"?, "footer"?, "overwrite"?, "agent"}`), asks the map open in VS Code to draw the plot as the analyst's export does and write it to `file` (ending `.png` or `.svg`, inside the workspace or `debrief.exportFolder`, over a file only with `overwrite` and the analyst's yes), refused when no map is open (no host polling `debrief/host_poll`; the host answers with `debrief/host_answer`); from a host (`{"store", "item", "id", "image", "file", "format", "footer", "preset"?, "theme"?, "width"?, "height"?, "viewport"?, "time"?, "tote"?, "agent"}`: `image` a PNG as base 64 or an SVG's text, `file` the name for the log) it puts the ID into the image's metadata (PNG iTXt and XMP, SVG metadata), records the export in the plot's export log, its island, never a step, or in the analyst's own export log for a read-only catalogue (`recorded`, `logged`: `plot` or `user`, `note`), and gives the stamped `image` back for the host to write: the service writes no image file. Only this method may send a request over 10 MB, up to 48 MB; `debrief/find_image_source` (`{"file"}`: an image, or a Word or PowerPoint file, read for the IDs in it; or `{"id"}`: an ID typed from a footer, in full or short) returns, for each ID, the plots in the analyst's catalogues it names (`FigureSource`: the store, the catalogue's own id, the item, its title, the revision, the `step` at it, the plot's `current` step, `copied` where only a copy has it, and the export log entry), or a `problem`, with `skipped` pictures it could not read and why; `debrief/open_revision` (`{"store", "item", "revision", "id"?}`) returns the plot as it was at that revision, rebuilt by replay and checked against the step that recorded it, with that `step`, the `current` and `latest` steps, and the export log entry for `id`. Only the ID goes into an image: never the plot's title, its catalogue's name or who exported it.
 
-`tools/list` carries each tool's full declaration in `_meta["debrief/declaration"]`. Libraries and tools that are unavailable are listed in the result's `_meta["debrief/unavailable"]`.
+`tools/list` lists the tools the libraries declare, each carrying its full declaration in `_meta["debrief/declaration"]`, then every method marked "A tool" in the table above, read from the same registry (`service.METHODS`, those not flagged `protocol`), so the two cannot differ (a test checks it). A method's entry has its `name`, its `description` (the table's "Does") and an `inputSchema` built from its parameters model, with `store`, `item` and `base` for a method on one plot and `agent` where it is needed; its `_meta["debrief/method"]` marks it a method and carries `writes`, `agent` and `history`. Libraries and tools that are unavailable are listed in the result's `_meta["debrief/unavailable"]`.
+
+Every entry in `tools/list` runs through `tools/call`. A method is run with its `arguments` as its parameters, exactly as its own request would be: `agent` required where the table says, a read-only store refusing a change, `base` checked against the plot (SUB-24, SUB-28). Its result comes back as `structuredContent`, and as JSON text in `content` for agents that read only text. A refusal is an `isError` result whose text is the request's error message; `_meta["debrief/code"]` holds the JSON-RPC code the request would have had, and `_meta["debrief/outcome"]` says `refused`, `conflict` (-32001), `needs_newer_schema_confirmed` (-32002, with `_meta["debrief/newer_schema"]` true) or `failed` (-32603). A method can also still be sent as a JSON-RPC request of its own name. VS Code's check on a revision shown read-only judges a method run through `tools/call` as the method itself.
 
 Every method that changes a plot or records something in it (each change listed above, `debrief/import`, `debrief/add_plot_file`, `debrief/export_image`) takes `agent`, `{"kind": "person" or "software_agent", "name"}`, which its record names. It is required: a change without it is refused with -32602 and a message naming `agent`, never attributed to the analyst by default (SUB-24). Reading methods, and `debrief/undo`, `debrief/redo` and `debrief/goto` (which return to steps that already name theirs), need none; `debrief/open` given one also turns a retired `presentation.json` into a step.
 
@@ -52,7 +125,7 @@ Every method that changes a plot or records something in it (each change listed 
 
 A test drives the service with the official MCP Python client, so any MCP-capable agent can use the same tools (TL-17).
 
-`tools/call` arguments:
+A library tool's `tools/call` arguments:
 
 ```json
 {"store": "exercise", "item": "serial-01", "selection": ["track-nelson", "track-blue"],
