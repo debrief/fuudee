@@ -6,8 +6,9 @@ needs agent (SUB-24), whether it runs on one plot inside its history, and its ha
 service.METHODS registers every method; the sets the service and its tests use (known,
 writing, history, agent) are read from it, never kept by hand, the README's method
 table is printed from it (python -m debrief_tools methods), and tools/list offers every
-method in it but the protocol's own, each with its input schema (Method.listing), which
-tools/call then runs by name.
+method in it but the protocol's own, each with its input schema (Method.listing), under
+its tool name (debrief/set_hidden is debrief.set_hidden: tool_name), which tools/call
+then runs.
 
 A Params model refuses what a method cannot take with the words the service has always
 used: each field names its refusal (Refusal), and the first field found wrong says it.
@@ -15,6 +16,7 @@ used: each field names its refusal (Refusal), and the first field found wrong sa
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar, Self, TypeVar
@@ -22,6 +24,16 @@ from typing import Any, ClassVar, Self, TypeVar
 from pydantic import BaseModel, ConfigDict, PlainValidator, ValidationError
 
 from debrief_tools.rpc import INVALID_PARAMS, RpcError
+
+# What a tool's name may be (MCP's guidance, and the Claude API's): letters, digits,
+# underscore, dot and hyphen, at most 64. tools/list's names are all of this form.
+TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+
+def tool_name(method: str) -> str:
+    """A method's name as a tool: its slash a dot (debrief/set_hidden is
+    debrief.set_hidden). The JSON-RPC method keeps its slash."""
+    return method.replace("/", ".")
 
 
 class Refused(ValueError):
@@ -142,17 +154,24 @@ class Method:
             required.append("agent")
         return schema
 
+    @property
+    def tool_name(self) -> str:
+        """Its name in tools/list and tools/call (tool_name)."""
+        return tool_name(self.name)
+
     def listing(self) -> dict[str, Any]:
-        """The method as tools/list offers it: its name, what it does and its input
-        schema, as a tool's entry has them. _meta["debrief/method"] marks it a method,
-        run by tools/call with its parameters as the arguments (or sent as a JSON-RPC
-        request of its own name), and carries its flags."""
+        """The method as tools/list offers it: its tool name, what it does and its
+        input schema, as a tool's entry has them. _meta["debrief/method"] marks it a
+        method, run by tools/call under that name with its parameters as the arguments
+        (or sent as a JSON-RPC request of its own name, with its slash), and carries its
+        name as a method and its flags."""
         return {
-            "name": self.name,
+            "name": self.tool_name,
             "description": self.does,
             "inputSchema": self.input_schema(),
             "_meta": {
                 "debrief/method": {
+                    "method": self.name,
                     "writes": self.writes,
                     "agent": self.agent,
                     "history": self.history,
@@ -169,12 +188,19 @@ class Methods(Mapping[str, Method]):
 
     def __init__(self) -> None:
         self._methods: dict[str, Method] = {}
+        self._tools: dict[str, Method] = {}  # by tool name, the protocol's left out
 
     def add(self, method: Method) -> None:
         if method.name in self._methods:
             raise ValueError(f"{method.name} is registered twice")
         if method.writes and not method.history:
             raise ValueError(f"{method.name} changes a plot outside its history")
+        if not method.protocol:
+            if not TOOL_NAME.match(method.tool_name):
+                raise ValueError(f"{method.tool_name} is not a tool's name")
+            if method.tool_name in self._tools:
+                raise ValueError(f"{method.tool_name} names two methods as tools")
+            self._tools[method.tool_name] = method
         self._methods[method.name] = method
 
     def register(
@@ -201,6 +227,11 @@ class Methods(Mapping[str, Method]):
     def __len__(self) -> int:
         return len(self._methods)
 
+    def tool(self, name: str) -> Method | None:
+        """The method tools/call runs under this tool name; None for any other name,
+        a method's own (slashed) name included."""
+        return self._tools.get(name)
+
     def names(self, **flags: bool) -> frozenset[str]:
         """The methods whose flags (writes, agent, history, large, protocol) are as given."""
         return frozenset(
@@ -212,15 +243,15 @@ class Methods(Mapping[str, Method]):
 
 def table(methods: Methods) -> str:
     """The README's method table: every method, whether it changes the plot it names,
-    whether it needs agent, whether tools/list offers it (and tools/call runs it), and
-    what it does."""
+    whether it needs agent, its name as a tool in tools/list and tools/call (none for
+    the protocol's), and what it does."""
     rows = [
-        "| Method | Changes the plot | Needs `agent` | A tool | Does |",
+        "| Method | Changes the plot | Needs `agent` | Tool name | Does |",
         "| --- | --- | --- | --- | --- |",
     ]
     for method in methods.values():
         writes = "yes" if method.writes else ""
         agent = "yes" if method.agent else ""
-        tool = "" if method.protocol else "yes"
+        tool = "" if method.protocol else f"`{method.tool_name}`"
         rows.append(f"| `{method.name}` | {writes} | {agent} | {tool} | {method.does} |")
     return "\n".join(rows) + "\n"
