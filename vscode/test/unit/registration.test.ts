@@ -43,9 +43,10 @@ const registered = (feature: Feature): string[] => {
 
 /** The hosts, and what each registers by hand: VS Code's command("…") calls, the playground's action table's entries. */
 const HOSTS = [
-  { file: "src/extension.ts", byHand: (source: string) => [...source.matchAll(/\bcommand\(\s*"(debrief\.[^"]+)"/g)].map((m) => m[1]) },
+  { file: "src/extension.ts", least: 10, byHand: (source: string) => [...source.matchAll(/\bcommand\(\s*"(debrief\.[^"]+)"/g)].map((m) => m[1]) },
   {
     file: "play/host.ts",
+    least: 0,
     byHand: (source: string) => {
       const table = source.slice(source.indexOf("const PLAY_ACTIONS"), source.indexOf("\n};\n", source.indexOf("const PLAY_ACTIONS")));
       return [...table.matchAll(/^ {2}"(debrief\.[^"]+)":/gm)].map((m) => m[1]);
@@ -62,14 +63,15 @@ describe("feature registration", () => {
   });
 
   it("is called by both hosts for every feature, and neither registers a feature's command by hand", () => {
-    for (const { file, byHand } of HOSTS) {
+    for (const { file, least, byHand } of HOSTS) {
       const source = read(file);
       expect(
         featuresIn(source).map((f) => f.name),
         file,
       ).toEqual(FEATURES.map((f) => f.name));
       const hand = byHand(source);
-      expect(hand.length, `${file}'s own commands are found`).toBeGreaterThan(10);
+      // VS Code's own (agents' and tests' interface) are found, so the scan is known to work.
+      expect(hand.length, `${file}'s own commands are found`).toBeGreaterThanOrEqual(least);
       expect(
         hand.filter((id) => FEATURE_COMMANDS.includes(id)),
         file,

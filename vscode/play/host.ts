@@ -81,6 +81,8 @@ import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choices, type FlowH
 import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
 import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
+import { registerPresentation } from "../webview/panels/flows/presentation.js";
+import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost } from "../webview/panels/flows/collation.js";
 import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
 import { importNarrative, registerNarrativeImport, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
@@ -806,6 +808,8 @@ const PLAY_COMMANDS = new Map<string, Run>();
 const playHost: Host = { command: (id, run) => void PLAY_COMMANDS.set(id, run) };
 /** A registered command run with its own arguments, as VS Code's executeCommand runs one. */
 const runCommand = (id: string, ...args: unknown[]): unknown => (PLAY_COMMANDS.get(id) as ((...a: unknown[]) => unknown) | undefined)?.(...args);
+/** A command that acts on the rows it was run on (its Target's ids), as the action table's did. */
+const onRows = (run: (keys: string[]) => unknown) => (target?: Target) => run(target?.ids ?? []);
 
 /** Python's refusals the flows answer, as they name them. */
 const refusalOf = (outcome: { error?: string; conflict?: unknown; newer_schema?: boolean }): Error =>
@@ -2516,11 +2520,6 @@ function changeTote(keys: readonly string[], change: (tote: ToteView, tracks: st
  * entry here: it runs that operation on its rows.
  */
 const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
-  "debrief.setColour": () => outlineBar?.openColour(),
-  "debrief.hide": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: true }),
-  "debrief.show": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: false }),
-  "debrief.editAnnotation": (keys) => editAnnotation(keys[0]),
-  "debrief.deleteAnnotation": () => deleteAnnotations(),
   "debrief.tote.setPrimary": (keys) => changeTote(keys, (tote, tracks) => withPrimary(tote, tracks[0])),
   "debrief.tote.add": (keys) => changeTote(keys, (tote, tracks) => withSecondaries(tote, tracks)),
   "debrief.tote.remove": (keys) => changeTote(keys, (tote, tracks) => tracks.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote)),
@@ -2532,16 +2531,6 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
     ),
   "debrief.currentCut": (keys) => currentCutMenu(keys[0]),
   "debrief.setArrayOffset": (keys) => arrayOffsetForm(keys[0]),
-  // The Outline's toolbar and its overflow menu.
-  "debrief.selectionHide": () => hideOrShowSelected(),
-  "debrief.selectionShow": () => hideOrShowSelected(),
-  "debrief.selectionShowAll": () => hideOrShowSelected(),
-  "debrief.colourSelection": () => outlineBar?.openColour(),
-  "debrief.selectAll": () => chooseInOutline(outlineListed()),
-  "debrief.selectChildren": () => selectChildrenOfSelection(),
-  "debrief.clearSelection": () => chooseInOutline([]),
-  "debrief.addAnnotation": () => addAnnotation(),
-  "debrief.toggleNorthArrow": () => toggleNorthArrow(),
   // Reading sensor data, exporting an image, finding an image's source and taking new data are the
   // shared features' (registered below, by playHost): a walkthrough's step runs them as VS Code's step
   // runs the command (PAR-14).
@@ -2589,6 +2578,27 @@ registerTrackEdits(playHost, {
   markFix: () => listFixes(),
   moveFix: () => listFixes(),
   plottingMode: () => plottingMode(),
+});
+// Colour, hiding and the Outline toolbar's selection (webview/panels/flows/presentation.ts).
+registerPresentation(playHost, {
+  setColour: () => outlineBar?.openColour(),
+  hide: onRows((keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: true })),
+  show: onRows((keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: false })),
+  // The Outline's toolbar and its overflow menu.
+  selectionHide: () => hideOrShowSelected(),
+  selectionShow: () => hideOrShowSelected(),
+  selectionShowAll: () => hideOrShowSelected(),
+  colourSelection: () => outlineBar?.openColour(),
+  selectAll: () => chooseInOutline(outlineListed()),
+  selectChildren: () => selectChildrenOfSelection(),
+  clearSelection: () => chooseInOutline([]),
+});
+// Annotations (webview/panels/flows/annotations.ts): the playground's dialog asks.
+registerAnnotations(playHost, {
+  add: () => addAnnotation(),
+  edit: onRows((keys) => editAnnotation(keys[0])),
+  delete: () => deleteAnnotations(),
+  northArrow: () => toggleNorthArrow(),
 });
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
 const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);

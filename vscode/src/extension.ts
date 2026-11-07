@@ -53,6 +53,8 @@ import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choice, type FlowHo
 import { confirmNewerSchema as askNewerSchema, runTool as runToolFlow, type Ran } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
 import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
+import { registerPresentation } from "../webview/panels/flows/presentation.js";
+import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { collate as collateFlow, registerCollation, sayReviewFlags, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
 import type { CataloguesNode } from "../webview/panels/catalogues.js";
 import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
@@ -1749,23 +1751,23 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return report(await restyle(button.ids, { colour: chosen.colour, ...(chosen.name && { colour_name: chosen.name }) }));
   }
   // From the Outline's menu with several rows selected, VS Code gives the rows selected second.
-  command("debrief.setColour", (node?: Target, given?: string | OutlineNode[]) => {
+  const setColourCommand = (node?: Target, given?: string | OutlineNode[]) => {
     if (Array.isArray(given) && outline.index) return colourPicks(outlinePicks(keysOf(given)));
     return colourPicks(picksOf(node), typeof given === "string" ? given : undefined);
-  });
+  };
   const features = (ids: string[]) =>
     ids.filter((id) => {
       const feature = session.current?.plot.features.find((f) => f.id === id);
       return !!feature && isFeature(feature);
     });
-  command("debrief.hide", async (node?: Target) => {
+  const hideRowsCommand = async (node?: Target) => {
     const ids = features(targets(node));
     return report(ids.length ? await restyle(ids, { hidden: true }) : "Select what to hide.");
-  });
-  command("debrief.show", async (node?: Target) => {
+  };
+  const showRowsCommand = async (node?: Target) => {
     const ids = features(targets(node));
     return report(ids.length ? await restyle(ids, { hidden: false }) : "Select what to show.");
-  });
+  };
 
   // --- The Outline's toolbar, in its title bar (product owner, 28 Oct 2026) ---------------------
   // Hidden on map in three states, one command each so the title bar's icon shows the state
@@ -1782,9 +1784,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!problem) vscode.window.setStatusBarMessage(`${v.done}.`, 5000);
     return report(problem);
   }
-  for (const name of ["debrief.selectionHide", "debrief.selectionShow", "debrief.selectionShowAll"]) command(name, (node?: Target) => hideOrShow(node));
+  const hideOrShowCommand = (node?: Target) => hideOrShow(node);
   // Colour: the selected that have a colour, from the palette or a custom hex, one step.
-  command("debrief.colourSelection", (colourName?: string) => colourPicks(outlinePicks(), typeof colourName === "string" ? colourName : undefined));
+  const colourSelectionCommand = (colourName?: string) => colourPicks(outlinePicks(), typeof colourName === "string" ? colourName : undefined);
   /** Rows chosen by the toolbar: selected everywhere, the one named (or none) brought into sight. */
   function chooseKeys(keys: string[], reveal: string | null): void {
     const picks = outlinePicks(keys);
@@ -1801,21 +1803,21 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
   }
   // Select all: every row listed (the branches open), as Ctrl+A in the tree.
-  command("debrief.selectAll", () => {
+  const selectAllCommand = () => {
     if (!session.current) return report("Open a plot first.");
     chooseKeys(outline.listedKeys(), null);
     return undefined;
-  });
+  };
   // Select children: the selection replaced by the direct children of what is selected (a track's
   // sensors, a sensor's cuts, every page of them, a solution's legs, a leg's positions); the first brought into sight.
-  command("debrief.selectChildren", () => {
+  const selectChildrenCommand = () => {
     const index = outline.index;
     if (!index || !session.current) return report("Open a plot first.");
     const children = selectionChildren(index, outlinePicks());
     if (children.reason) return report(children.reason);
     chooseKeys(children.keys, children.keys[0]);
     return undefined;
-  });
+  };
   command("debrief.outlineToolbarState", () => ({ ...toolbarKeys }));
   // Labels, symbols and arrows (CAP-32): how often, for every track selected at once, as one step.
   // From the outline's menu (with the others selected beside it), the Command Palette or the selection.
@@ -1913,7 +1915,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Annotations (CAP-03 to CAP-05). Each command takes what agents and tests give it
   // instead of asking, and returns what happened: { problem } or { feature }.
   const timeRangeOfPlot = () => session.period();
-  command("debrief.addAnnotation", async (spec?: AnnotationSpec) => {
+  const addAnnotationCommand = async (spec?: AnnotationSpec) => {
     if (!session.current) return { problem: report("Open a plot first.") };
     if (spec && typeof spec === "object" && "shape" in spec) {
       const done = await annotate({ kind: "add", annotation: spec });
@@ -1927,7 +1929,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       currentTime: session.time?.current,
     });
     return {};
-  });
+  };
   // Drawn on the map (annotation_drawn): the form, filled in with what was drawn, to name it and
   // add it as one step. Cancel adds nothing. Never changes current time, the window or the selection.
   command("debrief.addDrawnAnnotation", (spec?: AnnotationSpec) => {
@@ -1937,7 +1939,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return {};
   });
   // From the outline's menu (a node), the map (an id), or the selection; with changes, without the form.
-  command("debrief.editAnnotation", async (target?: string | Target, changes?: Partial<AnnotationSpec>) => {
+  const editAnnotationCommand = async (target?: string | Target, changes?: Partial<AnnotationSpec>) => {
     const id = typeof target === "string" ? target : targets(target ?? undefined).find((i) => annotationById(i));
     const feature = annotationById(id);
     if (!feature) return { problem: report("Select an annotation to change.") };
@@ -1948,20 +1950,22 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
     annotationForm.show({ spec: specOfFeature(feature), featureId: feature.id, timeRange: timeRangeOfPlot(), currentTime: session.time?.current });
     return {};
-  });
-  command("debrief.deleteAnnotation", async (target?: string | Target) => {
+  };
+  const deleteAnnotationCommand = async (target?: string | Target) => {
     const ids = (typeof target === "string" ? [target] : targets(target ?? undefined)).filter((i) => annotationById(i));
     if (!ids.length) return { problem: report("Select the annotations to delete.") };
     const done = await annotate({ kind: "delete", features: ids });
     return { problem: report(done.problem) };
-  });
+  };
   // Chart furniture: the north arrow is content, so showing or removing it is a step (CAP-03).
-  command("debrief.toggleNorthArrow", async (shown?: boolean) => {
+  const northArrowCommand = async (shown?: boolean) => {
     if (!session.current) return { problem: report("Open a plot first.") };
     const has = session.current.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
     const done = await annotate({ kind: "north_arrow", shown: shown ?? !has });
     return { problem: report(done.problem) };
-  });
+  };
+  // Annotations: the shared registration (webview/panels/flows/annotations.ts).
+  registerAnnotations(host, { add: addAnnotationCommand, edit: editAnnotationCommand, delete: deleteAnnotationCommand, northArrow: northArrowCommand });
   // Tracks (CAP-01, CAP-02): moved, rotated, split and merged, each one step. Each command takes
   // what agents and tests give it instead of asking, and returns what happened: { problem } or
   // { feature } / { features }.
@@ -2958,7 +2962,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Shared state for agents and keyboard users (SUB-27).
   command("debrief.getState", () => session.state());
   command("debrief.setState", (change: SharedStateChange) => session.apply(change ?? {}, "command"));
-  command("debrief.clearSelection", () => session.select([], "command"));
+  const clearSelectionCommand = () => session.select([], "command");
+  // Colour, hiding and the Outline toolbar's selection: the shared registration (webview/panels/flows/presentation.ts).
+  registerPresentation(host, { setColour: setColourCommand, hide: hideRowsCommand, show: showRowsCommand, selectionHide: hideOrShowCommand, selectionShow: hideOrShowCommand, selectionShowAll: hideOrShowCommand, colourSelection: colourSelectionCommand, selectAll: selectAllCommand, selectChildren: selectChildrenCommand, clearSelection: clearSelectionCommand });
   command("debrief.refresh", async () => {
     catalogues.refresh();
     const problem = await serially(() => reloadPlot(true));
