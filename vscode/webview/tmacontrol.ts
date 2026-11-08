@@ -267,11 +267,12 @@ export class TmaControl {
       `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
       `<p class="tma-rms" hidden></p>` +
       `<p class="tma-offscale"></p>` +
-      `<p class="tma-select-hint" hidden>Select bearings: box the Bearing pane's dots; an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again.</p>` +
       `</div>` +
       `<div class="tma-below">` +
       `<form class="tma-form" hidden novalidate aria-label="First guess"></form>` +
-      `<p class="tma-status" aria-live="polite"></p>` +
+      // One line, what is said and, with nothing said, Select bearings' hint, in the same place:
+      // the plot keeps its size as either comes and goes (tma.css).
+      `<div class="tma-message"><p class="tma-status" aria-live="polite"></p><p class="tma-select-hint" title="Select bearings: box the Bearing pane's dots; an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again.">Select bearings: box the Bearing pane's dots; an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again.</p></div>` +
       `</div></div></div>`;
     const q = <T extends HTMLElement>(s: string) => element.querySelector<T>(s)!;
     this.empty = q(".tma-empty");
@@ -291,7 +292,10 @@ export class TmaControl {
     this.canvas.addEventListener("pointerdown", (e) => this.pointerDown(e));
     this.canvas.addEventListener("pointermove", (e) => this.pointerMove(e));
     this.canvas.addEventListener("pointerup", (e) => this.pointerUp(e));
-    this.canvas.addEventListener("pointercancel", () => this.pointerGone());
+    this.canvas.addEventListener("pointercancel", () => {
+      this.afterBox();
+      this.pointerGone();
+    });
     this.canvas.addEventListener("pointerleave", () => !this.box && this.pointerGone());
     this.canvas.addEventListener("dblclick", () => this.resetZoom());
     this.canvas.addEventListener("contextmenu", (e) => this.menuAt(e));
@@ -322,21 +326,37 @@ export class TmaControl {
     q<HTMLElement>(".tma-more").addEventListener("keydown", closeMore);
     this.cutOffInput.addEventListener("change", () => this.setCutOff(Number(this.cutOffInput.value)));
     const resized = new ResizeObserver(() => {
-      element.classList.toggle("tma-wide", element.clientWidth >= WIDE_PX);
-      // Short (Bearings above the walkthroughs at a laptop's height): the plot keeps the room; the key goes.
-      // Only where the panel's height is the layout's (a docked group, VS Code's view), never where the view grows to fit (a phone's column).
-      const bound = element.closest<HTMLElement>(".dock-panel") ?? (element.closest(".tma-root") ? document.documentElement : null);
-      element.classList.toggle("tma-short", !!bound && bound.clientHeight > 0 && bound.clientHeight < SHORT_PX);
-      this.placeControls(bound);
-      // Not mid-drag: the plot's size is read once a drag.
-      if (!this.live) this.frozenGeometry = undefined;
-      this.drawPlot();
+      // Not under a box being dragged: laid out again once the button is let go, so the box's
+      // pixels are turned into the times and values they were drawn over.
+      if (this.box) {
+        this.resizeWaiting = true;
+        return;
+      }
+      this.relayout();
     });
     resized.observe(element);
     // The plot's own box too: what is beneath it (the form, a note) can take its height without the panel changing.
     resized.observe(this.plot);
     this.render();
   }
+
+  /** The view laid out for its size: wide or short, the controls on top or beside, the plot drawn to its box. */
+  private relayout(): void {
+    const element = this.element;
+    this.resizeWaiting = false;
+    element.classList.toggle("tma-wide", element.clientWidth >= WIDE_PX);
+    // Short (Bearings above the walkthroughs at a laptop's height): the plot keeps the room; the key goes.
+    // Only where the panel's height is the layout's (a docked group, VS Code's view), never where the view grows to fit (a phone's column).
+    const bound = element.closest<HTMLElement>(".dock-panel") ?? (element.closest(".tma-root") ? document.documentElement : null);
+    element.classList.toggle("tma-short", !!bound && bound.clientHeight > 0 && bound.clientHeight < SHORT_PX);
+    this.placeControls(bound);
+    // Not mid-drag: the plot's size is read once a drag.
+    if (!this.live) this.frozenGeometry = undefined;
+    this.drawPlot();
+  }
+
+  /** The view resized under a box being dragged: laid out once the box is done. */
+  private resizeWaiting = false;
 
   // --- What the host says -------------------------------------------------------------
 
@@ -459,14 +479,15 @@ export class TmaControl {
 
   /** Say something beneath the plot, read aloud. */
   say(text: string): void {
-    this.status.style.minHeight = "";
+    // One line, said or not (tma.css): a message coming or going never moves the plot above. Cut
+    // short where the view is narrow, it is whole in its tooltip, and read aloud whole.
     this.status.textContent = text;
+    if (text) this.status.title = text;
+    else this.status.removeAttribute("title");
     clearTimeout(this.said);
-    // Cleared, it keeps its height until the next message: a box being drawn when a longer message
-    // clears would otherwise see the plot move under the pointer, and keep the wrong cuts.
     this.said = setTimeout(() => {
-      this.status.style.minHeight = `${this.status.offsetHeight}px`;
       this.status.textContent = "";
+      this.status.removeAttribute("title");
     }, 6000);
   }
 
@@ -905,10 +926,10 @@ export class TmaControl {
   private setSelecting(on: boolean): void {
     this.selecting = on;
     this.tools.querySelector(".tma-select")!.setAttribute("aria-pressed", String(on));
-    this.plot.classList.toggle("tma-selecting", on);
-    this.element.querySelector<HTMLElement>(".tma-select-hint")!.hidden = !on;
-    // On, the hint beside the plot says what a box does: the status says only that it is on, so the hint is not shown twice.
-    this.say(on ? "Select bearings on." : "Select bearings off: a box zooms.");
+    // The pointer, and the hint in the status line's place while nothing else is said there.
+    this.element.classList.toggle("tma-selecting", on);
+    // On, what a box does, said and read aloud; the hint says it again once the message clears.
+    this.say(on ? "Select bearings on: box the Bearing pane's dots; an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again." : "Select bearings off: a box zooms.");
   }
 
   /** The Course/Speed pane's lines named, in ⋯: each track's colour, course solid and speed dashed. */
@@ -1008,11 +1029,17 @@ export class TmaControl {
   }
 
   private geometry() {
-    if (this.live && this.frozenGeometry) return this.frozenGeometry;
+    // Held while a solution is dragged on the map, and while a box is dragged in the plot.
+    const held = !!this.live || !!this.box;
+    if (held && this.frozenGeometry) return this.frozenGeometry;
     const g = this.measure();
-    this.frozenGeometry = this.live ? g : undefined;
+    this.frozenGeometry = held ? g : undefined;
+    this.drawnGeometry = g;
     return g;
   }
+
+  /** The size the plot was last drawn at. */
+  private drawnGeometry?: ReturnType<TmaControl["measure"]>;
 
   /** The plot's size: its box, as the panel lays it out (the canvas is laid over it, so never sizes it). */
   private measure() {
@@ -1696,6 +1723,9 @@ export class TmaControl {
     const d = this.drawn_;
     if (!p || !d || y < d.top || y > d.top + d.height) return;
     this.box = { pane: p.pane, x0: x, y0: y, x1: x, y1: y, resolve: this.selecting && p.pane === "bearing" };
+    // The plot's size held at what it was drawn at until the box is done: drawn again meanwhile
+    // (new bearings, a step saved), its times and values stay where the box was drawn over them.
+    this.frozenGeometry ??= this.drawnGeometry;
     this.canvas.setPointerCapture?.(event.pointerId);
   }
 
@@ -1711,6 +1741,20 @@ export class TmaControl {
   }
 
   private pointerUp(event: PointerEvent): void {
+    try {
+      this.boxDone(event);
+    } finally {
+      this.afterBox();
+    }
+  }
+
+  /** A box let go, or given up: the view laid out now if it was resized under the box. */
+  private afterBox(): void {
+    this.box = undefined;
+    if (this.resizeWaiting) this.relayout();
+  }
+
+  private boxDone(event: PointerEvent): void {
     const box = this.box;
     this.box = undefined;
     const d = this.drawn_;
