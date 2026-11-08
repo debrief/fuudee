@@ -44,6 +44,7 @@ import {
   coverageOutside,
   type CutBearing,
 } from "../src/index.js";
+import { withinBudget } from "./budget.js";
 
 const vectors = JSON.parse(readFileSync(path.resolve(__dirname, "../../../schemas/vectors/tma-residuals.json"), "utf8"));
 
@@ -206,7 +207,7 @@ describe("residuals while a solution is dragged", () => {
     }
     runs.sort((a, b) => a - b);
     console.log(`TMA live residuals, 2,000 cuts: median ${runs[5].toFixed(1)} ms, worst ${runs[9].toFixed(1)} ms`);
-    expect(runs[5]).toBeLessThan(50);
+    withinBudget(runs[5], 50, "live residuals, 2,000 cuts (median)");
   });
 });
 

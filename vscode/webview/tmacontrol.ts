@@ -39,28 +39,20 @@
  *   edge it is not at; the Bearing axis kept as it was when the drag began, widened the same
  *   way; a zoom kept. The whole frame is timed (timings) against the drag budget (NFR-04).
  */
-import { convert, DEFAULT_SETTINGS, fixed, formatTime, UNIT_LABELS, bearingText, legCourses, type FormatSettings, type LonLat, type Kept } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, fixed, formatTime, UNIT_LABELS, bearingText, type FormatSettings, type LonLat, type Kept } from "@debrief/kernel";
 import type { AmbiguityResolution, TmaCut, TmaFocus, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
 import {
   about,
   controlsBeside,
   coverageSpan,
-  type Cue,
   cueStyle,
   cueMark,
   describeCue,
   describeOffScale,
-  offScale,
-  errorCue,
-  errorExtent,
-  fitErrors,
-  fitRange,
   type BearingMarker,
   bearingMarkersOf,
   boxedSides,
   boxResolution,
-  courseAxes,
-  courseSeries,
   type CourseSeries,
   describeBoxed,
   inside,
@@ -70,7 +62,6 @@ import {
   noZoom,
   type Pane,
   PANE_NAMES,
-  panesDrawn,
   PANES,
   type PanesShown,
   panTime,
@@ -78,11 +69,9 @@ import {
   readPanes,
   tickLabel,
   tickTime,
-  timeTicks,
   timeToY,
   togglePane,
   valueToX,
-  widen,
   xToValue,
   yToTime,
   type Zoom,
@@ -109,6 +98,7 @@ import {
   splitAllowed,
   coverageOutside,
 } from "@debrief/kernel";
+import { otherOf, plotGeometry, type PlotLayout } from "./tmalayout.js";
 import { describeDistance, describeSpeed, readBearing, readDistance, readSpeed } from "./trackedit.js";
 
 /** What the view says with nothing chosen. */
@@ -1122,26 +1112,6 @@ export class TmaControl {
   /** How many faint other bearings the plot drew last: for tests. */
   faintDrawn = 0;
 
-  /** The panes shown, side by side, sharing time up the left. */
-  private layoutPanes(width: number, height: number) {
-    const { label } = this.themeColours();
-    // No Error pane without a solution (a sensor's coverage shown).
-    const shown = panesDrawn(this.panes, this.mode() === "solution");
-    const left = label + 8;
-    const right = 4;
-    const gap = 8;
-    // Each pane's name, then its axis's ticks, above; Speed's ticks below the Course/Speed pane.
-    const top = 28;
-    const bottom = shown.includes("course") ? 26 : 6;
-    const w = Math.max(20, (width - left - right - gap * (shown.length - 1)) / shown.length);
-    return {
-      top,
-      height: Math.max(40, height - top - bottom),
-      left,
-      panes: shown.map((pane, k) => ({ pane, x: left + k * (w + gap), w })),
-    };
-  }
-
   private drawPlot(): void {
     const mode = this.mode();
     if (mode === "none" || this.plot.hidden) return;
@@ -1172,110 +1142,43 @@ export class TmaControl {
     ctx.font = `10px ${font}`;
     const rows = report.rows as TmaResidualRow[];
     const times = mode === "solution" ? this.timesOf(rows) : [];
-    const span: Range = this.zoom.time ?? whole;
-    const layout = this.layoutPanes(g.width, g.height);
-    const { top, height } = layout;
+    const coverage = this.coverage;
+    const perSecond = convert({ value: 1, unit: "m/s" }, this.settings.speed_unit).value;
+    // Where everything goes (tmalayout.ts): the panes, the span, each axis, the cue.
+    const laid = plotGeometry({
+      mode,
+      width: g.width,
+      height: g.height,
+      label: colours.label,
+      panes: this.panes,
+      rows,
+      times,
+      coverage: { rows: coverage.rows, times: coverage.times, whole },
+      zoom: this.zoom,
+      live: !!this.live,
+      frozen: this.frozen,
+      hold: this.hold,
+      heldError: this.heldError,
+      solution,
+      fixTimes: this.fixTimes,
+      pending: this.pending,
+      ownship: (this.view?.ownship ?? []).map((o) => ({ ...o, times: this.ownTimes(o) })),
+      muted,
+      perSecond,
+      cutOff: this.cutOffDegrees,
+    });
+    this.frozen = laid.frozen;
+    this.heldError = laid.heldError;
+    this.courseShown = laid.courseShown;
+    this.showLegend(laid.series);
+    this.drawn_ = laid;
+    const { span, top, height, panes, cue, series, nothingToPlot, ticks, seconds } = laid;
+    const ref = laid.reference;
+    const courseRef = laid.courseReference;
+    const speedRange = laid.speed;
     const y = (t: number) => timeToY(t, span, top, height);
     const inSpan = (t: number) => t >= span[0] && t <= span[1];
     const has = (v: number | null | undefined): v is number => v !== undefined && v !== null;
-    const otherOf = (r: TmaResidualRow) => (r.nearer_side && has(r.ambiguous_bearing) ? (r.used === "ambiguous_bearing" ? r.bearing : r.ambiguous_bearing) : undefined);
-    const coverage = this.coverage;
-
-    // --- The axes: Bearing kept while a drag goes on, Error fitted every frame (or held), Course fitted.
-    let reference = this.frozen?.reference;
-    if (reference === undefined) {
-      const calculated = rows.filter((r) => has(r.calculated));
-      reference = calculated.length ? calculated[Math.floor(calculated.length / 2)].calculated! : (rows[0]?.bearing ?? coverage.rows[0]?.bearing ?? 0);
-    }
-    const ref = reference;
-    let bLo = Infinity;
-    let bHi = -Infinity;
-    const takeB = (v: number) => {
-      const u = about(v, ref);
-      if (u < bLo) bLo = u;
-      if (u > bHi) bHi = u;
-    };
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (r.hidden || !inSpan(times[i])) continue;
-      if (has(r.measured)) takeB(r.measured);
-      else takeB(r.resolved === "ambiguous_bearing" ? (r.ambiguous_bearing ?? r.bearing) : r.bearing);
-      if (has(r.calculated)) takeB(r.calculated);
-      const other = otherOf(r);
-      if (other !== undefined) takeB(other);
-    }
-    for (let i = 0; i < coverage.rows.length; i++) {
-      if (!inSpan(coverage.times[i])) continue;
-      const c = coverage.rows[i];
-      if (c.resolved !== "ambiguous_bearing") takeB(c.bearing);
-      if (has(c.ambiguous_bearing) && c.resolved !== "bearing") takeB(c.ambiguous_bearing);
-    }
-    const bearingExtent = bLo === Infinity ? undefined : { lo: bLo, hi: bHi };
-    let bearingRange = bearingExtent ? fitRange(bLo, bHi, { least: 4, margin: 0.06 }) : ([ref - 10, ref + 10] as Range);
-    if (this.live) {
-      // Kept as the drag found it, widened (never clamped) if the calculated bearings leave it.
-      this.frozen = this.frozen ? { reference: ref, bearing: widen(this.frozen.bearing, bearingExtent) } : { reference: ref, bearing: bearingRange };
-      bearingRange = this.frozen.bearing;
-    }
-    const errorFound = errorExtent(rows, times, span);
-    let errorRange = fitErrors(errorFound);
-    if (this.hold) {
-      this.heldError = this.heldError ? widen(this.heldError, errorFound) : errorRange;
-      errorRange = this.heldError;
-    }
-    // The course pane: ownship's courses, the solution's (its DR legs; worked out again from a drag's fixes), its speeds.
-    let courses = solution?.courses ?? undefined;
-    let speeds = solution?.speeds ?? undefined;
-    if (this.live && this.pending && this.panes.course && this.pending.length === this.fixTimes.length) {
-      const legs = legCourses(this.pending, this.fixTimes);
-      courses = legs.courses;
-      speeds = legs.speeds;
-    }
-    const perSecond = convert({ value: 1, unit: "m/s" }, this.settings.speed_unit).value;
-    // Ownship's course and speed, always; the target's (the solution's DR legs) with a solution; each in its track's colour (product owner, 28 Oct 2026).
-    const series: CourseSeries[] = this.panes.course
-      ? courseSeries(
-          (this.view?.ownship ?? []).map((o) => ({ ...o, times: this.ownTimes(o) })),
-          solution && (courses || speeds) ? { id: solution.id, name: solution.name, colour: solution.colour, times: this.fixTimes, courses, speeds } : undefined,
-          muted,
-        )
-      : [];
-    const axes = this.panes.course ? courseAxes(series, span, perSecond) : undefined;
-    const nothingToPlot = this.panes.course && !axes;
-    let courseRange: Range = axes?.course ?? [0, 360];
-    let speedRange: Range = axes?.speed ?? [0, 10];
-    const courseRef = axes?.reference ?? 0;
-    this.showLegend(series);
-    if (this.panes.course) {
-      const extent = (s: CourseSeries, values: ArrayLike<number> | undefined, unwrap: boolean): [number, number] | undefined => {
-        let lo = Infinity;
-        let hi = -Infinity;
-        for (let i = 0; values && i < s.times.length; i++) {
-          if (!inSpan(s.times[i]) || !Number.isFinite(values[i])) continue;
-          const v = unwrap ? about(values[i], courseRef) : values[i] * perSecond;
-          lo = Math.min(lo, v);
-          hi = Math.max(hi, v);
-        }
-        return lo === Infinity ? undefined : [lo, hi];
-      };
-      this.courseShown = { nothing: !axes, series: series.map((s) => ({ id: s.id, name: s.name, colour: s.colour, role: s.role, marked: s.marked, courses: extent(s, s.courses, true), speeds: extent(s, s.speeds, false) })) };
-    } else this.courseShown = undefined;
-    // A zoom wins over each.
-    const zoomed = this.zoom.values;
-    const ranges: Record<Pane, Range> = {
-      bearing: zoomed.bearing ?? bearingRange,
-      error: zoomed.error ?? errorRange,
-      course: zoomed.course ?? courseRange,
-    };
-    if (zoomed.course) {
-      // The speed axis zoomed in proportion with the course axis it shares the pane with.
-      const f0 = (zoomed.course[0] - courseRange[0]) / (courseRange[1] - courseRange[0] || 1);
-      const f1 = (zoomed.course[1] - courseRange[0]) / (courseRange[1] - courseRange[0] || 1);
-      speedRange = [speedRange[0] + f0 * (speedRange[1] - speedRange[0]), speedRange[0] + f1 * (speedRange[1] - speedRange[0])];
-    }
-    const cue: Cue = errorCue(rows, this.cutOffDegrees);
-    const panes = layout.panes.map((p) => ({ ...p, range: ranges[p.pane] }));
-    this.drawn_ = { span, top, height, panes, reference: ref, courseReference: courseRef, speed: speedRange, cue, off: layout.panes.some((p) => p.pane === "error") ? offScale(rows, times, ranges.error, span) : { others: 0, leftOut: 0 } };
     const pane = (name: Pane) => panes.find((p) => p.pane === name);
     const xOf = (p: { x: number; w: number; range: Range }, v: number) => valueToX(v, p.range, p.x, p.w);
 
@@ -1294,8 +1197,6 @@ export class TmaControl {
         ctx.strokeRect(errorPane.x + 1, top + 1, errorPane.w - 2, height - 2);
       }
     }
-    const ticks = timeTicks(span[0], span[1], Math.max(2, Math.floor(height / 30)));
-    const seconds = ticks.length > 1 && ticks[1] - ticks[0] < 60000;
     ctx.lineWidth = 1;
     ctx.strokeStyle = grid;
     ctx.beginPath();
@@ -1311,10 +1212,10 @@ export class TmaControl {
     ctx.fillStyle = muted;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    for (const t of ticks) ctx.fillText(tickTime(t, seconds, this.settings), layout.left - 4, y(t));
+    for (const t of ticks) ctx.fillText(tickTime(t, seconds, this.settings), laid.left - 4, y(t));
     const unit = UNIT_LABELS[this.settings.speed_unit] ?? this.settings.speed_unit;
     const titles: Record<Pane, string> = { bearing: "Bearing (°)", error: "Error (°)", course: "Course (°)" };
-    const errorSpan = Math.abs(ranges.error[1] - ranges.error[0]);
+    const errorSpan = Math.abs(laid.ranges.error[1] - laid.ranges.error[0]);
     const degreesText = (v: number, p: Pane) => (p === "error" ? fixed(v, errorSpan < 1 ? 2 : errorSpan < 5 ? 1 : 0) : fixed(((v % 360) + 360) % 360, 0));
     for (const p of panes) {
       ctx.save();
@@ -1996,20 +1897,4 @@ export class TmaControl {
       return this.keep(event.key === "1" ? "bearing" : "ambiguous_bearing");
     }
   }
-}
-
-/** Where the plot's panes were last drawn, and their axes. */
-interface PlotLayout {
-  span: Range;
-  top: number;
-  height: number;
-  panes: { pane: Pane; x: number; w: number; range: Range }[];
-  /** The bearing the Bearing pane is unwrapped about, and the course the Course pane is. */
-  reference: number;
-  courseReference: number;
-  /** The Course/Speed pane's speed axis, in the analyst's speed unit. */
-  speed: Range;
-  cue: Cue;
-  /** Errors drawn but not counted that fall off the Error axis. */
-  off: { others: number; leftOut: number };
 }

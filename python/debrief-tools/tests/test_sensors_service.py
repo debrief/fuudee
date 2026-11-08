@@ -24,11 +24,9 @@ AGENT = {"kind": "person", "name": "analyst"}
 
 
 @pytest.fixture
-def client(config_file: Path, lab_library: str):
-    worker = ToolWorker([lab_library], str(config_file), timeout_s=3)
+def client(config_file: Path, worker: ToolWorker):
     app = build_app(ToolService(worker, str(config_file)), TOKEN, PORT)
-    yield TestClient(app, base_url=f"http://127.0.0.1:{PORT}")
-    worker.close()
+    return TestClient(app, base_url=f"http://127.0.0.1:{PORT}")
 
 
 def rpc(client: TestClient, method: str, params: dict | None = None):

@@ -117,7 +117,7 @@ Measured on the development container on 14 Oct 2026, serial 1 of the sample exe
 | Playground, Pyodide in Chromium (playground test, 4 secondaries, playing) | asking to showing | 6.4 to 7.2 ms | 15 to 20 ms (three runs) | 30 to 71 ms |
 | Pyodide in Node (`spikes/pyodide/run.sh`, 2 secondaries) | Python alone, mean | 2.2 ms | | |
 
-Every measurement is well inside 100 ms, so the Tote stays on the architecture the Phase 0 spike chose: one request per time. The dense-sampling fallback is not built. Each check reports its numbers and asserts generously (three times the budget at p95), so a slow CI machine does not fail it: `python/debrief-tools/tests/test_tote_latency.py`, the integration test's Tote steps and `vscode/test/play/tote.mjs`.
+Every measurement is well inside 100 ms, so the Tote stays on the architecture the Phase 0 spike chose: one request per time. The dense-sampling fallback is not built. Each check reports its numbers and asserts generously (three times the budget at p95), so a slow CI machine does not fail it: `python/debrief-tools/tests/test_tote_latency.py`, the integration test's Tote steps and `vscode/test/play/tote.mjs`. The Python check runs with `DEBRIEF_PERF=1` only, in CI's step for performance budgets, which reports and never blocks.
 
 ## Measure groups: what part B adds
 

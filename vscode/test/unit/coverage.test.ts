@@ -8,6 +8,7 @@ import type { CoverageReport, DebriefFeatureCollection, TrackSupply } from "@deb
 import { along, choices, coveragePieces, extentOf, linkWords, periods, plotTitleOf, untaken, type Span } from "@debrief/kernel";
 import { coverageId, timelineEntries } from "../../src/timeline.js";
 import { checkMessage } from "../../src/messages.js";
+import { withinBudget } from "./budget.js";
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -38,7 +39,7 @@ describe("periods of gappy sources, swept along the time (NFR-01)", () => {
     const cut = periods(sources);
     const took = performance.now() - started;
     expect(cut.length).toBeGreaterThan(5_000);
-    expect(took).toBeLessThan(100);
+    withinBudget(took, 100, "coverage periods of every source");
   });
   it("finds a long track's pieces in one pass", () => {
     // 2,000 spans of 10 fixes, each from the next supplier: 20,000 fixes, each with its
@@ -59,7 +60,7 @@ describe("periods of gappy sources, swept along the time (NFR-01)", () => {
     expect(pieces).toHaveLength(2000);
     expect(pieces[1]).toMatchObject({ source: "Log", fixes: 10 });
     expect(pieces[0].source).toBeUndefined();
-    expect(took).toBeLessThan(60);
+    withinBudget(took, 60, "a long track's pieces");
   });
 });
 

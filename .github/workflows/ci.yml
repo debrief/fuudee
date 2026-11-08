@@ -44,6 +44,15 @@ jobs:
           npm run --prefix ts/schemas generate -- --check
       - name: Python tests
         run: uv run pytest
+      - name: Performance budgets, reported and never blocking (docs/engineering.md)
+        continue-on-error: true
+        env:
+          DEBRIEF_PERF: "1"
+        run: |
+          uv run pytest python/debrief-tools/tests/test_tote_latency.py -q || over=1
+          npm run --prefix ts/schemas build
+          npm test --prefix ts/kernel -- tma || over=1
+          exit ${over:-0}
       - name: TypeScript typecheck and tests
         run: |
           npm run --prefix ts/schemas typecheck
@@ -110,6 +119,13 @@ jobs:
           npm test
           npm run check:theme
           npm run check:language
+      - name: Performance budgets, reported and never blocking (docs/engineering.md)
+        if: matrix.checks
+        continue-on-error: true
+        working-directory: vscode
+        env:
+          DEBRIEF_PERF: "1"
+        run: npx vitest run --project unit coverage timeline sensors
       - uses: actions/cache@v4
         with:
           path: vscode/.vscode-test
