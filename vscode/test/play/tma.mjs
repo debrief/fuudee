@@ -283,6 +283,11 @@ export async function playTma(page, shot) {
   const rmsBefore = await rms();
   const timingsBefore = await page.evaluate(() => window.debriefTma.timings.length);
   const axesBefore = await page.evaluate(() => window.debriefTma.errorAxes.length);
+  // The plot keeps its size as the line beneath it changes, during the drag and after: the RMS
+  // said while dragging (it wrapped to a second line, and the plot shrank 16 px under the drag), the
+  // cue and the bearings off scale as they come out.
+  const sizedBefore = await plotSizeOf(page);
+  const lineBefore = await lineBeneath(page);
   const at = await centreOf(handle("end"));
   const mapBox = await page.locator(".frame-map").boundingBox();
   // The handle sits a little beyond the leg's last fix: the fix, not the handle, to where RED ONE was.
@@ -297,6 +302,7 @@ export async function playTma(page, shot) {
   await page.mouse.move((at.x + to.x) / 2, (at.y + to.y) / 2, { steps: 10 });
   await page.waitForFunction(() => document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 10000 });
   const during = await rms();
+  assert.deepEqual(await plotSizeOf(page), sizedBefore, `the plot kept its size while dragging: "${lineBefore}", then "${await lineBeneath(page)}"`);
   assert.notEqual(during.replace(" (while dragging)", ""), rmsBefore, "the RMS follows the drag");
   await picture("tma-03-drag");
   await page.mouse.move(to.x, to.y, { steps: 20 });
@@ -326,6 +332,7 @@ export async function playTma(page, shot) {
   const beyond3 = after.rows.filter((r) => Math.abs(r.residual) > 3).length;
   assert.equal(fittedCue, beyond3 ? `✗ ${beyond3} of 60 beyond 3.0°, the largest ${Math.max(...after.rows.map((r) => Math.abs(r.residual))).toFixed(1)}°` : "✓ Every error within 3.0°");
   console.log(`Fitted at 3°: ${fittedCue}`);
+  assert.deepEqual(await plotSizeOf(page), sizedBefore, `the plot kept its size once the drag was saved: "${lineBefore}", then "${await lineBeneath(page)}"`);
   await page.mouse.move(2, 2);
   await picture("stacked-dots-08-fitted-beyond");
   // The analyst's cut-off for a 1.5° sonar, 5° (three of its deviations; legacy's default is 3°),
@@ -345,6 +352,7 @@ export async function playTma(page, shot) {
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-more-button")), true, "the keyboard back on ⋯");
   await page.waitForFunction(() => window.debriefTma.plotState.cue?.state === "within", null, { timeout: 10000 });
   assert.match(await view.locator(".tma-cue").innerText(), /^✓ Every error within 5\.0°$/);
+  assert.deepEqual(await plotSizeOf(page), sizedBefore, `the plot kept its size, the cut-off changed: "${lineBefore}", then "${await lineBeneath(page)}"`);
   state = await plot();
   assert.ok(state.axes.error[1] - state.axes.error[0] < 15, `auto-fitted to the small errors: ${state.axes.error}`);
   await page.evaluate(() => document.activeElement?.blur());
@@ -1023,6 +1031,38 @@ export async function playTma(page, shot) {
   if (rearranged) await everyPanelLeft(page);
 }
 
+/**
+ * The Bearings plot's box and the canvas drawn in it, once two reads a few frames apart agree (its
+ * ResizeObserver has drawn it again, if it was to). The plot keeps its size as what is said beneath
+ * it changes: the cue, the RMS, the bearings off scale, a message. In the panel, #bearings; popped
+ * out, #tma.
+ */
+async function plotSizeOf(on, root = "#bearings") {
+  const read = () =>
+    on.evaluate(async (root) => {
+      for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
+      return JSON.stringify([".tma-plot", ".tma-canvas"].map((s) => {
+        const b = document.querySelector(`${root} ${s}`).getBoundingClientRect();
+        return [b.x, b.y, b.width, b.height].map(Math.round);
+      }));
+    }, root);
+  let last = await read();
+  for (let i = 0; i < 20; i++) {
+    const now = await read();
+    if (now === last) return JSON.parse(now);
+    last = now;
+  }
+  return JSON.parse(last);
+}
+
+/** The line beneath the plot, as it reads: each part said whole in its tooltip. */
+async function lineBeneath(on, root = "#bearings") {
+  const line = on.locator(`${root} .tma-statusline`);
+  const title = (await line.getAttribute("title")) ?? "";
+  for (const said of await line.locator("p:visible").allTextContents()) assert.ok(title.includes(said.trim()), `"${said.trim()}" whole in the line's tooltip: "${title}"`);
+  return (await line.innerText()).replace(/\s+/g, " ").trim();
+}
+
 /** Whether the playground's earlier steps left every panel on the left. */
 const panelsLeft = async (page) => (await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map"));
 
@@ -1287,6 +1327,9 @@ export async function playSelectBearings(page, shot) {
   const keptNow = () => page.evaluate((ids) => Object.fromEntries(window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id)).map((c) => [c.id, c.resolved ?? null])), run.ids);
   await page.waitForFunction((ids) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).length === ids.length, run.ids, { timeout: 30000 });
   assert.deepEqual(await keptNow(), run.keeps, "each cut kept on the side boxed");
+  // The line beneath the plot counts the ambiguous cuts, fewer now: the plot the same size.
+  await plotStill();
+  assert.deepEqual(await plotSize(), sized, `the plot kept its size, the line beneath it now "${await view.locator(".tma-rms").textContent()}"`);
   assert.equal(JSON.stringify((await state()).zoom), zoom, "the zoom kept");
   const faint = await page.evaluate((ids) => window.debriefTma.bearingMarkers().filter((m) => ids.includes(m.id)).length, run.ids);
   assert.equal(faint, run.ids.length, "one dot a cut now: the faint other side gone");
@@ -1420,6 +1463,23 @@ export async function playBearingsPopOut(page, shot) {
   assert.equal(await popup.title(), "Bearings · Debrief");
   // The panes it had in the panel: Course/Speed still on.
   assert.ok(await popup.evaluate(() => !!window.debriefTma.plotState.course), "the panes follow it into the window");
+  // The cue, the RMS and the bearings off scale said beneath the plot, gone as the sensor's cuts
+  // are shown (their count said instead), back with the solution: the plot the same size. Here, as
+  // in VS Code, the view's width stays as it is; the panel's column widens for a solution.
+  const sensor = "sensor-blue-one-towed-array";
+  const withCue = await plotSizeOf(popup, "#tma");
+  const cueSaid = await lineBeneath(popup, "#tma");
+  assert.equal(await popup.locator(".tma-cue").isVisible(), true, "the cue said");
+  await showPanel(page, "outline");
+  await page.locator(`#outline li[data-id="${sensor}"]`).click();
+  await popup.waitForFunction((id) => !window.debriefTma.shown?.solution_id && window.debriefTma.shown?.sensor_id === id, sensor, { timeout: 30000 });
+  await popup.locator(".tma-cue").waitFor({ state: "hidden" });
+  assert.deepEqual(await plotSizeOf(popup, "#tma"), withCue, `the plot kept its size as the cue went: "${cueSaid}", then "${await lineBeneath(popup, "#tma")}"`);
+  await page.locator(`#outline li[data-id="${solution}"]`).click();
+  await popup.waitForFunction((id) => window.debriefTma.shown?.solution_id === id && !!window.debriefTma.residuals, solution, { timeout: 30000 });
+  await popup.locator(".tma-cue").waitFor();
+  assert.deepEqual(await plotSizeOf(popup, "#tma"), withCue, `the plot kept its size as the cue came back: "${await lineBeneath(popup, "#tma")}"`);
+
   // The panel: put away, saying where it went; its title bar Bring back.
   const away = page.locator("#bearings-away");
   await away.waitFor();

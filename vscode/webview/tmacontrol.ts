@@ -263,6 +263,8 @@ export class TmaControl {
       `<ul class="tma-notes" hidden></ul>` +
       `</div>` +
       `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter Space Delete S 1 2 + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas><p class="tma-readout" aria-hidden="true"></p></div>` +
+      // One line, the cue, the RMS and the bearings off scale, each cut short where the view is
+      // narrow and whole in the line's tooltip: the plot keeps its size as they change (tma.css).
       `<div class="tma-statusline">` +
       `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
       `<p class="tma-rms" hidden></p>` +
@@ -311,6 +313,7 @@ export class TmaControl {
       const open = more.getAttribute("aria-expanded") !== "true";
       more.setAttribute("aria-expanded", String(open));
       q<HTMLElement>(".tma-more").hidden = !open;
+      this.moreToggled();
       if (open) this.element.querySelector<HTMLElement>(".tma-more input")?.focus();
     });
     const closeMore = (event: KeyboardEvent) => {
@@ -321,6 +324,7 @@ export class TmaControl {
       more.focus();
       more.setAttribute("aria-expanded", "false");
       q<HTMLElement>(".tma-more").hidden = true;
+      this.moreToggled();
     };
     more.addEventListener("keydown", closeMore);
     q<HTMLElement>(".tma-more").addEventListener("keydown", closeMore);
@@ -353,6 +357,17 @@ export class TmaControl {
     // Not mid-drag: the plot's size is read once a drag.
     if (!this.live) this.frozenGeometry = undefined;
     this.drawPlot();
+  }
+
+  /**
+   * ⋯ opened or closed: the plot drawn to the height it now has, there and then. The ResizeObserver
+   * would draw it a frame or more on, but on CI (8 Nov 2026, job 128771670799) the plot was left
+   * drawn at its height with ⋯ open (26 px short, a gap beneath it) once ⋯ closed: the cut-off,
+   * committed as ⋯ closes, had drawn it with ⋯ still open, and no redraw followed.
+   */
+  private moreToggled(): void {
+    if (this.box) this.resizeWaiting = true;
+    else this.relayout();
   }
 
   /** The view resized under a box being dragged: laid out once the box is done. */
@@ -680,6 +695,7 @@ export class TmaControl {
     const offscale = this.element.querySelector<HTMLElement>(".tma-offscale")!;
     if (this.mode() !== "solution" || !cue) {
       offscale.textContent = "";
+      this.titleStatusLine();
       return;
     }
     this.cue.dataset.state = cue.state;
@@ -687,6 +703,15 @@ export class TmaControl {
     this.cue.querySelector<HTMLElement>(".tma-cue-text")!.textContent = describeCue(cue, this.settings);
     // Drawn but not counted, and off the axis fitted to the errors counted: said, never pinned at an edge.
     offscale.textContent = this.drawn_ ? describeOffScale(this.drawn_.off) : "";
+    this.titleStatusLine();
+  }
+
+  /** The status line's words whole in its tooltip: one line, it cuts them short where the view is narrow. */
+  private titleStatusLine(): void {
+    const line = this.cue.parentElement!;
+    const said = Array.from(line.children).filter((p) => !(p as HTMLElement).hidden).map((p) => p.textContent!.replace(/\s+/g, " ").trim()).filter(Boolean).join(" · ");
+    if (said) line.title = said;
+    else line.removeAttribute("title");
   }
 
   /** A frame of a drag: the RMS and the plots; nothing rebuilt. */
@@ -699,6 +724,7 @@ export class TmaControl {
     if (this.cue.getAttribute("aria-live") !== "off") this.cue.setAttribute("aria-live", "off");
     this.renderCue();
     this.rmsLine.textContent = `${describeRms(report, this.settings)} (while dragging)`;
+    this.titleStatusLine();
   }
 
   /** Where a split goes: the cut chosen (a manoeuvre picked here), else current time. */
