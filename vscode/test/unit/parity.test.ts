@@ -62,8 +62,12 @@ describe("the cross-host parity check", () => {
     expect(differences(without(vscode, ["view"]), without(normalise(plotFile("x", "y").replace('"faint"', '"hidden"')), ["view"]))).toEqual([]);
   });
 
-  it("holds numbers to one part in 10^12, as two Pythons' maths libraries round", () => {
+  it("holds numbers to one part in 10^9, as two Pythons' maths libraries round, and courses and speeds worked out from their positions", () => {
     expect(differences({ x: -75.82790233909675 }, { x: -75.82790233909674 })).toEqual([]);
-    expect(differences({ x: 37.0361795435 }, { x: 37.0361795436 })).toHaveLength(1);
+    // A sheared track's speed, worked out in each host.
+    expect(differences({ x: 6.02906254781588 }, { x: 6.029062547884595 })).toEqual([]);
+    // A hundredth of a metre, or a thousandth of a knot, is a difference.
+    expect(differences({ x: 37.03617954 }, { x: 37.03617964 })).toHaveLength(1);
+    expect(differences({ x: 6.029 }, { x: 6.03 })).toHaveLength(1);
   });
 });

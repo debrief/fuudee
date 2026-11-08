@@ -19,7 +19,7 @@ import type { CleanChange, ToolService, TrackChange } from "../service.js";
 import type { Session } from "../session.js";
 import type { MapPanel } from "../panels/map.js";
 import type { Target } from "../../webview/panels/flows/register.js";
-import type { TrackEditsHost } from "../../webview/panels/flows/tracks.js";
+import type { EditGiven, FixMoveGiven, JumpsGiven, MarkGiven, MergeGiven, PlottingModeGiven, PlottingModeOptions, SmoothGiven, SplitGiven, TrackEditsHost, TrackTarget } from "../../webview/panels/flows/tracks.js";
 
 export type TrackFeature = Extract<PlotFeature, { properties: { kind: "track" } }>;
 
@@ -86,7 +86,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
   };
 
   // "Move track…": what moves, the distance and the bearing. With a change given, no questions.
-  const moveCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const moveCommand = async (target?: TrackTarget, given?: EditGiven) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to move.") };
     const name = track.properties.name;
@@ -119,7 +119,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
   };
   // "Rotate track…": what turns, about which pivot, and by how much. With a change given, no questions.
-  const rotateCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const rotateCommand = async (target?: TrackTarget, given?: EditGiven) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to rotate.") };
     const name = track.properties.name;
@@ -203,7 +203,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
     return meaning(read, () => describeSpeed(read as { value: number; unit: string }, displaySettings));
   };
   // "Shear track…": what changes, which end is held, and the course and speed the rest then makes good. With a change given, no questions.
-  const shearCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const shearCommand = async (target?: TrackTarget, given?: EditGiven) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to shear.") };
     const name = track.properties.name;
@@ -236,7 +236,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
   };
   // "Stretch track…": what changes, which end is held, and the speed the rest then makes good, on the same course. With a change given, no questions.
-  const stretchCommand = async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+  const stretchCommand = async (target?: TrackTarget, given?: EditGiven) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to stretch.") };
     const name = track.properties.name;
@@ -259,7 +259,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
   };
   // "Split track at current time…": the two parts' names, offered as "X (1)" and "X (2)". With options given, no questions.
-  const splitCommand = async (target?: string | Target, options?: { at?: string; names?: [string, string] }) => {
+  const splitCommand = async (target?: TrackTarget, options?: SplitGiven) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to split.") };
     const at = options?.at ?? session.time?.current;
@@ -283,12 +283,12 @@ export function trackEditCommands(deps: TrackEditsDeps) {
   // "Merge selected tracks": the tracks selected, or the ids given, joined in time order. Asked for
   // the merged track's name, and, if speeds, courses or depths would not be kept, asked first
   // whether to merge anyway. With the ids given (agents, tests), no questions; what was not kept comes back.
-  const mergeCommand = async (target?: string[] | Target, others?: readonly unknown[] | { name?: string }) => {
+  const mergeCommand = async (target?: string[] | Target, others?: readonly unknown[] | MergeGiven) => {
     const nodes = Array.isArray(others) ? featureIdsOf(others as never) : [];
     const ids = Array.isArray(target) ? target : nodes.length ? nodes : session.selection;
     const tracks = ids.map(trackById).filter((t): t is TrackFeature => !!t);
     if (tracks.length < 2) return { problem: report("Select two or more tracks to merge.") };
-    let name = others && !Array.isArray(others) ? (others as { name?: string }).name : undefined;
+    let name = others && !Array.isArray(others) ? (others as MergeGiven).name : undefined;
     if (!Array.isArray(target)) {
       const { ordered, lost } = mergePlan(tracks);
       if (lost.length) {
@@ -324,7 +324,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
   // "Find and remove jumps…": the threshold (offered as the track's default), then the jumps found,
   // ringed on the map and listed, all ticked; those left ticked are removed as one step. Given
   // options, no questions: the times to remove ("all" found), or none, to find them and ring them.
-  const removeJumpsCommand = async (target?: string | Target, given?: { threshold?: { value: number; unit: string }; times?: string[] | "all" }) => {
+  const removeJumpsCommand = async (target?: TrackTarget, given?: JumpsGiven) => {
     const track = trackTarget(target);
     const opened = session.current;
     if (!track || !opened) return { problem: report("Select one track to find its jumps.") };
@@ -397,7 +397,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
   // "Smooth track…": what to smooth, over how many fixes, then the track drawn as it would be,
   // with how far fixes would move; Apply makes it one step. Given a window, it is applied, unless
   // apply is false: then the preview stays on the map.
-  const smoothCommand = async (target?: string | Target, given?: { window: number; period?: TimeRange; apply?: boolean }) => {
+  const smoothCommand = async (target?: TrackTarget, given?: SmoothGiven) => {
     const track = trackTarget(target);
     const opened = session.current;
     if (!track || !opened) return { problem: report("Select one track to smooth.") };
@@ -459,7 +459,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
 
   // "Fixes…": the fix list of a track, to choose one; then its colour, label or comment, each one step.
   // From the map (a right-click on a fix), the fix is given. With a change given, no questions.
-  type MarkChanges = { colour?: string | null; label?: string | null; comment?: string | null; show_label?: boolean | null; show_symbol?: boolean | null; colour_name?: string };
+  type MarkChanges = MarkGiven;
   /** The fix list of a track, the fix nearest current time offered: the time of the fix chosen, or undefined for Escape. */
   async function chooseFix(track: TrackFeature, placeholder: string): Promise<string | undefined> {
     const rows = fixRows(track, displaySettings, colourName).map((row) => ({ label: row.label, description: row.description, detail: row.mark || undefined, time: row.time }));
@@ -480,7 +480,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
     quick.dispose();
     return at;
   }
-  const markFixCommand = async (target?: string | Target, time?: string, change?: MarkChanges) => {
+  const markFixCommand = async (target?: TrackTarget, time?: string, change?: MarkChanges) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to mark one of its fixes.") };
     const at = time ?? (await chooseFix(track, "Choose a fix to colour, label or comment on; type a time to find one"));
@@ -539,7 +539,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
   // "Move a fix…": the fix list, then where it goes, typed in any notation Debrief reads. Only that fix moves;
   // its time, its recorded course and speed and its mark stay. From the map's fix menu, the fix is given;
   // with a change given ({position} or {distance, bearing}), no questions.
-  const moveFixCommand = async (target?: string | Target, time?: string, given?: Omit<TrackEdit, "action" | "fix_time">) => {
+  const moveFixCommand = async (target?: TrackTarget, time?: string, given?: FixMoveGiven) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to move one of its fixes.") };
     const name = track.properties.name;
@@ -578,7 +578,7 @@ export function trackEditCommands(deps: TrackEditsDeps) {
   // imported, changed as one step. With the mode given ("otg" or "dr"), no questions. Over the ground after a
   // change made while plotted by dead reckoning loses that change (decision, product owner, 14 Oct 2026): asked,
   // the analyst confirms in a dialog first; given, it is refused, saying why, unless options say to discard it.
-  const plottingModeCommand = async (target?: string | Target, given?: PlottingMode, options?: { discard_dr_changes?: boolean }) => {
+  const plottingModeCommand = async (target?: TrackTarget, given?: PlottingModeGiven, options?: PlottingModeOptions) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to plot over the ground or by dead reckoning.") };
     const name = track.properties.name;

@@ -49,6 +49,30 @@ export const SEQUENCE = [
   { command: "debrief.editNarrative", args: ["narrative-0002", { text: "Edited by the parity check." }], what: "a narrative entry edited" },
   { command: "debrief.deleteNarrative", args: ["narrative-0003"], what: "a narrative entry deleted" },
   { command: "debrief.setNarrativeOnMap", args: [false], what: "the map's narrative box off" },
+  // The rest of the track edits (flows/tracks.ts's TrackEditArgs): each given its answers, so nothing is asked.
+  { command: "debrief.rotateTrack", args: ["track-ais-cargo-02", { angle: { value: 15, unit: "deg" }, pivot: [-75.6, 37.0] }], what: "a merchant rotated 15° about a point" },
+  {
+    command: "debrief.shearTrack",
+    args: ["track-ais-cargo-03", { anchor: "start", course: { value: 200, unit: "deg" }, speed: { value: 6, unit: "[kn_i]" } }],
+    what: "a merchant sheared to 200° at 6 kn, its start held",
+  },
+  { command: "debrief.stretchTrack", args: ["track-ais-cargo-05", { anchor: "start", speed: { value: 9, unit: "[kn_i]" } }], what: "a merchant stretched to 9 kn, its start held" },
+  { command: "debrief.splitTrack", args: ["track-ais-cargo-06", { at: "2023-06-15T10:30:00.000Z" }], what: "a merchant split at 10:30, the parts named by the service" },
+  { command: "debrief.mergeTracks", args: [["track-ais-cargo-06", "track-cargo-06-2"], { name: "Cargo 06 again" }], what: "its parts merged, named" },
+  {
+    command: "debrief.moveFix",
+    args: ["track-ais-sailing-01", "2023-06-15T08:08:06.000Z", { distance: { value: 5, unit: "[nmi_i]" }, bearing: { value: 0, unit: "deg" } }],
+    what: "one fix of the yacht moved 5 miles north: a jump",
+  },
+  { command: "debrief.removeJumps", args: ["track-ais-sailing-01", { threshold: { value: 30, unit: "[kn_i]" }, times: "all" }], what: "the yacht's jumps over 30 kn removed" },
+  { command: "debrief.smoothTrack", args: ["track-ais-cargo-04", { window: 5 }], what: "a merchant smoothed over 5 fixes" },
+  {
+    command: "debrief.markFix",
+    args: ["track-red-one", "2023-06-15T08:05:00.000Z", { colour: "#ffd700", colour_name: "yellow", label: "Parity", show_symbol: true }],
+    what: "a fix of RED ONE coloured, labelled and its symbol always shown",
+  },
+  { command: "debrief.plottingMode", args: ["track-blue-one", "dr"], what: "BLUE ONE plotted by dead reckoning" },
+  { command: "debrief.setTrackFrequencies", args: [["track-blue-one", "track-red-one"], { label_interval: "10 min", arrow_interval: "off" }], what: "labels every 10 min and no arrows on both" },
 ];
 
 /**
@@ -58,10 +82,6 @@ export const SEQUENCE = [
 export const LEFT_OUT = [
   { command: "debrief.setTimeWindow", why: "VS Code's own command for agents and tests, not a shared feature's: the playground sets the window only from its time controller" },
   { command: "debrief.goToTime", why: "moves current time only, shown and never saved, so the plot's file does not change" },
-  {
-    command: "debrief.rotateTrack, debrief.shearTrack, debrief.stretchTrack, debrief.splitTrack, debrief.mergeTracks, debrief.removeJumps, debrief.smoothTrack, debrief.markFix, debrief.moveFix, debrief.plottingMode, debrief.setTrackFrequencies",
-    why: "the playground opens its form for each whatever it is given; only Move takes its answers as arguments in both hosts",
-  },
   { command: "debrief.editAnnotation (without changes), debrief.cutMenu, debrief.currentCut", why: "always a form or a menu, in both hosts" },
   { command: "debrief.colourSelection, debrief.selectionHide and the Outline toolbar's", why: "act on the Outline's selection, which the hosts keep each in its own way; their Target forms (setColour, hide) are run instead" },
 ];
@@ -73,4 +93,4 @@ export const LEFT_OUT = [
 export const KNOWN_DIFFERENCES = [];
 
 /** Where the plot's history stands after the sequence, in both: the step current, and how many there are. */
-export const EXPECTED = { current: 13, steps: 13 };
+export const EXPECTED = { current: 24, steps: 24 };
