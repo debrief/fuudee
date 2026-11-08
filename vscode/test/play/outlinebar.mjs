@@ -280,3 +280,6 @@ export async function playOutlineBar(page, shot) {
   await resizeTo(page, before.width, before.height);
   await button("clear-selection").click();
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "outlinebar", after: "frequencies", cost: 13, play: ({ page, shot }) => playOutlineBar(page, shot) }];

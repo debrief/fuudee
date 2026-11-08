@@ -30,7 +30,7 @@ How the panels are laid out in the browser: the playground, the web demo at `/de
 
 2. **The top bar** holds what is used now and then, so the columns hold only panels (decision, product owner, 23 Oct 2026): the **Plot** list; **Import…**, **Export ▾** and **Try ▾**, each a menu that opens under its button; and **Reset layout**. A menu closes on `Escape` (the keyboard back on its button), on `Tab` out of it, on a click elsewhere (into the map too), on its button again, and when the window is resized or, narrow, the page scrolls. The Catalogue panel has an **Import…** button too, opening the same menu; a file chosen to import closes it (accepted as built, product owner, 23 Oct 2026).
 
-3. **Panels.** Time, Tote, Outline, Catalogue, Timeline, Coverage, Tools, History and Walkthroughs, listed once in `vscode/play/panels.mjs`. Every panel stays: none can be closed. The map has no tab and takes no panel as a tab; a panel can be dropped beside it, splitting its place.
+3. **Panels.** Time, Tote, Outline, Catalogue, Timeline, Coverage, Bearings, Tools, History and Walkthroughs, listed once in `vscode/play/panels.mjs`. Every panel stays: none can be closed. The map has no tab and takes no panel as a tab; a panel can be dropped beside it, splitting its place.
 
 4. **Rearranging.** Drag a tab onto another group's tabs or its middle to join it; onto a group's edge, or the dock's, to split. Without a pointer, and by touch, each tab has a menu (`Shift+F10`, the menu key, or a right-click), and each group a **⋯** button that opens the menu of the panel in front: **Move to left: Outline, Catalogue** for each other group (named by where it is and what it holds), **Move to a group of its own**, and **Reset layout**. When a column empties, the map takes its room.
 

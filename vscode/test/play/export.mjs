@@ -278,3 +278,6 @@ export async function playExport(page, shot) {
   console.log(`Exports in the playground, from Export to the file: ${timings.join("; ")}.`);
   await resizeTo(page, 1400, 820);
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "export", after: "collation", cost: 20, play: ({ page, shot }) => playExport(page, shot) }];

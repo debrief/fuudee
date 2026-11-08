@@ -150,3 +150,6 @@ export async function playAnnotations(page, shot) {
   await page.keyboard.press("Control+z");
   await mapFrame.locator(".annotation-label", { hasText: "Datum buoy D7" }).waitFor();
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "annotations", after: "basics", cost: 19, play: ({ page, shot }) => playAnnotations(page, shot) }];

@@ -1168,3 +1168,53 @@ export async function playDemo(browser, siteUrl, shot) {
   assert.deepEqual(errors, []);
   await context.close();
 }
+
+/**
+ * The walkthroughs on a first visit, at a laptop's 1366 px, in the dark and light themes: open,
+ * docked in front on the right, with the guidance accent on their tab and AA contrast; then at
+ * 800 px, first in the side column, the same (product owners, 22 and 23 Oct 2026).
+ */
+export async function accentOn({ browser, errors, shot, shots, ready }, url, name) {
+  const said = [];
+  for (const scheme of ["dark", "light"]) {
+    const on = await browser.newPage({ viewport: { width: 1366, height: 820 }, colorScheme: scheme });
+    on.on("pageerror", (e) => errors.push(String(e)));
+    on.on("console", (m) => m.text().startsWith("webview_message_refused") && errors.push(m.text())); // a message the page refused (CON-08)
+    await on.goto(url);
+    await openOnFirstLoad(on, `${name}, ${scheme}`);
+    const wide = await guidanceAccent(on, scheme);
+    if (shots) {
+      await ready(on);
+      await on.mouse.move(2, 2);
+      await shot(`accent-${name}-${scheme}`, on);
+    }
+    await resize(on, 800, 800);
+    const narrow = await guidanceAccent(on, scheme);
+    said.push(`${scheme}: ${wide.count + narrow.count} texts, the least ${Math.min(wide.least, narrow.least).toFixed(2)}:1`);
+    await on.close();
+  }
+  console.log(`Walkthroughs in the ${name} on first load: open, the guidance accent on edge, heading bar, step numbers and the folded tab; contrast (WCAG AA 4.5:1) ${said.join("; ")}.`);
+}
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [
+  // The walkthroughs, each start to finish on a fresh copy, then the onboarding trial's tasks
+  // as a speed run, each from a fresh page (CAP-25, NFR-09); on the same page: Python started once for both.
+  { name: "walkthroughs", start: "ready", cost: 90, play: async ({ page, shot, root }) => (await playTours(page, shot, root), await speedRun(page, root)) },
+  { name: "accent-playground", start: "blank", cost: 20, play: (ctx) => accentOn(ctx, `${ctx.BASE}/index.html`, "playground") },
+  // The web demo (DEP-06, DEP-07), and the walkthrough in its post, from the built site.
+  {
+    name: "web-demo",
+    start: "blank",
+    site: true,
+    cost: 58,
+    play: async (ctx) => {
+      const siteServer = ctx.serve(ctx.site);
+      const siteUrl = `http://127.0.0.1:${siteServer.address().port}`;
+      await playDemo(ctx.browser, siteUrl, ctx.shot);
+      await accentOn(ctx, `${siteUrl}/demo/`, "demo");
+      await playTourInThePost(ctx.browser, siteUrl, ctx.shot);
+      siteServer.close();
+    },
+  },
+];

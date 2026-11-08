@@ -600,3 +600,6 @@ export async function playDock(browser, base, shot, ready, errors) {
     `Docked layout: the default's map at 1366 × 768 ${size(sizes["1366×768"])}, at 1280 × 720 ${size(sizes["1280×720"])}, at 1024 × 768 ${size(sizes["1024×768"])}, at 1920 × 1080 ${size(sizes["1920×1080"])}; no page scroll, no tab overflow, the track tools in sight; tab panels and the keyboard's order; the drawing note one line; with a tool's form open, the map ${Object.entries(formAt).map(([w, s]) => `at ${w} px ${s}`).join(", ")}; dragged, split, moved by keyboard and by touch; scroll and focus kept across 900 px and Reset; the map's and form's frames never reloaded and the plot's ${steps} steps kept; remembered across a reload, and ${Object.keys(broken).length} broken layouts each giving the default, forgotten; narrow at ${narrow.join(", ")} px; a post's fixed layout, never remembered.`,
   );
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "dock", start: "blank", cost: 124, play: ({ browser, BASE, shot, ready, errors }) => playDock(browser, BASE, shot, ready, errors) }];

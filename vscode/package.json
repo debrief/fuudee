@@ -690,6 +690,7 @@
     "test:play": "node test/play/play.mjs ../site/docs/play ../site/site",
     "check:theme": "node scripts/check-theme.mjs",
     "check:language": "node scripts/check-language.mjs",
+    "check:panels": "node scripts/check-panels.mjs",
     "walkthroughs": "node scripts/walkthroughs.mjs",
     "menus": "node scripts/menus.mjs"
   },

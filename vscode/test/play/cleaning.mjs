@@ -234,3 +234,6 @@ export async function playCleaning(page, shot) {
   assert.equal(await undone(), 0);
   await mapFrame.locator(".fix-label", { hasText: "Turn 1" }).last().waitFor();
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "cleaning", after: "shear", cost: 30, play: ({ page, shot }) => playCleaning(page, shot) }];

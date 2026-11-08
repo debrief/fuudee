@@ -202,3 +202,6 @@ export async function playShear(page, shot) {
   await page.keyboard.press("End");
   await page.waitForTimeout(500);
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "shear", after: "tracks", cost: 16, play: ({ page, shot }) => playShear(page, shot) }];

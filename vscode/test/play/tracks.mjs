@@ -227,3 +227,6 @@ export async function playTracks(page, shot) {
   await dialog.waitFor({ state: "detached" });
   assert.equal(await steps(), n);
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "tracks", start: "arranged", cost: 37, play: ({ page, shot }) => playTracks(page, shot) }];

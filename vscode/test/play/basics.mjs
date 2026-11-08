@@ -1,0 +1,402 @@
+// The playground's first steps (play.mjs plays them): Python starting while the map and outline already
+// work, the time controller and panel, the Tote, the map's clicks, the outline from the keyboard, tools,
+// undo, crash recovery, a colleague's conflict and hiding on the map. Annotations and drawing follow.
+import assert from "node:assert/strict";
+import path from "node:path";
+import { readFileSync } from "node:fs";
+import { playTote } from "./tote.mjs";
+import { showPanel } from "./dock.mjs";
+import { playTimePanel, timePanelElsewhere } from "./timepanel.mjs";
+
+/** Python starting, the time controller and panel, the Tote, the map, tools, undo, recovery, until annotations. */
+export async function playBasics(ctx) {
+  const { page, browser, errors, BASE, root, shot, ready, text, timeLabel, selected, history, arrange } = ctx;
+  await page.goto(`${BASE}/index.html`);
+  // Before Python is ready: the map and outline work; what needs Python is off.
+  assert.equal(await page.locator("#plots").isDisabled(), true);
+  assert.equal(await page.locator("#plots option").first().innerText(), "Loading…");
+  for (const id of ["undo", "redo", "crash", "colleague", "colleague-during", "file"]) assert.equal(await page.locator(`#${id}`).isDisabled(), true, id);
+  // A selection made on the preview survives Python opening the plot.
+  await page.locator(`#outline li[data-id="track-red-one"]`).click();
+  await ready();
+  assert.deepEqual(await selected(), ["RED ONE"]);
+  assert.match(await history(), /step 1/);
+  // The plot as imported: nothing to undo, so Undo is disabled and says why, as VS Code's is (PAR-08).
+  assert.equal(await page.locator("#undo").isDisabled(), true);
+  assert.equal(await page.locator("#undo").getAttribute("title"), "Undo last change to plot: There is nothing to undo.");
+  await shot("play-01-ready");
+  await arrange();
+
+  // The time controller is first on the left, alone in its group; the map has no control of its own.
+  assert.equal((await page.evaluate(() => window.debriefLayout().groups.find((g) => g.place === "left")))?.panels.join(), "panel-time");
+  assert.equal(await page.frameLocator(".frame-map").locator(".tc-window, .tc-current").count(), 0);
+  const timeBefore = await timeLabel();
+  const markers = () => page.frameLocator(".frame-map").locator(".now").count();
+  await page.locator("#timebar .forward").click();
+  await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, timeBefore);
+  assert.ok((await markers()) > 0, "tracks show where they were at current time");
+  await playTheTimeController(ctx);
+  // The panel's parts (product owner, 28 Oct 2026): big time, scrubber, overview strip, the window's details.
+  await playTimePanel(page, shot, history);
+  await timePanelElsewhere(browser, `${BASE}/index.html`, shot, errors);
+  // The Tote: primary and secondaries chosen by pointer, keyboard, the outline's menu and touch;
+  // values follow current time as it steps and plays; latency reported (CAP-06, NFR-04).
+  await playTote(page, shot);
+
+  // The map: a click on BLUE ONE's first fix, inside the exercise area, selects BLUE ONE, not the area.
+  const plot = JSON.parse(readFileSync(path.join(root, "sample/serial-1/plot.geojson"), "utf8"));
+  const blue = plot.features.find((f) => f.properties.name === "BLUE ONE").properties.style.colour;
+  const dot = await page.frameLocator(".frame-map").locator(`path.leaflet-interactive[stroke="${blue}"][fill-opacity="0"]`).boundingBox();
+  await page.mouse.click(dot.x + dot.width / 2, dot.y + dot.height / 2);
+  await page.waitForFunction(() => document.querySelector("#outline li.selected .name")?.textContent === "BLUE ONE");
+  assert.deepEqual(await selected(), ["BLUE ONE"]);
+  // ...and a click inside the area, near its corner and away from any track, selects nothing but
+  // perhaps a bearing cut drawn there (its row, a sensor's child in the Outline, selected).
+  const area = await page.frameLocator(".frame-map").locator('path[fill-opacity="0.05"]').boundingBox();
+  await page.mouse.click(area.x + 25, area.y + 25);
+  await page.waitForFunction(() => ![...document.querySelectorAll("#outline li.selected")].some((li) => !li.classList.contains("cut")));
+  await page.frameLocator(".frame-map").locator("#map").focus();
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
+  await shot("play-02-map-click");
+
+  // The outline from the keyboard, a tree (product owner, 27 Oct 2026): one tab stop; Space selects,
+  // Down moves the keyboard, Enter selects there; Tab moves on (it is not trapped).
+  // The first track's row (the rows above it are the Plot features and Tracks headings, as in VS Code).
+  const rows = page.locator("#outline li[role=treeitem]");
+  assert.equal(await page.locator("#outline").getAttribute("role"), "tree");
+  assert.deepEqual(await rows.evaluateAll((all) => all.slice(0, 2).map((r) => r.dataset.id)), ["section:features", "group:tracks"]);
+  await rows.nth(2).focus();
+  await page.keyboard.press(" ");
+  await page.waitForFunction(() => document.querySelectorAll("#outline li[role=treeitem]")[2]?.getAttribute("aria-selected") === "true");
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.id), await rows.nth(3).getAttribute("data-id"));
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 1 && document.querySelectorAll("#outline li[role=treeitem]")[3].classList.contains("selected"));
+  assert.equal(await page.locator("#outline li[tabindex='0']").count(), 1, "one tab stop");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => !!document.activeElement?.closest("#outline")), false, "Tab leaves the tree");
+
+  // The window first ends at 09:00, before the closest approach of BLUE ONE and RED ONE (09:21).
+  const tc = (selector) => page.locator(`#timebar ${selector}`);
+  const at = (hhmm) => Date.parse(`2023-06-15T${hhmm}:00.000Z`);
+  const end = async () => Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+  await tc(".tc-start").focus();
+  await page.keyboard.press("Home");
+  await tc(".tc-end").focus();
+  await page.keyboard.press("End");
+  for (const key of ["PageDown", "PageDown", "PageDown", ...Array(6).fill("ArrowLeft")]) await page.keyboard.press(key); // 5 min steps
+  assert.equal(await end(), at("09:00"));
+  await page.waitForTimeout(500);
+  const cue = () => text("#timebar .tc-cue-text");
+  assert.equal(await cue(), "");
+
+  // Select BLUE ONE and RED ONE in the outline; Closest approach is offered.
+  await page.locator(`#outline li[data-id="track-blue-one"]`).click();
+  await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
+  // Offered once Python has checked the selection, which takes a moment.
+  await showPanel(page, "tools");
+  await page.waitForFunction(() => [...document.querySelectorAll("#tools button")].some((b) => b.textContent === "Closest approach" && !b.disabled));
+  await page.locator("#tools button", { hasText: "Closest approach" }).click();
+  const form = page.frameLocator(".frame-form");
+  const started = Date.now();
+  await form.getByRole("button", { name: "Run" }).click();
+  await page.locator(".frame-results").waitFor({ timeout: 60000 });
+  await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Closest approach"));
+  console.log(`Closest approach, from Run to its result: ${Date.now() - started} ms`);
+  await shot("play-03-closest-approach");
+
+  // Its moment is outside the saved window: the window shown widens to take it in, never saved,
+  // the widened part hatched, and a note with Keep and Revert stays until the reader chooses (CAP-28).
+  await page.locator(".toast", { hasText: "(outside your saved window)" }).waitFor();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "Showing beyond saved window");
+  assert.equal(await tc(".tc-cue").getAttribute("aria-live"), "polite");
+  assert.ok((await tc(".tc-cue").boundingBox()).height <= 26, "the note is one line, Keep and Revert inline");
+  assert.equal(await tc(".tc-cue-text").getAttribute("title"), "Showing beyond saved window");
+  assert.equal(await page.locator("#timebar .tc-beyond:visible").count(), 1);
+  assert.ok((await end()) > at("09:21") && (await end()) <= at("09:22"), "widened by the least amount");
+  const mapView = page.frameLocator(".frame-map");
+  const cpaLabel = mapView.locator(".annotation-label", { hasText: "Closest approach" });
+  await cpaLabel.first().waitFor(); // the map shows the widened window: the closest approach is drawn
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  await shot("time-06-beyond-saved-window");
+  // Stepping current time inside the window shown neither saves it nor clears the note.
+  await tc(".back").click();
+  assert.equal(await cue(), "Showing beyond saved window");
+  // Revert: the saved window again, current time at its nearest edge.
+  await tc(".tc-revert").click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "");
+  assert.equal(await end(), at("09:00"));
+  assert.equal(Number(await tc(".tc-current").inputValue()), at("09:00"));
+  await cpaLabel.first().waitFor({ state: "detached" });
+
+  // A window of ten minutes: the moment is too far for widening (more than twice), so the window moves.
+  await tc(".tc-end").focus();
+  await page.keyboard.press("Home"); // a second after the start
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(500);
+  const savedEnd = await end();
+  await page.locator("#tools button", { hasText: "Closest approach" }).click();
+  await form.getByRole("button", { name: "Run" }).click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "Showing a different period from the saved window", null, { timeout: 60000 });
+  assert.ok((await end()) > at("09:21"), "moved to take the moment in");
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  await shot("time-07-different-period");
+  // Keep: saved through the normal path, as letting go is; no step in the history.
+  const stepsBeforeKeep = await history();
+  await tc(".tc-keep").click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "");
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator(".toast.warning").count(), 0, "kept, with no conflict");
+  assert.equal(await history(), stepsBeforeKeep);
+  assert.notEqual(await end(), savedEnd);
+  // Back to the whole plot.
+  await tc(".tc-start").focus();
+  await page.keyboard.press("Home");
+  await tc(".tc-end").focus();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(500);
+
+  // Ctrl+Z on the map undoes (forwarded from its frame); the results panel stays open, as in VS Code (PAR-12).
+  await page.frameLocator(".frame-map").locator("#map").focus();
+  await page.keyboard.press("Control+z");
+  await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("undone"));
+  assert.equal(await page.locator("#side-frame").isHidden(), false);
+  // Not while typing: Ctrl+Y in a field leaves the history alone.
+  const before = await history();
+  await page.locator("#plots").focus();
+  await page.keyboard.press("Control+y");
+  await page.waitForTimeout(600);
+  assert.equal(await history(), before);
+  // Ctrl+Y in the page redoes; then Undo, the button.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Control+y");
+  await page.waitForFunction(() => !document.getElementById("history")?.textContent?.includes("undone"));
+  await page.locator("#undo").click();
+  await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("undone"));
+  await shot("play-04-undone");
+
+  // Crash part-way through a save, then reopen: the plot is whole, as it was before that save,
+  // and only the change in progress is lost (NFR-10, NFR-11).
+  const beforeCrash = await history();
+  await showPanel(page, "try");
+  await page.locator("#crash").click();
+  await page.locator("#reopen").click();
+  await page.locator(".toast", { hasText: "A save was interrupted before it finished" }).waitFor();
+  assert.equal(await history(), beforeCrash);
+  assert.doesNotMatch(await history(), /Note added just before a crash/);
+  await shot("play-05-recovered");
+
+  // A colleague's change while a tool runs: Debrief asks. Escape is Cancel.
+  // (Closest approach changes the plot; a tool that only returns a table saves nothing to conflict with.)
+  await showPanel(page, "try");
+  await page.locator("#colleague-during").click();
+  await page.locator(`#outline li[data-id="track-blue-one"]`).click();
+  await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
+  await page.locator("#tools button", { hasText: "Closest approach" }).click();
+  await page.frameLocator(".frame-form").getByRole("button", { name: "Run" }).click();
+  await page.locator("#ask").waitFor({ state: "visible" });
+  assert.match(await text("#ask-text"), /changed elsewhere/);
+  await shot("play-06-conflict");
+  await page.keyboard.press("Escape");
+  await page.frameLocator(".frame-form").getByText("was not run").waitFor();
+  assert.match(await history(), /Note added by a colleague/);
+  // Again, and combine the changes this time.
+  await showPanel(page, "try");
+  await page.locator("#colleague-during").click();
+  await page.frameLocator(".frame-form").getByRole("button", { name: "Run" }).click();
+  await page.locator("#ask").waitFor({ state: "visible" });
+  await page.locator("#ask-buttons button", { hasText: "Combine the changes" }).click();
+  await page.locator(".frame-results").waitFor({ timeout: 60000 });
+  // The results panel has a Close button of its own.
+  await page.locator("#side-frame .side-bar button", { hasText: "Close" }).click();
+  assert.equal(await page.locator("#side-frame").isHidden(), true);
+
+  // Colour and hiding are content: each is a step in the history, named, and undone by Ctrl+Z (SUB-22).
+  const mapFrame = page.frameLocator(".frame-map");
+  const blueLine = () => mapFrame.locator(`path.leaflet-interactive[stroke="${blue}"]`).count();
+  const red = "#e01c3e";
+  await page.locator(`#outline li[data-id="track-blue-one"]`).click();
+  await page.locator("#obar-colour").click();
+  await page.locator(`.obar-swatch[aria-label="Red"]`).click();
+  await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Colour of BLUE ONE set to red"));
+  assert.equal(await blueLine(), 0, "BLUE ONE is drawn red now");
+  await shot("islands-01-colour-in-history");
+  const ais = await page.locator(`#outline li[data-id^="track-ais-"]`).first().getAttribute("data-id");
+  await page.locator(`#outline li[data-id="${ais}"]`).click();
+  await page.locator("#obar-visibility").click();
+  await mapFrame.locator(".hidden-control", { hasText: "1 hidden" }).waitFor();
+  assert.match(await text(`#outline li[data-id="${ais}"] .detail`), /hidden on map/);
+  assert.match(await history(), /hidden on the map/);
+  await shot("islands-02-hidden-on-map");
+  // Ctrl+Z twice: the hiding, then the colour, are undone like any change.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Control+z");
+  await mapFrame.locator(".hidden-control").waitFor({ state: "hidden" });
+  await page.keyboard.press("Control+z");
+  await page.waitForFunction(() => /Colour of BLUE ONE set to red[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
+  await mapFrame.locator(`path.leaflet-interactive[stroke="${blue}"]`).first().waitFor();
+  assert.notEqual(blue, red);
+  await shot("islands-03-undo-restored-colour");
+  // Redo both, then the map's "Show all" shows the hidden track again, as one more step.
+  await page.keyboard.press("Control+y");
+  await page.waitForFunction(() => (document.getElementById("history")?.textContent?.match(/undone/g) ?? []).length === 1);
+  await page.keyboard.press("Control+y");
+  await mapFrame.locator(".hidden-control", { hasText: "1 hidden" }).waitFor();
+  await mapFrame.locator(".hidden-control button").click();
+  await mapFrame.locator(".hidden-control").waitFor({ state: "hidden" });
+  assert.match(await history(), /shown on the map/);
+}
+
+/**
+ * The time controller (CAP-28): drag the window and the map shows only it, at
+ * once; it is saved when let go, and is no step in the history. The keys move
+ * the handles; Space plays; a colleague's window is shown and said.
+ */
+async function playTheTimeController(ctx) {
+  const { page, shot, timeLabel, history } = ctx;
+  const tc = (selector) => page.locator(`#timebar ${selector}`);
+  const mapFrame = page.frameLocator(".frame-map");
+  // Leaflet fades a label out over 200 ms, so a redrawn one can briefly have company.
+  const label = (name) => mapFrame.locator(".track-label", { hasText: name }).first();
+  // Tug 01's last fix is at 10:35; the whole plot runs 08:00 to 12:00.
+  await label("Tug 01").waitFor();
+  assert.equal(await tc(".tc-start").getAttribute("role"), "slider");
+  assert.match(await tc(".tc-start").getAttribute("aria-valuetext"), /08:00:00Z/);
+  const stepsBefore = await history();
+  // The window's ends, typed or read, in its details (folded or not).
+  const windowStart = () => tc(".tc-from").inputValue();
+  const startBefore = await windowStart();
+  await shot("time-01-controller");
+
+  // Drag the window's start most of the way along. The map follows before it is let go.
+  await tc(".tc-window").scrollIntoViewIfNeeded(); // the overview strip, in a Time group shorter than the panel
+  const rail = await tc(".tc-window").boundingBox();
+  const handle = await tc(".tc-start").boundingBox();
+  const [x, y] = [handle.x + handle.width / 2, handle.y + handle.height / 2];
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(x + i * rail.width * 0.07, y); // a hand's drag
+  await page.waitForFunction(async () => true); // let the frame draw
+  for (let i = 0; i < 50 && (await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count()); i++) await page.waitForTimeout(100);
+  assert.equal(await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count(), 0, "Tug 01 ended before the window");
+  await page.mouse.up();
+  assert.notEqual(await windowStart(), startBefore);
+  assert.match(await windowStart(), /15 Jun 2023 1[01]:\d\d:\d\dZ/);
+  // Current time is kept inside the window; the whole tracks stay, thin and visible (CAP-29).
+  const [start, current] = [Number(await tc(".tc-start").getAttribute("aria-valuenow")), Number(await tc(".tc-current").inputValue())];
+  assert.ok(current >= start, "current time is inside the window");
+  const contextLines = (opacity) => mapFrame.locator(`path[stroke-width="1.5"][stroke-opacity="${opacity}"]`).count();
+  assert.ok((await contextLines("0.6")) + (await contextLines("0.3")) >= 10, "every track's whole line, visible (or dimmed for the selection)");
+  // View state: saved in the plot, never a step in its history.
+  await page.waitForTimeout(500);
+  assert.equal(await history(), stepsBefore);
+  await shot("time-02-window-narrowed");
+
+  // Context tracks: visible, faint or hidden, for the plot; view state, so no step in its history.
+  // Chosen from Time's title menu (⋯), as VS Code's title menu has them, the plot's choice checked (A4);
+  // the window's summary says the choice.
+  assert.match(await tc(".tc-summary-context").innerText(), /\(Visible\)/);
+  assert.equal(await tc(".tc-context").count(), 0, "not in the panel: in its title menu");
+  await mapFrame.locator("#map").focus();
+  await page.keyboard.press("Escape"); // nothing selected: nothing dimmed
+  await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
+  const contextMenu = async (title) => {
+    await page.locator("#time-more").click();
+    const items = page.locator(".context-menu [role=menuitemcheckbox]");
+    assert.deepEqual(await items.allInnerTexts(), ["Context tracks: Visible", "Context tracks: Faint", "Context tracks: Hidden"]);
+    if (!title) return page.keyboard.press("Escape");
+    await items.filter({ hasText: title }).click();
+  };
+  await page.locator("#time-more").click();
+  assert.equal(await page.locator(".context-menu [role=menuitemcheckbox][aria-checked=true]").innerText(), "Context tracks: Visible");
+  await page.keyboard.press("Escape");
+  for (let i = 0; i < 30 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
+  assert.ok((await contextLines("0.6")) >= 10, "visible: opacity 0.6, at least 3:1 against the map");
+  await shot("context-01-visible-light");
+  await contextMenu("Faint");
+  for (let i = 0; i < 50 && (await contextLines("0.35")) < 10; i++) await page.waitForTimeout(100);
+  assert.ok((await contextLines("0.35")) >= 10, "faint");
+  await page.waitForFunction(() => /\(Faint\)/.test(document.querySelector("#timebar .tc-summary-context")?.textContent ?? ""));
+  await contextMenu("Hidden");
+  for (let i = 0; i < 50 && (await contextLines("0.35")) > 0; i++) await page.waitForTimeout(100);
+  assert.equal((await contextLines("0.35")) + (await contextLines("0.6")), 0, "hidden: no context lines");
+  await contextMenu("Visible");
+  for (let i = 0; i < 50 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
+  assert.ok((await contextLines("0.6")) >= 10, "visible again");
+  await page.waitForTimeout(500);
+  assert.equal(await history(), stepsBefore, "context tracks are view state: no step");
+  assert.equal(await page.locator(".toast.warning").count(), 0);
+
+  // Keys: an arrow moves a handle by a step (the plot's four hours: 5 min); End puts it back.
+  await tc(".tc-end").focus();
+  const end = Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+  await page.keyboard.press("ArrowLeft");
+  assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end - 300000);
+  await page.keyboard.press("End");
+  assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end);
+  // With the end handle focused, drag the start handle: the other handle losing focus never stops the drag.
+  const startNow = Number(await tc(".tc-start").getAttribute("aria-valuenow"));
+  await tc(".tc-start").scrollIntoViewIfNeeded();
+  const grip = await tc(".tc-start").boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(grip.x + grip.width / 2 - i * 4, grip.y + grip.height / 2);
+  await page.mouse.up();
+  assert.ok(Number(await tc(".tc-start").getAttribute("aria-valuenow")) < startNow, "the start handle followed the pointer");
+
+  // Space plays from a slider, at the chosen speed; playing stops at the window's end.
+  await tc(".tc-current").focus();
+  await page.keyboard.press("Home");
+  const from = await timeLabel();
+  await page.keyboard.press("Space");
+  assert.equal(await tc(".tc-play").getAttribute("aria-label"), "Pause");
+  await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, from);
+  await shot("time-03-playing");
+  await tc(".tc-speed").selectOption("3600");
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-play")?.getAttribute("aria-label") === "Play", null, { timeout: 15000 });
+  assert.equal(await tc(".tc-current").inputValue(), await tc(".tc-end").getAttribute("aria-valuenow"));
+
+  // A window of one second (Home on the end handle: a second after the start; the handles never cross)
+  // is too short to play at 3600×: Play is off and says why. At 1× it plays.
+  const endWas = Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+  await tc(".tc-end").focus();
+  await page.keyboard.press("Home");
+  assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")) - Number(await tc(".tc-start").getAttribute("aria-valuenow")), 1000);
+  assert.equal(await tc(".tc-play").getAttribute("aria-disabled"), "true");
+  assert.equal(await tc(".tc-play").getAttribute("title"), "Window too short to play at 3600×: widen it or slow down");
+  assert.equal(await tc(".tc-play").getAttribute("aria-description"), "Window too short to play at 3600×: widen it or slow down");
+  await tc(".tc-current").focus();
+  await page.keyboard.press("Space");
+  assert.equal(await tc(".tc-play").getAttribute("aria-label"), "Play", "not playing");
+  await tc(".tc-play").hover();
+  await shot("time-05-play-off-too-short");
+  await tc(".tc-speed").selectOption("1");
+  assert.equal(await tc(".tc-play").getAttribute("aria-disabled"), "false");
+  await tc(".tc-speed").selectOption("60");
+  await tc(".tc-end").focus();
+  await page.keyboard.press("End");
+  assert.ok(Number(await tc(".tc-end").getAttribute("aria-valuenow")) >= endWas);
+  await page.waitForTimeout(500);
+
+  // A colleague changes the window: Debrief shows theirs and says so; still no step.
+  const ours = await windowStart();
+  await showPanel(page, "try");
+  await page.locator("#colleague-window").click();
+  await page.locator(".toast", { hasText: "time window of Serial 1 was changed elsewhere" }).waitFor();
+  assert.notEqual(await windowStart(), ours);
+  assert.equal(await history(), stepsBefore);
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0)); // the controller in the picture
+  await shot("time-04-colleague-window");
+
+  // Home on the start handle: the whole plot again, saved over the colleague's (read since).
+  await tc(".tc-start").focus();
+  await page.keyboard.press("Home");
+  await label("Tug 01").waitFor();
+  assert.equal(await windowStart(), startBefore);
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator(".toast.warning").count(), 0, "saved, with no conflict");
+}
+
+export const plays = [{ name: "basics", start: "blank", cost: 68, play: playBasics }];
