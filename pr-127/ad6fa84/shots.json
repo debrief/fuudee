@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "guides/index.md",
+   "url": "guides/",
+   "title": "Guides",
+   "file": "guides-index.png"
+  },
+  {
+   "source": "guides/interaction-models/browser-layout.md",
+   "url": "guides/interaction-models/browser-layout/",
+   "title": "Browser layout",
+   "file": "guides-interaction-models-browser-layout.png"
+  }
+ ],
+ "more": 0
+}
