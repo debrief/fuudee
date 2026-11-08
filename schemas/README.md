@@ -18,6 +18,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | `figures.yaml` | Exported images: an image's ID and its short form, the plot's export log (`ImageExport`, in its island), what the map is asked to draw and draws, an earlier revision shown read-only, a plot an image came from | SUB-25, EXT-05, OUT-04 |
 | `tma.yaml` | What the Bearings view shows: a sensor's cuts listed, TMA solutions, a solution's residuals and RMS | CAP-21 |
 | `history.yaml` | A plot's history, kept in its plot file (`PlotHistory`, `HistoryStep`), and the earlier history-folder layout (`Delta`, `HistoryHead`) | SUB-19 to SUB-21, NFR-10, NFR-11 |
+| `rpc.yaml` | The tool service's JSON-RPC methods: a parameters class and a reply class for each method or family (`SetColourParams`, `PlotChangeReply`, ...), named by the method's registration in `debrief_tools.methods`; MCP's own methods are not described. Request types: a change does not bump the version | PRN-04, TL-01 |
 | `messages.yaml` | Messages between the extension host and its webviews: one class per kind (`ShowPlotMessage`, `TmaPanesMessage`, ...), each naming the members it carries and needs; `WebviewMessage` is their union, told apart by `kind` | CON-08, PAR-13 |
 | `debrief.yaml` | Root: imports the modules and holds the schema version | SUB-12 |
 

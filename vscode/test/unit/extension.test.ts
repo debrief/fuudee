@@ -14,7 +14,7 @@ import { Session } from "../../src/session.js";
 import { keyedHash, loadLogKey, logKeyFile, redact, serviceLine, setLogKey, toolRunLine } from "../../src/diagnostics.js";
 import { displayed, hiddenIds, hiddenNotice, isFeature, isHidden, timeWindowOf } from "../../src/hidden.js";
 import { historyRows } from "../../src/views/historyrows.js";
-import type { HistoryStep } from "../../src/service.js";
+import type { ListedStep } from "@debrief/schemas";
 import type { OpenedPlot } from "../../src/catalogue.js";
 
 const repo = path.resolve(__dirname, "../../..");
@@ -446,7 +446,7 @@ describe("the History view (SUB-21, SUB-22)", () => {
   const steps = [
     { seq: 1, status: "applied", kind: "import", tool: "debrief-io.rep", agent: "a", at: "", records: 1 },
     { seq: 2, status: "applied", kind: "edit", tool: null, agent: "a", at: "", records: 1, notes: ["Colour of A set to green"] },
-  ] as HistoryStep[];
+  ] as ListedStep[];
 
   it("lists a colour change as a step, named by its note, and marks it as what Ctrl+Z takes next", () => {
     const rows = historyRows(steps, 2);
@@ -463,14 +463,14 @@ describe("the History view (SUB-21, SUB-22)", () => {
       { ...steps[0], after: 0 },
       { ...steps[1], after: 1 },
       { seq: 3, status: "applied", kind: "import", tool: null, agent: "b", at: "", records: 1, after: 2, records_only: true },
-    ] as HistoryStep[];
+    ] as ListedStep[];
     expect(historyRows(received, 3).map((r) => [r.step.seq, r.nextToUndo])).toEqual([
       [3, true],
       [2, true],
       [1, false],
     ]);
     // Straight after the import, the arrival goes with the import: nothing to undo.
-    const plain = [{ ...steps[0], after: 0 }, { ...received[2], seq: 2, after: 1 }] as HistoryStep[];
+    const plain = [{ ...steps[0], after: 0 }, { ...received[2], seq: 2, after: 1 }] as ListedStep[];
     expect(historyRows(plain, 2).every((r) => !r.nextToUndo)).toBe(true);
   });
 });

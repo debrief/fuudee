@@ -7,53 +7,14 @@
  * read into the plot before or with entries already in it (product owner, 15 Oct 2026):
  * skip the entries already there, or read nothing.
  */
+import type { EarlierRead, NarrativePreview } from "@debrief/schemas";
 
-/** A step that read the same file (by its content hash) into the plot, still in it. */
-export interface EarlierRead {
-  step: number;
-  /** When the step began, UTC ISO. */
-  at: string;
-  /** Who: the agent's name. */
-  by: string;
-  /** The step's name in the History: "Narrative read from red-one-log.docx". */
-  how: string;
-  /** The source's name as it was read in. */
-  name: string;
-}
-
-/** What a narrative file holds, said before it is read in (debrief/preview_narrative). */
-export interface NarrativePreview {
-  name: string;
-  /** "rep", "docx", "doc" or "pdf". */
-  format: string;
-  /** A document's dialect, such as "narrative-document" or "rider-narrative"; null for REP. */
-  dialect: string | null;
-  /** In words: "Word document, read as a narrative log". */
-  described: string;
-  entries: number;
-  /** ASW data: positions of a track, not narrative. */
-  fixes: number;
-  types: { name: string; count: number }[];
-  sources: { name: string; count: number; track_id: string | null }[];
-  /** Entries whose document names no platform, and the source they will have. */
-  unnamed: number;
-  platform: string | null;
-  start: string | null;
-  end: string | null;
-  plot_start: string | null;
-  plot_end: string | null;
-  /** Entries outside the plot's tracks' period. */
-  outside: number;
-  omitted: string[];
-  notes: string[];
-  /** The file's content hash, as a source's is recorded. */
-  content_hash?: string;
-  /** Steps in the plot that read this file before, under any name; empty if none. */
-  earlier?: EarlierRead[];
-  /** Entries the plot has already: the same time, source and text. */
-  already?: number;
-  error?: string;
-}
+/**
+ * A step that read the same file (by its content hash) into the plot, still in it, and what a
+ * narrative file holds, said before it is read in (debrief/preview_narrative): generated from
+ * rpc.yaml.
+ */
+export type { EarlierRead, NarrativePreview };
 
 /** The analyst's answers, as the service takes them (debrief_io.Choices). */
 export interface NarrativeChoices {

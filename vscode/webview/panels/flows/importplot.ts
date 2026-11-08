@@ -12,28 +12,16 @@
 import type { TrackImportMode } from "@debrief/config";
 import { count } from "../../../src/format.js";
 import { chooseModes, modeChoices, modeQuestion, REMEMBER_LABEL, type ModeChoice, type PlottingMode } from "../../../src/importmode.js";
+import type { AddPlotFileReply, ImportReply } from "@debrief/schemas";
 import type { NarrativePreview } from "../../../src/narrativeimport.js";
 import { confirmNewerSchema } from "./runtool.js";
 import { isRefusal, type FileAt, type FlowHost, type OpenSpec, type PickedFile } from "./host.js";
 import type { CataloguesNode } from "../catalogues.js";
 import { registerCommands, type Host } from "./register.js";
 
-/** What an import brought in (debrief/import_file). */
-export interface ImportReport {
-  item: string;
-  tracks: string[];
-  fixes: number;
-  annotations?: number;
-  narrative_entries?: number;
-  omitted: string[];
-  notes?: string[];
-}
-/** A Debrief plot file added with its history (debrief/add_plot_file). */
-export interface AddedPlotFile {
-  item: string;
-  title: string;
-  steps: number;
-}
+/** What an import brought in (debrief/import), and a Debrief plot file added with its history (debrief/add_plot_file): generated from rpc.yaml. */
+export type ImportReport = ImportReply;
+export type AddedPlotFile = AddPlotFileReply;
 /** How the tracks are plotted, as the importer takes it, and the note to add when a remembered choice was used; or an ASW document's track's name. */
 export interface ImportOptions {
   modes?: string | Record<string, PlottingMode>;

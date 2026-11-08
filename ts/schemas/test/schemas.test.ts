@@ -100,7 +100,7 @@ describe("webview messages, one class per kind (CON-08)", () => {
 });
 
 describe("the generator's passes for TypeScript", () => {
-  it("writes a member that is a $ref with a description as anyOf the one $ref, in a union's classes only", () => {
+  it("writes a member that is a $ref with a description as anyOf the one $ref, in every class", () => {
     const defs = {
       U: { discriminator: { propertyName: "kind" }, oneOf: [{ $ref: "#/$defs/M" }] },
       M: { properties: { a: { $ref: "#/$defs/A", description: "d" }, b: { $ref: "#/$defs/A" } } },
@@ -108,6 +108,7 @@ describe("the generator's passes for TypeScript", () => {
     };
     const out = refsWithoutSiblings(defs);
     expect(out.M.properties).toEqual({ a: { description: "d", anyOf: [{ $ref: "#/$defs/A" }] }, b: { $ref: "#/$defs/A" } });
-    expect(out.N).toEqual(defs.N);
+    expect(out.N.properties).toEqual({ a: { description: "d", anyOf: [{ $ref: "#/$defs/A" }] } });
+    expect(defs.N.properties.a).toEqual({ $ref: "#/$defs/A", description: "d" });
   });
 });

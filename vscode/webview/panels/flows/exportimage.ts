@@ -14,7 +14,7 @@
  * picked silently; the plot is shown as it was when the image was exported, read-only, with "Go to
  * latest".
  */
-import type { FigureSource } from "@debrief/schemas";
+import type { FigureSource, ImageSources } from "@debrief/schemas";
 import { figureIdProblem } from "@debrief/kernel";
 import { describeExported, describeSource, NOT_FOUND, rememberedOf, startingChoice, type ExportChoice } from "../../../src/figures.js";
 import type { ExportedImage, TracedImage } from "../../../src/service.js";
@@ -120,12 +120,8 @@ export async function exportImage(host: ExportHost, given: ExportGiven = {}): Pr
   return done.answer;
 }
 
-/** What Find source answers (debrief/find_image_source). */
-export interface Traced {
-  images: TracedImage[];
-  problem?: string;
-  skipped?: { where: string; why: string }[];
-}
+/** What Find source answers (debrief/find_image_source), generated from rpc.yaml. */
+export type Traced = ImageSources;
 
 export interface FindHost extends FlowHost {
   findImageSource(where: { file: PickedFile } | { id: string }): Promise<Traced>;

@@ -90,3 +90,45 @@ def lab_library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     (folder / "lab_misbehaving.py").write_text(MISBEHAVING)
     monkeypatch.syspath_prepend(str(folder))
     return "lab_misbehaving"
+
+
+# Every request the service answers in these tests, through any route (a JSON-RPC request,
+# tools/call, the official MCP client), is checked against its method's classes in the
+# schema (rpc.yaml; review, 7 Nov 2026, finding 3): its parameters and its reply. A reply
+# that differs fails the test that received it. The methods whose replies were checked are
+# kept, so the run can say which typed methods no test exercised (test_rpc_schema.py).
+EXERCISED: set[str] = set()
+
+
+@pytest.fixture(autouse=True)
+def replies_match_the_schema(monkeypatch: pytest.MonkeyPatch):
+    from debrief_tools.service import METHODS, ToolService
+
+    handle = ToolService.handle
+    problems: list[str] = []
+
+    def checked(self: ToolService, method: str, params: dict) -> dict:
+        reply = handle(self, method, params)
+        entry = METHODS.get(method)
+        if entry is not None and entry.request is not None:
+            problems.extend(f"{method}: {p}" for p in entry.problems(params, reply))
+            EXERCISED.add(method)
+        return reply
+
+    monkeypatch.setattr(ToolService, "handle", checked)
+    yield
+    assert not problems, "replies or requests that differ from rpc.yaml:\n" + "\n".join(problems)
+
+
+def pytest_terminal_summary(terminalreporter) -> None:
+    """Which typed methods no test in this run exercised with a successful request."""
+    from debrief_tools.service import METHODS
+
+    typed = {name for name, method in METHODS.items() if method.request is not None}
+    if not EXERCISED:
+        return
+    missing = sorted(typed - EXERCISED)
+    terminalreporter.write_line(
+        f"rpc.yaml: {len(typed & EXERCISED)} of {len(typed)} typed methods' replies checked"
+        + (f"; not exercised: {', '.join(missing)}" if missing else "")
+    )

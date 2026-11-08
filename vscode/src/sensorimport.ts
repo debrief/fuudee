@@ -5,40 +5,13 @@
  * we, once per track name, and say first if the file was read into the plot before.
  * Shared by VS Code and the playground, so both ask the same.
  */
-import type { EarlierRead } from "./narrativeimport.js";
+import type { SensorInFile, SensorPreview } from "@debrief/schemas";
 
-/** One sensor the file holds: its track name as the lines give it, its cuts, and the plot's track that would carry it. */
-export interface SensorInFile {
-  track: string;
-  sensor: string;
-  /** Its name in the plot: the sensor's, or the file's for UNKNOWN. */
-  name: string;
-  /** Cuts with a bearing; lines without one are not read. */
-  cuts: number;
-  ambiguous: number;
-  lines: number;
-  start: string;
-  end: string;
-  /** The plot's track that carries it, matched by name as legacy matched it; null: the analyst is asked. */
-  host_track_id: string | null;
-  host: string | null;
-  /** How the track was matched: by name (ignoring case), or by its first six letters only, which is asked to be confirmed (as legacy matched a mangled name). */
-  matched_by?: "name" | "prefix" | null;
-}
-
-/** What a file's sensor lines hold, said before they are read in. */
-export interface SensorPreview {
-  name: string;
-  sensors: SensorInFile[];
-  cuts: number;
-  /** Position lines: the file holds a track too, imported as a plot. */
-  fixes: number;
-  tracks: { id: string; name: string }[];
-  omitted: string[];
-  notes: string[];
-  content_hash: string;
-  earlier: EarlierRead[];
-}
+/**
+ * One sensor the file holds, and what a file's sensor lines hold, said before they are read in
+ * (debrief/preview_sensor): generated from rpc.yaml.
+ */
+export type { SensorInFile, SensorPreview };
 
 /**
  * The track names to ask about, each once: those the plot has no track for, and those

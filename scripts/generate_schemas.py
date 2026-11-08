@@ -67,16 +67,22 @@ def _class_ranges(view: SchemaView, name: str) -> set[str]:
 
 
 def _allow_extra_in_pydantic(view: SchemaView, pydantic: str) -> str:
-    """Let classes with extra_slots allowed accept undeclared properties.
+    """Let classes with extra_slots allowed (or ranged) accept undeclared properties.
 
     gen-pydantic forbids extra properties on every class, ignoring
     extra_slots, while gen-json-schema honours it. Without this, Pydantic
-    would reject STAC extension fields that JSON Schema accepts. Each changed
+    would reject STAC extension fields that JSON Schema accepts, and a map
+    (extra_slots with a range_expression, such as NameMap) would accept no
+    member at all; JSON Schema checks the members' range. Each changed
     class, then every class containing it, is rebuilt innermost first so the
     change reaches nested models.
     """
     classes = view.all_classes()
-    extra = sorted(n for n, c in classes.items() if c.extra_slots and c.extra_slots.allowed)
+    extra = sorted(
+        n
+        for n, c in classes.items()
+        if c.extra_slots and (c.extra_slots.allowed or c.extra_slots.range_expression)
+    )
     if not extra:
         return pydantic
 

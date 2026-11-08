@@ -462,18 +462,19 @@ METHODS = Methods()
 
 
 def _reads_plot(
-    name: str, does: str, params: type[Params] | None = None
+    name: str, does: str, params: type[Params] | None = None, **schema: Any
 ) -> Callable[[Handler], Handler]:
     """A method that reads one plot, inside its history, and changes nothing."""
-    return METHODS.register(name, does, params, history=True)
+    return METHODS.register(name, does, params, history=True, **schema)
 
 
 def _changes_plot(
-    name: str, does: str, params: type[Params] | None = None
+    name: str, does: str, params: type[Params] | None = None, **schema: Any
 ) -> Callable[[Handler], Handler]:
     """A method that changes one plot, recorded with who made it (SUB-24): a step in its
-    history, or (the view, collation's marks) a change to its island."""
-    return METHODS.register(name, does, params, writes=True, agent=True, history=True)
+    history, or (the view, collation's marks) a change to its island. schema: its request
+    and reply classes (Method)."""
+    return METHODS.register(name, does, params, writes=True, agent=True, history=True, **schema)
 
 
 # Methods the service answers itself: (service, params, the params checked) -> result.
@@ -528,6 +529,8 @@ def _tools_call(service: ToolService, params: dict[str, Any], _: None) -> dict[s
     "debrief/tools_for_selection",
     "The tools on offer for a selection, by its feature kinds (TL-08).",
     mp.ToolsForSelection,
+    request=models.ToolsForSelectionParams,
+    reply=models.ToolsForSelectionReply,
 )
 def _tools_for_selection(
     service: ToolService, params: dict[str, Any], asked: mp.ToolsForSelection
@@ -535,7 +538,12 @@ def _tools_for_selection(
     return {"tools": offered_tools(service.declarations, asked.kinds)}
 
 
-@METHODS.register("debrief/stores", "The stores in the analyst's configuration.")
+@METHODS.register(
+    "debrief/stores",
+    "The stores in the analyst's configuration.",
+    request=models.NoParams,
+    reply=models.StoresReply,
+)
 def _stores(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
     return {
         "stores": [
@@ -549,6 +557,8 @@ def _stores(service: ToolService, params: dict[str, Any], _: None) -> dict[str, 
     "debrief/create_catalogue",
     "Creates an empty catalogue in a folder and adds it to the configuration.",
     mp.CreateCatalogue,
+    request=models.CreateCatalogueParams,
+    reply=models.CreateCatalogueReply,
 )
 def _create_catalogue(
     service: ToolService, params: dict[str, Any], asked: mp.CreateCatalogue
@@ -577,13 +587,20 @@ def _create_catalogue(
 
 
 @METHODS.register(
-    "debrief/import_rep", "`debrief/import` under its old name.", mp.Import, agent=True
+    "debrief/import_rep",
+    "`debrief/import` under its old name.",
+    mp.Import,
+    agent=True,
+    request=models.ImportParams,
+    reply=models.ImportReply,
 )
 @METHODS.register(
     "debrief/import",
     "Imports a REP file, a legacy plot or a Word or PDF document as a new plot.",
     mp.Import,
     agent=True,
+    request=models.ImportParams,
+    reply=models.ImportReply,
 )
 def _import(service: ToolService, params: dict[str, Any], asked: mp.Import) -> dict[str, Any]:
     """Import a REP file (EXT-01), a legacy plot file, .dpf (EXT-14, EXT-15), or a Word
@@ -647,6 +664,8 @@ def _import(service: ToolService, params: dict[str, Any], asked: mp.Import) -> d
     "debrief/add_plot_file",
     "Adds a plot file from a colleague, with its whole history.",
     agent=True,
+    request=models.AddPlotFileParams,
+    reply=models.AddPlotFileReply,
 )
 def _add_plot_file(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
     """Add a plot file received from a colleague (a .geojson plot) to a catalogue,
@@ -679,6 +698,8 @@ def _add_plot_file(service: ToolService, params: dict[str, Any], _: None) -> dic
     "debrief/rep_tracks",
     "The tracks a REP file would import, to ask how each is plotted.",
     mp.RepTracks,
+    request=models.RepTracksParams,
+    reply=models.RepTracksReply,
 )
 def _rep_tracks(
     service: ToolService, params: dict[str, Any], asked: mp.RepTracks
@@ -699,6 +720,8 @@ def _rep_tracks(
     "debrief/preview_narrative",
     "What a narrative file holds, before it is read.",
     mp.PreviewNarrative,
+    request=models.PreviewNarrativeParams,
+    reply=models.NarrativePreview,
 )
 def _preview_narrative(
     service: ToolService, params: dict[str, Any], asked: mp.PreviewNarrative
@@ -729,6 +752,8 @@ def _preview_narrative(
     "debrief/preview_sensor",
     "What a file's sensor lines hold, before they are read.",
     mp.PreviewSensor,
+    request=models.PreviewSensorParams,
+    reply=models.SensorPreview,
 )
 def _preview_sensor(
     service: ToolService, params: dict[str, Any], asked: mp.PreviewSensor
@@ -749,7 +774,11 @@ def _preview_sensor(
 
 
 @METHODS.register(
-    "debrief/tote", "Measures between a primary track and its secondaries at one time.", mp.Tote
+    "debrief/tote",
+    "Measures between a primary track and its secondaries at one time.",
+    mp.Tote,
+    request=models.ToteParams,
+    reply=models.ToteResult,
 )
 def _tote(service: ToolService, params: dict[str, Any], asked: mp.Tote) -> dict[str, Any]:
     """The Tote at one time (CAP-06): a ToteResult. tote, a ToteView, says which
@@ -774,12 +803,22 @@ def _tote(service: ToolService, params: dict[str, Any], asked: mp.Tote) -> dict[
         raise rpc_error(error) from None
 
 
-@METHODS.register("debrief/measure_groups", "The measure groups the Tote can show.")
+@METHODS.register(
+    "debrief/measure_groups",
+    "The measure groups the Tote can show.",
+    request=models.NoParams,
+    reply=models.MeasureGroupsReply,
+)
 def _measure_groups(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
     return measure_groups()
 
 
-@METHODS.register("debrief/review_flags", "Every plot that may need review.")
+@METHODS.register(
+    "debrief/review_flags",
+    "Every plot that may need review.",
+    request=models.NoParams,
+    reply=models.ReviewFlagsReply,
+)
 def _review_flags(service: ToolService, params: dict[str, Any], _: None) -> dict[str, Any]:
     """Every plot in the analyst's catalogues that drew from an item since revised, so
     may need review (CAP-12), with the store each is in."""
@@ -803,7 +842,12 @@ def _review_flags(service: ToolService, params: dict[str, Any], _: None) -> dict
 # method adds to {recovered, base, latest}.
 
 
-@_reads_plot("debrief/open", "Makes the plot whole and returns its base and view.")
+@_reads_plot(
+    "debrief/open",
+    "Makes the plot whole and returns its base and view.",
+    request=models.OpenParams,
+    reply=models.OpenReply,
+)
 def _open(call: PlotCall, _: None) -> dict[str, Any]:
     """The plot made whole (recovered). Opening a plot that still has a retired
     presentation.json: a writer that says who it is (agent) makes it one recorded step
@@ -825,15 +869,39 @@ def _open(call: PlotCall, _: None) -> dict[str, Any]:
     return {**out, **call.view()}
 
 
-@_reads_plot("debrief/history", "The plot's steps.")
+@_reads_plot(
+    "debrief/history", "The plot's steps.", request=models.HistoryParams, reply=models.HistoryReply
+)
 def _steps(call: PlotCall, _: None) -> dict[str, Any]:
     """The plot's steps: seq, status, kind, tool, agent, at."""
     return {"steps": history_steps(call.history)}
 
 
-@METHODS.register("debrief/goto", "Moves to a step.", mp.Goto, writes=True, history=True)
-@METHODS.register("debrief/redo", "Redoes the step undone last.", writes=True, history=True)
-@METHODS.register("debrief/undo", "Undoes the last step.", writes=True, history=True)
+@METHODS.register(
+    "debrief/goto",
+    "Moves to a step.",
+    mp.Goto,
+    writes=True,
+    history=True,
+    request=models.GotoParams,
+    reply=models.PlotReply,
+)
+@METHODS.register(
+    "debrief/redo",
+    "Redoes the step undone last.",
+    writes=True,
+    history=True,
+    request=models.MoveParams,
+    reply=models.PlotReply,
+)
+@METHODS.register(
+    "debrief/undo",
+    "Undoes the last step.",
+    writes=True,
+    history=True,
+    request=models.MoveParams,
+    reply=models.PlotReply,
+)
 def _move(call: PlotCall, asked: mp.Goto | None) -> dict[str, Any]:
     """Undo, redo or goto a step: recorded with no one, since the steps name theirs."""
     step = asked.step if asked else call.params.get("step")
@@ -842,7 +910,13 @@ def _move(call: PlotCall, asked: mp.Goto | None) -> dict[str, Any]:
     return {}
 
 
-@_changes_plot("debrief/set_colour", "Colours features.", mp.SetColour)
+@_changes_plot(
+    "debrief/set_colour",
+    "Colours features.",
+    mp.SetColour,
+    request=models.SetColourParams,
+    reply=models.PlotChangeReply,
+)
 def _set_colour(call: PlotCall, asked: mp.SetColour) -> dict[str, Any]:
     """Colour tracks (and anything else with a colour)."""
     step = call.catalogue.set_colour(
@@ -857,7 +931,13 @@ def _set_colour(call: PlotCall, asked: mp.SetColour) -> dict[str, Any]:
     return {"changed": step is not None}
 
 
-@_changes_plot("debrief/set_hidden", "Hides or shows features, cuts among them.", mp.SetHidden)
+@_changes_plot(
+    "debrief/set_hidden",
+    "Hides or shows features, cuts among them.",
+    mp.SetHidden,
+    request=models.SetHiddenParams,
+    reply=models.PlotChangeReply,
+)
 def _set_hidden(call: PlotCall, asked: mp.SetHidden) -> dict[str, Any]:
     """Hide or show features; cuts among them are left out of every solution's residuals
     until shown again, which notes says."""
@@ -878,6 +958,8 @@ def _set_hidden(call: PlotCall, asked: mp.SetHidden) -> dict[str, Any]:
     "debrief/set_track_frequencies",
     "How often tracks are labelled, marked and arrowed.",
     mp.SetTrackFrequencies,
+    request=models.SetTrackFrequenciesParams,
+    reply=models.PlotChangeReply,
 )
 def _set_track_frequencies(call: PlotCall, asked: mp.SetTrackFrequencies) -> dict[str, Any]:
     """How often tracks are labelled, marked with a symbol and given a direction arrow
@@ -889,7 +971,13 @@ def _set_track_frequencies(call: PlotCall, asked: mp.SetTrackFrequencies) -> dic
     return {"changed": step is not None}
 
 
-@_changes_plot("debrief/set_view", "Changes the plot's view, outside its history.", mp.SetView)
+@_changes_plot(
+    "debrief/set_view",
+    "Changes the plot's view, outside its history.",
+    mp.SetView,
+    request=models.SetViewParams,
+    reply=models.IslandReply,
+)
 def _set_view(call: PlotCall, asked: mp.SetView) -> dict[str, Any]:
     """The plot's view, its island, kept outside its history (SUB-22, decision 12 Oct):
     changed only if hash is the view's hash as last read."""
@@ -899,7 +987,13 @@ def _set_view(call: PlotCall, asked: mp.SetView) -> dict[str, Any]:
     return call.view()
 
 
-@_changes_plot("debrief/add_annotation", "Adds an annotation.", mp.AddAnnotation)
+@_changes_plot(
+    "debrief/add_annotation",
+    "Adds an annotation.",
+    mp.AddAnnotation,
+    request=models.AddAnnotationParams,
+    reply=models.PlotChangeReply,
+)
 def _add_annotation(call: PlotCall, asked: mp.AddAnnotation) -> dict[str, Any]:
     """An annotation, described as an AnnotationSpec (the forms' description; its
     positions numbers or text in any notation the analyst types), added as one step
@@ -910,7 +1004,13 @@ def _add_annotation(call: PlotCall, asked: mp.AddAnnotation) -> dict[str, Any]:
     return {"changed": True, "feature": feature}
 
 
-@_changes_plot("debrief/edit_annotation", "Changes an annotation.", mp.EditAnnotation)
+@_changes_plot(
+    "debrief/edit_annotation",
+    "Changes an annotation.",
+    mp.EditAnnotation,
+    request=models.EditAnnotationParams,
+    reply=models.PlotChangeReply,
+)
 def _edit_annotation(call: PlotCall, asked: mp.EditAnnotation) -> dict[str, Any]:
     """An annotation changed: only the members that change need be given."""
     step = call.catalogue.edit_annotation(
@@ -924,7 +1024,13 @@ def _edit_annotation(call: PlotCall, asked: mp.EditAnnotation) -> dict[str, Any]
     return {"changed": step is not None, "feature": asked.feature}
 
 
-@_changes_plot("debrief/delete_annotations", "Deletes annotations.", mp.DeleteAnnotations)
+@_changes_plot(
+    "debrief/delete_annotations",
+    "Deletes annotations.",
+    mp.DeleteAnnotations,
+    request=models.DeleteFeaturesParams,
+    reply=models.PlotChangeReply,
+)
 def _delete_annotations(call: PlotCall, asked: mp.DeleteAnnotations) -> dict[str, Any]:
     call.catalogue.delete_annotations(
         call.item, asked.features, call.agent, call.base, allow_newer_schema=call.allow
@@ -932,7 +1038,13 @@ def _delete_annotations(call: PlotCall, asked: mp.DeleteAnnotations) -> dict[str
     return {"changed": True}
 
 
-@_changes_plot("debrief/set_north_arrow", "Shows or hides the north arrow.", mp.SetNorthArrow)
+@_changes_plot(
+    "debrief/set_north_arrow",
+    "Shows or hides the north arrow.",
+    mp.SetNorthArrow,
+    request=models.SetNorthArrowParams,
+    reply=models.PlotChangeReply,
+)
 def _set_north_arrow(call: PlotCall, asked: mp.SetNorthArrow) -> dict[str, Any]:
     step = call.catalogue.set_north_arrow(
         call.item, asked.shown, call.agent, call.base, allow_newer_schema=call.allow
@@ -940,7 +1052,13 @@ def _set_north_arrow(call: PlotCall, asked: mp.SetNorthArrow) -> dict[str, Any]:
     return {"changed": step is not None}
 
 
-@_changes_plot("debrief/add_narrative", "Adds a narrative entry.", mp.AddNarrative)
+@_changes_plot(
+    "debrief/add_narrative",
+    "Adds a narrative entry.",
+    mp.AddNarrative,
+    request=models.AddNarrativeParams,
+    reply=models.PlotChangeReply,
+)
 def _add_narrative(call: PlotCall, asked: mp.AddNarrative) -> dict[str, Any]:
     """A narrative entry, described as a NarrativeSpec: time (UTC to the millisecond),
     source, entry_type, text and track_id (left out, the track named as its source),
@@ -952,7 +1070,13 @@ def _add_narrative(call: PlotCall, asked: mp.AddNarrative) -> dict[str, Any]:
     return {"changed": True, "feature": feature}
 
 
-@_changes_plot("debrief/edit_narrative", "Changes a narrative entry.", mp.EditNarrative)
+@_changes_plot(
+    "debrief/edit_narrative",
+    "Changes a narrative entry.",
+    mp.EditNarrative,
+    request=models.EditNarrativeParams,
+    reply=models.PlotChangeReply,
+)
 def _edit_narrative(call: PlotCall, asked: mp.EditNarrative) -> dict[str, Any]:
     """An entry changed: only the members that change need be given; None clears one."""
     step = call.catalogue.edit_narrative(
@@ -961,7 +1085,13 @@ def _edit_narrative(call: PlotCall, asked: mp.EditNarrative) -> dict[str, Any]:
     return {"changed": step is not None, "feature": asked.feature}
 
 
-@_changes_plot("debrief/delete_narrative", "Deletes narrative entries.", mp.DeleteNarrative)
+@_changes_plot(
+    "debrief/delete_narrative",
+    "Deletes narrative entries.",
+    mp.DeleteNarrative,
+    request=models.DeleteFeaturesParams,
+    reply=models.PlotChangeReply,
+)
 def _delete_narrative(call: PlotCall, asked: mp.DeleteNarrative) -> dict[str, Any]:
     call.catalogue.delete_narrative(
         call.item, asked.features, call.agent, call.base, allow_newer_schema=call.allow
@@ -970,7 +1100,11 @@ def _delete_narrative(call: PlotCall, asked: mp.DeleteNarrative) -> dict[str, An
 
 
 @_changes_plot(
-    "debrief/import_narrative", "Reads a file's narrative into the plot.", mp.ImportNarrative
+    "debrief/import_narrative",
+    "Reads a file's narrative into the plot.",
+    mp.ImportNarrative,
+    request=models.ImportNarrativeParams,
+    reply=models.NarrativeImportReply,
 )
 def _import_narrative(call: PlotCall, asked: mp.ImportNarrative) -> dict[str, Any]:
     """The narrative of a REP file or a Word (.docx, .doc) or PDF document (path) read
@@ -1011,7 +1145,11 @@ def _import_narrative(call: PlotCall, asked: mp.ImportNarrative) -> dict[str, An
 
 
 @_reads_plot(
-    "debrief/narrative", "The plot's narrative entries, filtered and paged.", mp.NarrativeQuery
+    "debrief/narrative",
+    "The plot's narrative entries, filtered and paged.",
+    mp.NarrativeQuery,
+    request=models.NarrativeParams,
+    reply=models.NarrativeReply,
 )
 def _narrative(call: PlotCall, asked: mp.NarrativeQuery) -> dict[str, Any]:
     """The plot's narrative on one Zulu time axis (CAP-20), all its sources merged in one
@@ -1049,7 +1187,13 @@ def _narrative(call: PlotCall, asked: mp.NarrativeQuery) -> dict[str, Any]:
 CUT_LIMIT = 20_000
 
 
-@_reads_plot("debrief/sensors", "The plot's sensors, and perhaps their cuts.", mp.SensorQuery)
+@_reads_plot(
+    "debrief/sensors",
+    "The plot's sensors, and perhaps their cuts.",
+    mp.SensorQuery,
+    request=models.SensorsParams,
+    reply=models.SensorsReply,
+)
 def _sensors(call: PlotCall, asked: mp.SensorQuery) -> dict[str, Any]:
     """The plot's sensors (CAP-22), each with its host track, colour, whether it is
     hidden, how many cuts it has, how many are still ambiguous and how many resolved,
@@ -1077,7 +1221,10 @@ def _sensors(call: PlotCall, asked: mp.SensorQuery) -> dict[str, Any]:
 
 
 @_changes_plot(
-    "debrief/resolve_ambiguity", "Keeps one side of ambiguous cuts, or makes them ambiguous again."
+    "debrief/resolve_ambiguity",
+    "Keeps one side of ambiguous cuts, or makes them ambiguous again.",
+    request=models.ResolveAmbiguityParams,
+    reply=models.PlotChangeReply,
 )
 def _resolve_ambiguity(call: PlotCall, _: None) -> dict[str, Any]:
     """Keep one side of ambiguous cuts, or make them ambiguous again: keep is port or
@@ -1094,7 +1241,11 @@ def _resolve_ambiguity(call: PlotCall, _: None) -> dict[str, Any]:
 
 
 @_changes_plot(
-    "debrief/import_sensor", "Reads a file's sensor lines into the plot.", mp.ImportSensor
+    "debrief/import_sensor",
+    "Reads a file's sensor lines into the plot.",
+    mp.ImportSensor,
+    request=models.ImportSensorParams,
+    reply=models.SensorImportReply,
 )
 def _import_sensor(call: PlotCall, asked: mp.ImportSensor) -> dict[str, Any]:
     """A .dsf (or REP) file's ;SENSOR:, ;SENSOR2: and ;SENSOR3: lines read into the plot
@@ -1132,6 +1283,8 @@ def _import_sensor(call: PlotCall, asked: mp.ImportSensor) -> dict[str, Any]:
     "debrief/set_array_offset",
     "How far astern a towed array is, and how it follows.",
     mp.SetArrayOffset,
+    request=models.SetArrayOffsetParams,
+    reply=models.PlotChangeReply,
 )
 def _set_array_offset(call: PlotCall, asked: mp.SetArrayOffset) -> dict[str, Any]:
     """How far astern a towed array is (offset {value, unit}, or null for at the ship)
@@ -1153,7 +1306,13 @@ def _set_array_offset(call: PlotCall, asked: mp.SetArrayOffset) -> dict[str, Any
     return {"changed": True, "notes": call.notes(step)}
 
 
-@_changes_plot("debrief/delete_cuts", "Deletes cuts.", mp.DeleteCuts)
+@_changes_plot(
+    "debrief/delete_cuts",
+    "Deletes cuts.",
+    mp.DeleteCuts,
+    request=models.CutsParams,
+    reply=models.PlotChangeReply,
+)
 def _delete_cuts(call: PlotCall, asked: mp.DeleteCuts) -> dict[str, Any]:
     """Cuts deleted as one step, the solutions rooted in them dropping them, which notes
     says (product owner, 27 Oct 2026)."""
@@ -1164,14 +1323,24 @@ def _delete_cuts(call: PlotCall, asked: mp.DeleteCuts) -> dict[str, Any]:
 
 
 @_reads_plot(
-    "debrief/tma_residuals", "A solution's bearing residuals and RMS error.", mp.TmaResiduals
+    "debrief/tma_residuals",
+    "A solution's bearing residuals and RMS error.",
+    mp.TmaResiduals,
+    request=models.TmaResidualsParams,
+    reply=models.TmaResidualsReply,
 )
 def _tma_residuals(call: PlotCall, asked: mp.TmaResiduals) -> dict[str, Any]:
     """A TMA solution's bearing residuals and RMS error (CAP-21)."""
     return {"residuals": call.catalogue.tma_residuals(call.item, asked.feature, call.base)}
 
 
-@_changes_plot("debrief/tma_create", "Makes a TMA solution from a sensor's cuts.", mp.TmaCreate)
+@_changes_plot(
+    "debrief/tma_create",
+    "Makes a TMA solution from a sensor's cuts.",
+    mp.TmaCreate,
+    request=models.TmaCreateParams,
+    reply=models.TmaCreateReply,
+)
 def _tma_create(call: PlotCall, asked: mp.TmaCreate) -> dict[str, Any]:
     """A TMA solution (CAP-21; product owner, 24 Oct 2026) as one step, from the cuts
     (sensor_ids and perhaps a period, or cut_ids), perhaps a contact, a name and a
@@ -1192,7 +1361,11 @@ def _tma_create(call: PlotCall, asked: mp.TmaCreate) -> dict[str, Any]:
 
 
 @_changes_plot(
-    "debrief/tma_split_leg", "Splits a solution into legs, or joins two.", mp.TmaSplitLeg
+    "debrief/tma_split_leg",
+    "Splits a solution into legs, or joins two.",
+    mp.TmaSplitLeg,
+    request=models.TmaSplitLegParams,
+    reply=models.PlotChangeReply,
 )
 def _tma_split_leg(call: PlotCall, asked: mp.TmaSplitLeg) -> dict[str, Any]:
     """A solution (feature) split into legs at a time (at), or before or after the fix
@@ -1214,6 +1387,8 @@ def _tma_split_leg(call: PlotCall, asked: mp.TmaSplitLeg) -> dict[str, Any]:
     "debrief/tma_exclude_cut",
     "Leaves cuts out of a solution's RMS error, or counts them again.",
     mp.TmaExcludeCut,
+    request=models.TmaExcludeCutParams,
+    reply=models.TmaChangeReply,
 )
 def _tma_exclude_cut(call: PlotCall, asked: mp.TmaExcludeCut) -> dict[str, Any]:
     """A solution's cuts (cut_ids) left out of its RMS error (excluded true) or counted
@@ -1240,6 +1415,8 @@ def _tma_exclude_cut(call: PlotCall, asked: mp.TmaExcludeCut) -> dict[str, Any]:
     "debrief/edit_track",
     "Moves, rotates, shears or stretches a track, moves a fix, or plots it by dead reckoning.",
     mp.EditTrack,
+    request=models.EditTrackParams,
+    reply=models.PlotChangeReply,
 )
 def _edit_track(call: PlotCall, asked: mp.EditTrack) -> dict[str, Any]:
     """A track moved, rotated, sheared or stretched by hand as one step, named like
@@ -1261,7 +1438,13 @@ def _edit_track(call: PlotCall, asked: mp.EditTrack) -> dict[str, Any]:
     return {"changed": step is not None, "feature": asked.feature}
 
 
-@_changes_plot("debrief/split_track", "Splits a track in two.", mp.SplitTrack)
+@_changes_plot(
+    "debrief/split_track",
+    "Splits a track in two.",
+    mp.SplitTrack,
+    request=models.SplitTrackParams,
+    reply=models.PlotChangeReply,
+)
 def _split_track(call: PlotCall, asked: mp.SplitTrack) -> dict[str, Any]:
     """A track split in two at a time (at), with perhaps names for the parts."""
     _, parts = call.catalogue.split_track(
@@ -1276,7 +1459,13 @@ def _split_track(call: PlotCall, asked: mp.SplitTrack) -> dict[str, Any]:
     return {"changed": True, "features": parts}
 
 
-@_changes_plot("debrief/merge_tracks", "Merges tracks into one.", mp.MergeTracks)
+@_changes_plot(
+    "debrief/merge_tracks",
+    "Merges tracks into one.",
+    mp.MergeTracks,
+    request=models.MergeTracksParams,
+    reply=models.PlotChangeReply,
+)
 def _merge_tracks(call: PlotCall, asked: mp.MergeTracks) -> dict[str, Any]:
     """Tracks merged into one, perhaps named; notes says what was not kept (speeds,
     courses or depths some of the tracks had not)."""
@@ -1291,7 +1480,13 @@ def _merge_tracks(call: PlotCall, asked: mp.MergeTracks) -> dict[str, Any]:
     return {"changed": True, "feature": merged, "notes": lost}
 
 
-@_reads_plot("debrief/find_jumps", "A track's jumps.", mp.FindJumps)
+@_reads_plot(
+    "debrief/find_jumps",
+    "A track's jumps.",
+    mp.FindJumps,
+    request=models.FindJumpsParams,
+    reply=models.JumpsReply,
+)
 def _find_jumps(call: PlotCall, asked: mp.FindJumps) -> dict[str, Any]:
     """A track's jumps, shown before any is removed (CAP-01, EXT-14): fixes reached
     faster than threshold (a speed; left out, three times the track's median speed, at
@@ -1320,7 +1515,13 @@ def _find_jumps(call: PlotCall, asked: mp.FindJumps) -> dict[str, Any]:
     }
 
 
-@_changes_plot("debrief/remove_jumps", "Removes fixes found as jumps.", mp.RemoveJumps)
+@_changes_plot(
+    "debrief/remove_jumps",
+    "Removes fixes found as jumps.",
+    mp.RemoveJumps,
+    request=models.RemoveJumpsParams,
+    reply=models.PlotChangeReply,
+)
 def _remove_jumps(call: PlotCall, asked: mp.RemoveJumps) -> dict[str, Any]:
     """The fixes at times removed as one step; threshold, what they were found at, for
     the record."""
@@ -1336,7 +1537,13 @@ def _remove_jumps(call: PlotCall, asked: mp.RemoveJumps) -> dict[str, Any]:
     return {"changed": True, "feature": asked.feature}
 
 
-@_reads_plot("debrief/preview_smoothing", "A track as smoothing would leave it.", mp.Smoothing)
+@_reads_plot(
+    "debrief/preview_smoothing",
+    "A track as smoothing would leave it.",
+    mp.Smoothing,
+    request=models.SmoothingPreviewParams,
+    reply=models.SmoothingPreviewReply,
+)
 def _preview_smoothing(call: PlotCall, asked: mp.Smoothing) -> dict[str, Any]:
     """The track as smoothing over window (an odd number of fixes) within period would
     leave it. Changes nothing."""
@@ -1350,7 +1557,13 @@ def _preview_smoothing(call: PlotCall, asked: mp.Smoothing) -> dict[str, Any]:
     }
 
 
-@_changes_plot("debrief/smooth_track", "Smooths a track.", mp.Smoothing)
+@_changes_plot(
+    "debrief/smooth_track",
+    "Smooths a track.",
+    mp.Smoothing,
+    request=models.SmoothTrackParams,
+    reply=models.SmoothingReply,
+)
 def _smooth_track(call: PlotCall, asked: mp.Smoothing) -> dict[str, Any]:
     """The track smoothed over window within period, as one step."""
     done = call.catalogue.smooth_track(
@@ -1369,7 +1582,13 @@ def _smooth_track(call: PlotCall, asked: mp.Smoothing) -> dict[str, Any]:
     }
 
 
-@_changes_plot("debrief/mark_fix", "Gives a fix a colour, label or comment of its own.", mp.MarkFix)
+@_changes_plot(
+    "debrief/mark_fix",
+    "Gives a fix a colour, label or comment of its own.",
+    mp.MarkFix,
+    request=models.MarkFixParams,
+    reply=models.PlotChangeReply,
+)
 def _mark_fix(call: PlotCall, asked: mp.MarkFix) -> dict[str, Any]:
     """A fix (at time) given a colour, label or comment of its own (changes: null or ""
     takes one away; show_label, show_symbol: true to always show its time label or
@@ -1388,7 +1607,10 @@ def _mark_fix(call: PlotCall, asked: mp.MarkFix) -> dict[str, Any]:
 
 
 @_reads_plot(
-    "debrief/coverage", "The plot's coverage: its platforms and the items with data for each."
+    "debrief/coverage",
+    "The plot's coverage: its platforms and the items with data for each.",
+    request=models.CoverageParams,
+    reply=models.CoverageReply,
 )
 def _coverage(call: PlotCall, _: None) -> dict[str, Any]:
     """The plot's coverage (CAP-08 to CAP-12): its platforms and every catalogue item with
@@ -1397,7 +1619,13 @@ def _coverage(call: PlotCall, _: None) -> dict[str, Any]:
     return {"coverage": report.model_dump(mode="json", exclude_none=True)}
 
 
-@_changes_plot("debrief/take_new_data", "Takes an item's new data into the plot.", mp.TakeNewData)
+@_changes_plot(
+    "debrief/take_new_data",
+    "Takes an item's new data into the plot.",
+    mp.TakeNewData,
+    request=models.TakeNewDataParams,
+    reply=models.TakeNewDataReply,
+)
 def _take_new_data(call: PlotCall, asked: mp.TakeNewData) -> dict[str, Any]:
     """A catalogue item's data taken into the plot (source: {catalogue, item}, the
     catalogue by its own id, and revision, the revision the analyst saw, if any), one
@@ -1429,6 +1657,8 @@ def _take_new_data(call: PlotCall, asked: mp.TakeNewData) -> dict[str, Any]:
     "debrief/set_source_preference",
     "Chooses which item supplies a period of a track.",
     mp.SetSourcePreference,
+    request=models.SetSourcePreferenceParams,
+    reply=models.PlotChangeReply,
 )
 def _set_source_preference(call: PlotCall, asked: mp.SetSourcePreference) -> dict[str, Any]:
     """Which item supplies a period of a track (feature, period {start, end}, source
@@ -1447,7 +1677,11 @@ def _set_source_preference(call: PlotCall, asked: mp.SetSourcePreference) -> dic
 
 
 @_changes_plot(
-    "debrief/link_tracks", "Links or unlinks a track in another item as a platform.", mp.LinkTracks
+    "debrief/link_tracks",
+    "Links or unlinks a track in another item as a platform.",
+    mp.LinkTracks,
+    request=models.LinkTracksParams,
+    reply=models.PlotChangeReply,
 )
 def _link_tracks(call: PlotCall, asked: mp.LinkTracks) -> dict[str, Any]:
     """A track in another item (source) confirmed or linked (linked true), or refused or
@@ -1469,6 +1703,8 @@ def _link_tracks(call: PlotCall, asked: mp.LinkTracks) -> dict[str, Any]:
     "debrief/dismiss_new_data",
     "Sets an item's new data aside, in the plot's island.",
     mp.DismissNewData,
+    request=models.DismissNewDataParams,
+    reply=models.IslandChangeReply,
 )
 def _dismiss_new_data(call: PlotCall, asked: mp.DismissNewData) -> dict[str, Any]:
     """An item's new data set aside (source with its revision): in the plot's island,
@@ -1480,7 +1716,12 @@ def _dismiss_new_data(call: PlotCall, asked: mp.DismissNewData) -> dict[str, Any
     return {"changed": True, **call.view()}
 
 
-@_changes_plot("debrief/clear_review_flag", "Clears the plot's review flag, in its island.")
+@_changes_plot(
+    "debrief/clear_review_flag",
+    "Clears the plot's review flag, in its island.",
+    request=models.ClearReviewFlagParams,
+    reply=models.IslandChangeReply,
+)
 def _clear_review_flag(call: PlotCall, _: None) -> dict[str, Any]:
     """The plot's review flag cleared: in the plot's island, never a step, with who
     answered and when."""
@@ -1526,35 +1767,51 @@ def _argument_problem(arguments: dict[str, Any]) -> str | None:
 # Exported images (SUB-25), and a host (VS Code) waiting for what the service asks of it
 # (an agent's export, drawn by an open map) and answering: see figures.py.
 for _method in (
-    Method("debrief/figure_id", "A fresh image ID for an export of the plot.", figures.figure_id),
+    Method(
+        "debrief/figure_id",
+        "A fresh image ID for an export of the plot.",
+        figures.figure_id,
+        request=models.FigureIdParams,
+        reply=models.FigureIdReply,
+    ),
     Method(
         "debrief/export_image",
         "Stamps and logs a host's image, or has an open map draw an agent's.",
         figures.export_image,
         agent=True,
         large=True,
+        request=models.ExportImageParams,
+        reply=(models.StampedImage, models.ExportedImage),
     ),
     Method(
         "debrief/find_image_source",
         "The plots an image came from, by its file or its ID.",
         figures.find_image_source,
+        request=models.FindImageSourceParams,
+        reply=models.ImageSources,
     ),
     Method(
         "debrief/open_revision",
         "The plot as it was at a revision, to show read-only.",
         figures.open_revision,
+        request=models.OpenRevisionParams,
+        reply=models.OpenRevisionReply,
     ),
     Method(
         "debrief/host_poll",
         "A host waits here for what the service asks of it.",
         figures.host_poll,
         protocol=True,
+        request=models.HostPollParams,
+        reply=models.HostPollReply,
     ),
     Method(
         "debrief/host_answer",
         "A host's answer to one such request.",
         figures.host_answer,
         protocol=True,
+        request=models.HostAnswerParams,
+        reply=models.EmptyReply,
     ),
 ):
     METHODS.add(_method)

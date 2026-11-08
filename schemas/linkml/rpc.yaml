@@ -1,0 +1,976 @@
+id: https://debrief.info/schemas/debrief/rpc
+name: debrief_rpc
+title: "The tool service's JSON-RPC methods: what each takes and what it answers"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - geojson
+  - prov
+  - features
+  - state
+  - measures
+  - collation
+  - figures
+  - tma
+  - history
+
+description: >-
+  The parameters and the reply of each of the tool service's debrief/
+  methods (PRN-04; review, 7 Nov 2026, finding 3). Each method in the
+  service's registry (debrief_tools.methods, service.METHODS) names its
+  parameters class and its reply class here, and a test holds that every
+  registered method does, and that every reply the service's tests receive
+  matches its class. A family of methods shares a class where they answer
+  alike: a change to one plot answers PlotChangeReply. These are request
+  types: changing one does not bump the data-file schema version. The
+  model context protocol's own methods (initialize, ping, tools/list,
+  tools/call) are MCP's, not Debrief's, and are not described here.
+  Several parameters are passed on as they are, to be read and refused by
+  the catalogue in its own words: they are described by the schema's own
+  classes (AnnotationSpec, TrackEdit, TmaRequest, NarrativeSpec, ToteView,
+  PlotView, AmbiguityResolution).
+
+enums:
+  DuplicatesEnum:
+    description: What to do with a file's entries the plot has already.
+    permissible_values:
+      skip: {description: "Read only the entries not in the plot."}
+      add: {description: "Read them all again."}
+  ExportLoggedEnum:
+    description: Where an export is recorded.
+    permissible_values:
+      plot: {description: "The plot's export log, in its island."}
+      user: {description: "The analyst's own export log, where the plot's could not be written."}
+  HostRequestKindEnum:
+    description: What the service asks of a host (VS Code).
+    permissible_values:
+      export_image: {description: "An agent's export, for the open map to draw."}
+  MatchedByEnum:
+    description: How a file's track name was matched to one of the plot's tracks.
+    permissible_values:
+      name: {description: "By its name, ignoring case."}
+      prefix: {description: "By its first six letters: to be confirmed."}
+  SplitSideEnum:
+    description: Which side of the fix at the time given a split falls.
+    permissible_values:
+      before: {description: "The fix starts the new leg."}
+      after: {description: "The fix ends the earlier leg."}
+
+classes:
+  # --- Shared ---------------------------------------------------------------------
+
+  NoParams:
+    description: The parameters of a method that takes none.
+
+  EmptyReply:
+    description: "A method's reply that says nothing more than that it was done: {}."
+
+  NameMap:
+    description: >-
+      A name mapped to an id, or to null for none: a platform's track, a
+      track name's host track, a track's plotting mode.
+    extra_slots:
+      range_expression:
+        range: string
+
+  PlotBase:
+    description: >-
+      Where a plot's history stands: passed back with the next change, so a
+      change made meanwhile elsewhere is never overwritten (SUB-28).
+    attributes:
+      current: {range: integer, minimum_value: 0, required: true, description: "The current step."}
+      plot_hash:
+        range: ContentHash
+        required: true
+        description: The content hash of the plot at that step.
+
+  PlotParams:
+    abstract: true
+    description: A method on one plot, inside its history (SUB-21).
+    attributes:
+      store: {required: true, description: "The store's id in the analyst's configuration."}
+      item: {required: true, description: "The plot's id."}
+      base:
+        description: The base the caller last saw; left out, the change is not checked against one.
+        range: PlotBase
+        inlined: true
+      agent:
+        description: Who is asking; a method that changes the plot records it (SUB-24).
+        range: AgentRef
+        inlined: true
+
+  PlotChangeParams:
+    abstract: true
+    is_a: PlotParams
+    description: A method that changes one plot, recorded with who made it (SUB-24).
+    slot_usage:
+      agent:
+        description: Who made the change, recorded in provenance (SUB-24).
+        required: true
+    attributes:
+      allow_newer_schema:
+        description: The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+        range: boolean
+
+  PlotReply:
+    abstract: true
+    description: What every method on one plot answers, besides its own members.
+    attributes:
+      recovered:
+        description: What opening the plot had to repair after a crash, for the analyst (NFR-10).
+        multivalued: true
+        required: true
+      base:
+        description: Where the plot's history stands now.
+        range: PlotBase
+        required: true
+        inlined: true
+      latest: {range: integer, minimum_value: 0, required: true, description: "How many steps the history holds."}
+
+  PlotChangeReply:
+    is_a: PlotReply
+    description: >-
+      A change to one plot: whether it changed, the feature it made or
+      changed, and what the step's record says beyond its name.
+    attributes:
+      changed: {range: boolean, required: true}
+      feature: {description: "The feature made or changed."}
+      features: {multivalued: true, description: "The features made (the parts of a split track)."}
+      notes: {multivalued: true, description: "What the step's record says beyond its name."}
+
+  IslandReply:
+    is_a: PlotReply
+    description: The plot's view (its island, SUB-22) and its hash, which a change to the view is checked against.
+    attributes:
+      view: {range: PlotView, inlined: true, description: "The view; null if the plot has none."}
+      view_hash: {required: true}
+
+  IslandChangeReply:
+    is_a: PlotChangeReply
+    description: A change to the plot's island, never a step, and the view as it now is.
+    attributes:
+      view: {range: PlotView, inlined: true}
+      view_hash: {required: true}
+
+  # --- Tools and stores -------------------------------------------------------------
+
+  ToolsForSelectionParams:
+    attributes:
+      kinds: {multivalued: true, required: true, description: "The selection's feature kinds."}
+
+  ToolsForSelectionReply:
+    attributes:
+      tools: {multivalued: true, required: true, description: "The tools on offer, by name, in the order declared (TL-08)."}
+
+  StoreListed:
+    description: A store in the analyst's configuration.
+    attributes:
+      id: {required: true}
+      title: {required: true}
+      read_only: {range: boolean, required: true}
+
+  StoresReply:
+    attributes:
+      stores: {range: StoreListed, multivalued: true, inlined_as_list: true, required: true}
+
+  CreateCatalogueParams:
+    attributes:
+      location: {required: true, description: "An empty folder, or one holding a catalogue."}
+      title: {required: true}
+
+  CreateCatalogueReply:
+    attributes:
+      store: {required: true, description: "The new store's id."}
+
+  # --- Importing ---------------------------------------------------------------------
+
+  NarrativeChoices:
+    mixin: true
+    description: >-
+      The analyst's choices before a narrative is read, as legacy Debrief
+      asked them (debrief_io.Choices).
+    attributes:
+      types: {multivalued: true, description: "The entry types to read; \"\" for entries with none. Left out: all."}
+      within_period: {range: boolean, description: "Only entries within the plot's tracks' period."}
+      tracks: {range: NameMap, inlined: true, description: "A platform's track: its id, or null for none."}
+      platform: {description: "The source of entries whose document names none."}
+      duplicates: {range: DuplicatesEnum}
+
+  ImportParams:
+    mixins: [NarrativeChoices]
+    description: A REP file, a legacy plot file or a Word or PDF document imported as a new plot.
+    attributes:
+      store: {required: true}
+      path: {required: true}
+      agent: {range: AgentRef, required: true, inlined: true}
+      allow_newer_schema: {range: boolean}
+      modes:
+        description: How a REP file's tracks are plotted, otg or dr, one for all or by track name.
+        any_of:
+          - range: string
+          - range: NameMap
+      remembered: {description: "The words saying how to change a remembered choice."}
+      track_name: {description: "An ASW document's track."}
+
+  ImportReply:
+    attributes:
+      item: {required: true}
+      tracks: {multivalued: true, required: true}
+      fixes: {range: integer, required: true}
+      annotations: {range: integer}
+      narrative_entries: {range: integer}
+      omitted: {multivalued: true, required: true}
+      notes: {multivalued: true, description: "How each track is plotted, and how to change a remembered choice."}
+
+  AddPlotFileParams:
+    attributes:
+      store: {required: true}
+      path: {required: true}
+      agent: {range: AgentRef, required: true, inlined: true}
+      allow_newer_schema: {range: boolean}
+
+  AddPlotFileReply:
+    attributes:
+      item: {required: true}
+      title: {required: true}
+      steps: {range: integer, required: true, description: "How many steps came with it, the step recording its arrival included."}
+
+  RepTracksParams:
+    attributes:
+      path: {required: true}
+
+  RepTracksReply:
+    attributes:
+      tracks: {multivalued: true, required: true}
+
+  PreviewNarrativeParams:
+    attributes:
+      path: {required: true}
+      agent: {range: AgentRef, inlined: true}
+      store: {}
+      item: {description: "Given, its period and tracks are taken into account."}
+
+  EarlierRead:
+    description: A step in the plot now that read a file with the same content, under any name.
+    attributes:
+      step: {range: integer, required: true}
+      at: {range: UtcTimestamp, required: true}
+      by: {required: true}
+      how: {required: true, description: "The step's name, as the History view has it."}
+      name: {required: true, description: "The file's name then."}
+
+  PreviewCount:
+    attributes:
+      name: {required: true}
+      count: {range: integer, required: true}
+
+  PreviewSource:
+    attributes:
+      name: {required: true}
+      count: {range: integer, required: true}
+      track_id: {description: "The track it would belong to; null for none."}
+
+  NarrativePreview:
+    description: What a narrative file holds, before it is read (CAP-19).
+    attributes:
+      name: {required: true}
+      format: {required: true, description: "rep, docx, doc or pdf."}
+      dialect: {description: "A document's dialect; null for REP."}
+      described: {required: true}
+      entries: {range: integer, required: true}
+      fixes: {range: integer, required: true, description: "ASW data: positions of a track, not narrative."}
+      types: {range: PreviewCount, multivalued: true, inlined_as_list: true, required: true}
+      sources: {range: PreviewSource, multivalued: true, inlined_as_list: true, required: true}
+      unnamed: {range: integer, required: true, description: "Entries whose document names no platform."}
+      platform: {description: "The source those entries will have."}
+      start: {range: UtcTimestamp}
+      end: {range: UtcTimestamp}
+      plot_start: {range: UtcTimestamp}
+      plot_end: {range: UtcTimestamp}
+      outside: {range: integer, required: true, description: "Entries outside the plot's tracks' period."}
+      omitted: {multivalued: true, required: true}
+      notes: {multivalued: true, required: true}
+      content_hash: {range: ContentHash}
+      earlier: {range: EarlierRead, multivalued: true, inlined_as_list: true}
+      already: {range: integer, description: "Entries the plot has already: the same time, source and text."}
+
+  PreviewSensorParams:
+    attributes:
+      path: {required: true}
+      agent: {range: AgentRef, inlined: true}
+      store: {required: true}
+      item: {required: true}
+
+  SensorInFile:
+    description: A sensor a file's lines hold, by track and name.
+    attributes:
+      track: {required: true, description: "The track name the lines give."}
+      sensor: {required: true}
+      name: {required: true}
+      cuts: {range: integer, required: true, description: "Its cuts with a bearing."}
+      ambiguous: {range: integer, required: true}
+      lines: {range: integer, required: true}
+      start: {range: UtcTimestamp, required: true}
+      end: {range: UtcTimestamp, required: true}
+      host_track_id: {description: "The plot's track that would carry it; null: ask."}
+      host: {description: "That track's name."}
+      matched_by: {range: MatchedByEnum}
+
+  TrackListed:
+    attributes:
+      id: {required: true}
+      name: {required: true}
+
+  SensorPreview:
+    description: What a .dsf or REP file's sensor lines hold, before they are read (CAP-22).
+    attributes:
+      name: {required: true}
+      sensors: {range: SensorInFile, multivalued: true, inlined_as_list: true, required: true}
+      cuts: {range: integer, required: true}
+      fixes: {range: integer, required: true, description: "Position lines: the file holds a track too."}
+      tracks: {range: TrackListed, multivalued: true, inlined_as_list: true, required: true}
+      omitted: {multivalued: true, required: true}
+      notes: {multivalued: true, required: true}
+      content_hash: {range: ContentHash, required: true}
+      earlier: {range: EarlierRead, multivalued: true, inlined_as_list: true, required: true}
+
+  # --- The Tote and review -------------------------------------------------------------
+
+  ToteParams:
+    attributes:
+      store: {required: true}
+      item: {required: true}
+      time: {range: UtcTimestamp, required: true}
+      tote: {range: ToteView, inlined: true, description: "Which tracks; left out, the plot's island says."}
+      revision: {range: ContentHash, description: "An earlier revision shown read-only."}
+
+  MeasureGroupsReply:
+    attributes:
+      groups: {range: MeasureGroup, multivalued: true, inlined_as_list: true, required: true}
+      measures: {range: MeasureDefinition, multivalued: true, inlined_as_list: true, required: true}
+
+  ReviewFlagListed:
+    is_a: ReviewFlag
+    attributes:
+      store: {description: "The store it is in; null if none in the configuration holds it."}
+
+  ReviewFlagsReply:
+    attributes:
+      flags: {range: ReviewFlagListed, multivalued: true, inlined_as_list: true, required: true}
+
+  # --- A plot's history ----------------------------------------------------------------
+
+  OpenParams:
+    is_a: PlotParams
+    description: Given agent, a retired presentation.json is made a recorded step.
+    attributes:
+      read_only: {range: boolean, description: "Shown read-only: an interrupted change is not recovered."}
+
+  OpenReply:
+    is_a: IslandReply
+    description: The plot made whole, its base and its view.
+    slot_usage:
+      recovered:
+        description: >-
+          What opening repaired, for the analyst; false, not a list, when it
+          was opened read-only and nothing was recovered (as sent since
+          16 Oct 2026).
+        multivalued: false
+        any_of:
+          - range: string
+            multivalued: true
+          - range: boolean
+    attributes:
+      migrated: {range: boolean, description: "A retired presentation.json was made one recorded step."}
+      plot:
+        description: The plot with a retired presentation.json applied in memory, where it could not be migrated.
+        range: DebriefFeatureCollection
+        inlined: true
+
+  HistoryParams:
+    is_a: PlotParams
+
+  ListedStep:
+    description: A step as the History panel lists it (SUB-21).
+    attributes:
+      seq: {range: integer, required: true}
+      status: {range: StepStateEnum, required: true}
+      kind: {range: ProvActivityKindEnum, required: true}
+      tool: {description: "The tool that made it; null for an edit made without one."}
+      agent: {required: true, description: "Who made it: each of its records' agents, once."}
+      at: {range: UtcTimestamp, required: true}
+      records: {range: integer, required: true}
+      notes: {multivalued: true, required: true, description: "The first record's notes: they name an edit made without a tool."}
+      after: {range: integer, description: "The step it was made after: what undoing it goes back to."}
+      records_only:
+        range: boolean
+        required: true
+        description: It changes only the plot's records, so undo takes it with the step before.
+
+  HistoryReply:
+    is_a: PlotReply
+    attributes:
+      steps: {range: ListedStep, multivalued: true, inlined_as_list: true, required: true}
+
+  MoveParams:
+    is_a: PlotParams
+    description: Undo or redo.
+    attributes:
+      allow_newer_schema: {range: boolean}
+
+  GotoParams:
+    is_a: MoveParams
+    attributes:
+      step: {range: integer, minimum_value: 0, required: true}
+
+  # --- Restyling and the view ------------------------------------------------------------
+
+  SetColourParams:
+    is_a: PlotChangeParams
+    attributes:
+      features: {multivalued: true, required: true}
+      colour: {required: true}
+      colour_name: {description: "The colour's name, for the step's name."}
+
+  SetHiddenParams:
+    is_a: PlotChangeParams
+    attributes:
+      features: {multivalued: true, required: true}
+      hidden: {range: boolean, required: true}
+
+  SetTrackFrequenciesParams:
+    is_a: PlotChangeParams
+    description: Each interval given is a duration, "off", or null for Debrief's default (CAP-32).
+    attributes:
+      features: {multivalued: true, required: true}
+      label_interval: {any_of: [{range: Duration}, {range: float}, {range: string}]}
+      symbol_interval: {any_of: [{range: Duration}, {range: float}, {range: string}]}
+      arrow_interval: {any_of: [{range: Duration}, {range: float}, {range: string}]}
+
+  SetViewParams:
+    is_a: PlotChangeParams
+    attributes:
+      view: {range: PlotView, inlined: true, description: "The view; null to clear it."}
+      hash: {required: true, description: "The view's hash as last read."}
+
+  # --- Annotations and narrative -------------------------------------------------------
+
+  AddAnnotationParams:
+    is_a: PlotChangeParams
+    attributes:
+      annotation: {range: AnnotationAsked, required: true, inlined: true}
+
+  AnnotationAsked:
+    description: >-
+      An annotation as a request gives it: an AnnotationSpec, or, to change
+      one, only the members that change; its positions numbers, or text in
+      any notation the analyst types. Left open here: the catalogue reads it
+      and says what is wrong in its own words.
+    extra_slots:
+      allowed: true
+
+  EditAnnotationParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      annotation: {range: AnnotationAsked, required: true, inlined: true}
+
+  DeleteFeaturesParams:
+    is_a: PlotChangeParams
+    attributes:
+      features: {multivalued: true, required: true}
+
+  SetNorthArrowParams:
+    is_a: PlotChangeParams
+    attributes:
+      shown: {range: boolean, required: true}
+
+  AddNarrativeParams:
+    is_a: PlotChangeParams
+    attributes:
+      entry: {range: NarrativeSpec, required: true, inlined: true}
+
+  EditNarrativeParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      entry: {range: NarrativeSpec, required: true, inlined: true, description: "The members to change; null clears one."}
+
+  ImportNarrativeParams:
+    is_a: PlotChangeParams
+    mixins: [NarrativeChoices]
+    attributes:
+      path: {required: true}
+
+  NarrativeImportReply:
+    is_a: PlotChangeReply
+    attributes:
+      entries: {range: integer, required: true}
+      sources: {multivalued: true, required: true}
+      omitted: {multivalued: true, required: true}
+
+  NarrativeParams:
+    is_a: PlotParams
+    attributes:
+      text: {}
+      offset: {range: integer, minimum_value: 0}
+      limit: {range: integer, minimum_value: 0}
+      sources: {multivalued: true}
+      types: {multivalued: true}
+      start: {range: UtcTimestamp}
+      end: {range: UtcTimestamp}
+      at: {range: UtcTimestamp}
+
+  NarrativeRow:
+    description: An entry as debrief/narrative lists it.
+    attributes:
+      id: {required: true}
+      time: {range: UtcTimestamp, required: true}
+      source: {required: true}
+      entry_type: {}
+      text: {required: true}
+      track_id: {}
+
+  NarrativeTally:
+    attributes:
+      name: {required: true}
+      entries: {range: integer, required: true}
+
+  NarrativeReply:
+    is_a: PlotReply
+    attributes:
+      entries: {range: NarrativeRow, multivalued: true, inlined_as_list: true, required: true}
+      total: {range: integer, required: true}
+      offset: {range: integer, required: true}
+      sources: {range: NarrativeTally, multivalued: true, inlined_as_list: true, required: true}
+      types: {range: NarrativeTally, multivalued: true, inlined_as_list: true, required: true}
+      current: {description: "The entry current time is at, among those matching; null if none."}
+
+  # --- Sensors and TMA --------------------------------------------------------------------
+
+  SensorsParams:
+    is_a: PlotParams
+    attributes:
+      sensor_ids: {multivalued: true}
+      cuts: {range: boolean}
+      period: {range: TimeRange, inlined: true}
+
+  SensorCutRow:
+    description: A cut as debrief/sensors lists it.
+    attributes:
+      id: {required: true}
+      time: {range: UtcTimestamp, required: true}
+      bearing: {range: float, required: true}
+      origin:
+        description: "[longitude, latitude] it is drawn from; null outside its host's span."
+        range: float
+        multivalued: true
+        minimum_cardinality: 2
+        maximum_cardinality: 2
+      origin_derived: {range: boolean}
+      ambiguous_bearing: {range: float}
+      resolved: {range: SensorCutKeptEnum}
+      side: {range: SideEnum}
+      range_m: {range: float}
+      label: {}
+      comment: {}
+      hidden: {range: boolean}
+
+  SensorRow:
+    description: A sensor as debrief/sensors lists it.
+    attributes:
+      id: {required: true}
+      name: {required: true}
+      host_track_id: {}
+      host: {}
+      colour: {}
+      hidden: {range: boolean, required: true}
+      array_offset_m: {range: float}
+      array_mode: {range: ArrayModeEnum}
+      cuts: {range: integer, required: true}
+      ambiguous: {range: integer, required: true}
+      resolved: {range: integer, required: true}
+      start: {range: UtcTimestamp}
+      end: {range: UtcTimestamp}
+      cut_list: {range: SensorCutRow, multivalued: true, inlined_as_list: true}
+
+  SensorsReply:
+    is_a: PlotReply
+    attributes:
+      sensors: {range: SensorRow, multivalued: true, inlined_as_list: true, required: true}
+
+  ResolveAmbiguityParams:
+    is_a: PlotChangeParams
+    mixins: [AmbiguityResolution]
+
+  ImportSensorParams:
+    is_a: PlotChangeParams
+    attributes:
+      path: {required: true}
+      hosts: {range: NameMap, inlined: true}
+      again: {range: boolean}
+
+  SensorImportReply:
+    is_a: PlotChangeReply
+    attributes:
+      sensors: {multivalued: true, required: true}
+      cuts: {range: integer, required: true}
+      omitted: {multivalued: true, required: true}
+
+  SetArrayOffsetParams:
+    is_a: PlotChangeParams
+    attributes:
+      sensor_ids: {multivalued: true, required: true}
+      offset: {range: Length, inlined: true, description: "Distance astern; null for at the ship."}
+      mode: {range: ArrayModeEnum}
+
+  CutsParams:
+    is_a: PlotChangeParams
+    attributes:
+      cut_ids: {multivalued: true, required: true}
+
+  TmaResidualsParams:
+    is_a: PlotParams
+    attributes:
+      feature: {required: true}
+
+  TmaResidualsReply:
+    is_a: PlotReply
+    attributes:
+      residuals: {range: TmaResiduals, required: true, inlined: true}
+
+  TmaCreateParams:
+    is_a: PlotChangeParams
+    mixins: [TmaRequest]
+    description: A TmaRequest, in request or as the parameters themselves.
+    attributes:
+      request: {range: TmaRequest, inlined: true}
+
+  TmaChangeReply:
+    is_a: PlotChangeReply
+    attributes:
+      residuals: {range: TmaResiduals, inlined: true, description: "The solution's residuals after the change."}
+
+  TmaCreateReply:
+    is_a: TmaChangeReply
+    slot_usage:
+      feature: {required: true}
+      residuals: {required: true}
+
+  TmaSplitLegParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      at: {range: UtcTimestamp, required: true}
+      join: {range: boolean}
+      side: {range: SplitSideEnum}
+
+  TmaExcludeCutParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      cut_ids: {multivalued: true, required: true}
+      excluded: {range: boolean}
+
+  # --- Tracks and cleaning --------------------------------------------------------------
+
+  EditTrackParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      edit: {range: TrackEdit, required: true, inlined: true}
+      current_time: {range: UtcTimestamp, description: "A rotation's default pivot."}
+
+  SplitTrackParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      at: {range: UtcTimestamp, required: true}
+      names: {multivalued: true, minimum_cardinality: 2, maximum_cardinality: 2}
+
+  MergeTracksParams:
+    is_a: PlotChangeParams
+    attributes:
+      features: {multivalued: true, required: true}
+      name: {}
+
+  FindJumpsParams:
+    is_a: PlotParams
+    attributes:
+      feature: {required: true}
+      period: {range: TimeRange, inlined: true}
+      threshold: {range: Speed, inlined: true}
+
+  Jump:
+    description: A fix reached faster than the threshold.
+    attributes:
+      time: {range: UtcTimestamp, required: true}
+      position:
+        range: float
+        required: true
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+      speed: {range: Speed, inlined: true, description: "null when at the same time as the fix before, somewhere else."}
+      since: {range: UtcTimestamp, required: true}
+      logged: {range: boolean, description: "A dead-reckoned track's jump: its logged speed."}
+
+  JumpsReply:
+    is_a: PlotReply
+    attributes:
+      feature: {required: true}
+      threshold: {range: Speed, required: true, inlined: true}
+      median_speed: {range: Speed, inlined: true}
+      jumps: {range: Jump, multivalued: true, inlined_as_list: true, required: true}
+
+  RemoveJumpsParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      times: {multivalued: true, required: true}
+      threshold: {range: Speed, inlined: true}
+      period: {range: TimeRange, inlined: true}
+
+  SmoothingPreviewParams:
+    is_a: PlotParams
+    attributes:
+      feature: {required: true}
+      window: {range: integer, required: true}
+      period: {range: TimeRange, inlined: true}
+
+  SmoothTrackParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      window: {range: integer, required: true}
+      period: {range: TimeRange, inlined: true}
+
+  SmoothingSummary:
+    mixin: true
+    description: What smoothing did, or would do.
+    attributes:
+      moved: {range: integer, description: "How many fixes moved."}
+      largest: {range: Length, inlined: true, description: "The most any moved."}
+      largest_time: {range: UtcTimestamp, description: "When; null if none moved."}
+      summary: {description: "The words for it."}
+
+  SmoothingPreviewReply:
+    is_a: PlotReply
+    mixins: [SmoothingSummary]
+    slot_usage:
+      moved: {required: true}
+      largest: {required: true}
+      summary: {required: true}
+    attributes:
+      feature: {required: true}
+      preview: {range: LineStringGeometry, required: true, inlined: true}
+
+  SmoothingReply:
+    is_a: PlotChangeReply
+    mixins: [SmoothingSummary]
+
+  FixMarkChanges:
+    description: A fix's own colour, label or comment; null or "" takes one away.
+    attributes:
+      colour: {}
+      label: {}
+      comment: {}
+      show_label: {range: boolean}
+      show_symbol: {range: boolean}
+
+  MarkFixParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      time: {range: UtcTimestamp, required: true}
+      changes: {range: FixMarkChanges, required: true, inlined: true}
+      colour_name: {}
+      period: {range: TimeRange, inlined: true, description: "Read as cleaning's other methods read it; unused."}
+
+  # --- Collation ----------------------------------------------------------------------
+
+  CoverageParams:
+    is_a: PlotParams
+
+  CoverageReply:
+    is_a: PlotReply
+    attributes:
+      coverage: {range: CoverageReport, required: true, inlined: true}
+
+  ItemAsked:
+    description: A catalogue item, by its catalogue's own id, and the revision the analyst saw.
+    attributes:
+      catalogue: {required: true}
+      item: {required: true}
+      revision: {}
+
+  TakeNewDataParams:
+    is_a: PlotChangeParams
+    attributes:
+      source: {range: ItemAsked, required: true, inlined: true}
+
+  TakeNewDataReply:
+    is_a: PlotChangeReply
+    attributes:
+      step: {range: integer, description: "The step taking it."}
+      message: {description: "Why nothing was taken."}
+
+  SetSourcePreferenceParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      period: {range: TimeRange, required: true, inlined: true}
+      source: {range: SourceTrackRef, required: true, inlined: true}
+
+  LinkTracksParams:
+    is_a: PlotChangeParams
+    attributes:
+      feature: {required: true}
+      source: {range: SourceTrackRef, required: true, inlined: true}
+      linked: {range: boolean, required: true}
+
+  DismissNewDataParams:
+    is_a: PlotChangeParams
+    attributes:
+      source: {range: ItemRevision, required: true, inlined: true}
+
+  ClearReviewFlagParams:
+    is_a: PlotChangeParams
+
+  # --- Exported images ----------------------------------------------------------------
+
+  FigureIdParams:
+    attributes:
+      store: {required: true}
+      item: {required: true}
+      revision: {range: ContentHash}
+
+  FigureIdReply:
+    attributes:
+      id: {range: FigureId, required: true}
+      short: {range: ShortFigureId, required: true}
+      revision: {range: ContentHash, required: true}
+
+  ExportImageParams:
+    description: >-
+      A host's image to stamp and log (image given), or an agent's export
+      for an open map to draw (no image; file the full path to write).
+    attributes:
+      store: {required: true}
+      item: {required: true}
+      agent: {range: AgentRef, required: true, inlined: true}
+      allow_newer_schema: {range: boolean}
+      id: {range: FigureId}
+      image: {description: "A PNG as base 64, or an SVG's text."}
+      file: {}
+      format: {range: ImageFormatEnum}
+      footer: {range: boolean}
+      overwrite: {range: boolean}
+      preset: {range: ImagePresetEnum}
+      theme: {range: ImageThemeEnum}
+      width: {range: integer, minimum_value: 1}
+      height: {range: integer, minimum_value: 1}
+      viewport: {range: Viewport, inlined: true}
+      time: {range: TimeState, inlined: true}
+      tote: {range: ToteView, inlined: true}
+
+  StampedImage:
+    description: A host's image stamped with its ID and the export recorded, given back to write.
+    attributes:
+      id: {range: FigureId, required: true}
+      short: {range: ShortFigureId, required: true}
+      revision: {range: ContentHash, required: true}
+      image: {required: true}
+      recorded: {range: boolean, required: true}
+      logged: {range: ExportLoggedEnum, description: "Where the export is recorded; null for nowhere."}
+      note: {}
+
+  ExportedImage:
+    description: What exporting an image said, as the host answers an agent's export.
+    attributes:
+      file: {required: true}
+      id: {range: FigureId, required: true}
+      short: {range: ShortFigureId, required: true}
+      revision: {range: ContentHash, required: true}
+      recorded: {range: boolean, required: true}
+      note: {}
+
+  FindImageSourceParams:
+    attributes:
+      file: {description: "An image, or a Word or PowerPoint file of them."}
+      id: {description: "An ID typed from a footer, in full or short."}
+
+  TracedImage:
+    attributes:
+      id:
+        description: The ID as read, or as typed from a footer, in full or its short form.
+        required: true
+        any_of:
+          - range: FigureId
+          - range: ShortFigureId
+      short: {range: ShortFigureId, required: true}
+      where: {required: true}
+      sources: {range: FigureSource, multivalued: true, inlined_as_list: true, required: true}
+
+  SkippedPicture:
+    attributes:
+      where: {required: true}
+      why: {required: true}
+
+  ImageSources:
+    attributes:
+      images: {range: TracedImage, multivalued: true, inlined_as_list: true, required: true}
+      skipped: {range: SkippedPicture, multivalued: true, inlined_as_list: true}
+      problem: {}
+
+  OpenRevisionParams:
+    attributes:
+      store: {required: true}
+      item: {required: true}
+      revision: {range: ContentHash, required: true}
+      id: {range: FigureId, description: "The image whose export log entry to give."}
+
+  OpenRevisionReply:
+    attributes:
+      plot: {range: DebriefFeatureCollection, required: true, inlined: true}
+      step: {range: integer, required: true}
+      current: {range: integer, required: true}
+      latest: {range: integer, required: true}
+      revision: {range: ContentHash, required: true}
+      export: {range: ImageExport, inlined: true}
+
+  HostPollParams:
+    attributes:
+      wait_s: {range: float, description: "Seconds to wait for a request."}
+
+  HostRequest:
+    description: An agent's export, asked of the open map by the service.
+    attributes:
+      id: {required: true}
+      kind: {range: HostRequestKindEnum, required: true}
+      store: {required: true}
+      item: {required: true}
+      file: {required: true}
+      format: {range: ImageFormatEnum, required: true}
+      agent: {range: AgentRef, required: true, inlined: true}
+      preset: {range: ImagePresetEnum}
+      theme: {range: ImageThemeEnum}
+      footer: {range: boolean}
+      overwrite: {range: boolean}
+
+  HostPollReply:
+    attributes:
+      requests: {range: HostRequest, multivalued: true, inlined_as_list: true, required: true}
+
+  HostAnswerParams:
+    attributes:
+      id: {required: true}
+      result: {range: ExportedImage, inlined: true}
+      problem: {}

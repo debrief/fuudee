@@ -302,6 +302,9 @@ def test_an_agents_export_is_drawn_by_the_open_map(
     service = ToolService(worker, str(config_file))
     try:
         asked: list[dict] = []
+        # What the host's export says, as VS Code answers (an ExportedImage).
+        figure = service.handle("debrief/figure_id", WHERE)
+        exported = {**figure, "recorded": True}
 
         def host() -> None:
             # The host polls, is asked, draws (here: says what it was asked) and answers.
@@ -309,7 +312,7 @@ def test_an_agents_export_is_drawn_by_the_open_map(
                 asked.append(request)
                 service.handle(
                     "debrief/host_answer",
-                    {"id": request["id"], "result": {"file": request["file"], "id": "X"}},
+                    {"id": request["id"], "result": {"file": request["file"], **exported}},
                 )
 
         service.handle("debrief/host_poll", {"wait_s": 0})  # a map is open
@@ -326,7 +329,7 @@ def test_an_agents_export_is_drawn_by_the_open_map(
             },
         )
         drawing.join(5)
-        assert answer == {"file": target, "id": "X"}
+        assert answer == {"file": target, **exported}
         [request] = asked
         assert (request["kind"], request["format"], request["theme"]) == (
             "export_image",

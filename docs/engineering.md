@@ -29,7 +29,7 @@ PRN-04 says every boundary type is generated. The review found that rule honoure
 | Host-to-page messages | `messages.yaml`, one class per kind under a union on `kind` | same | same, as a discriminated union | `checkMessage` on every post; semantic fixtures in both languages |
 | Tool declarations and results | `tools.yaml` | same | same | the tool contract tests in `run.py` |
 | Shared state, formatting, config | `state.yaml`, `formatting.yaml`, `config.yaml` | same | same | the shared vectors |
-| JSON-RPC requests and results | **not yet generated**: `vscode/src/service.ts` hand-declares them and the service returns dicts. The review's finding 3 (RPC half) is open; until it lands, a new method's request and result interface is added to `service.ts` beside its neighbours and this row is the reminder | | | `service-methods.json` names the methods only |
+| JSON-RPC parameters and replies | `rpc.yaml`, a parameters class and a reply class per method or family, named by the method's registration (`request=`, `reply=`) | same | same; `RpcMethods` in `vscode/src/generated/rpc.ts`, printed from the registry, types `ToolService.call` per method | `test_rpc_schema.py`: every method but MCP's own names both; the service's tests check every request that succeeds, and its reply, against them (`conftest.py`) |
 | Kernel behaviour (units, geodesy, formatting, residuals) | `schemas/vectors/*.json` | `debrief_kernel` | `@debrief/kernel` | 17 vector files, both languages |
 
 ### Extension points
@@ -39,7 +39,7 @@ Each is the *one* place a thing of its kind is added. If you find yourself addin
 | To add a | The one place | What derives from it |
 | --- | --- | --- |
 | Analysis tool for analysts and agents (TL-04 to TL-06) | `@tool` in `debrief_tools.declare`, a module registered as the [tool-author guide](../site/docs/guides/tool-author/index.md) says | Its form, `tools/list`, worker isolation, provenance, conflicts |
-| Service method (`debrief/*`) | `METHODS.register(...)` in `debrief_tools.methods`, with a `Params` model | `tools/list`, the README's method table (a test holds them equal), the writing, history and agent sets, the input schema |
+| Service method (`debrief/*`) | `METHODS.register(...)` in `debrief_tools.methods`, with a `Params` model and its `request` and `reply` classes from `rpc.yaml` | `tools/list`, the README's method table (a test holds them equal), the writing, history and agent sets, the input schema, the extension's types for it (`rpc.ts`, a test holds them equal) |
 | Domain operation on a plot | A function in that domain's module under `debrief_stac` returning `(changes, note, record)`, raising a `DomainError`; committed through `Catalogue._change`, the only commit path | The history step, its provenance, the error the analyst sees |
 | Command offered in both hosts | A flow under `vscode/webview/panels/flows/`, registered through `registerCommands` from `flows/register.ts` | Both hosts' command tables (`registration.test.ts` holds them equal), the action catalogue, context menus (PAR-05 to PAR-08) |
 | Panel or view in VS Code | A `WebviewHost` owner under `vscode/src/panels/`; a pop-out through `PoppableView` | Ready-gating, startup marks, retention, posting |
@@ -54,10 +54,11 @@ Each recipe lists every file a change of that kind touches. **A recipe that grow
 ### Add a service method (review finding 1)
 
 1. A `Params` subclass in `method_params.py` (or the domain's existing Pydantic model, through `shaped`).
-2. The handler, registered with `METHODS.register(name, does, params, writes=…, agent=…, history=…)`. A writing method is also a history method and needs `agent` (SUB-24; review finding 9).
-3. Its tests under `python/debrief-tools/tests/`, against the service `client` fixture.
-4. Run `uv run python -m debrief_tools methods` to print the README's method table and paste it; the test fails if the README and the registry disagree.
-5. Until RPC types are generated: its request and result interfaces in `vscode/src/service.ts`.
+2. Its parameters class and reply class in `schemas/linkml/rpc.yaml` (a method on one plot `is_a` `PlotParams` or `PlotChangeParams`, and answers `PlotReply`, `PlotChangeReply` or a class that `is_a` one), reusing the domain's classes; regenerate (`scripts/generate_schemas.py`, `npm run --prefix ts/schemas generate`). A request type: no version bump, a line in `schemas/CHANGELOG.md`.
+3. The handler, registered with `METHODS.register(name, does, params, writes=…, agent=…, history=…, request=models.XParams, reply=models.XReply)`. A writing method is also a history method and needs `agent` (SUB-24; review finding 9).
+4. Its tests under `python/debrief-tools/tests/`, against the service `client` fixture: every reply they receive is checked against its class, and the run says which typed methods no test exercised.
+5. Run `uv run python -m debrief_tools methods` to print the README's method table and paste it, and `uv run python -m debrief_tools rpc-types > vscode/src/generated/rpc.ts`; tests fail if either differs from the registry.
+6. Its wrapper in `vscode/src/service.ts`, through `call("debrief/x", …)`, typed by `RpcMethods`.
 
 Not touched: `KNOWN_METHODS`, group tuples, elif ladders, the module docstring. If any of those still needs editing, that is a regression of finding 1.
 
@@ -177,7 +178,7 @@ Rules:
 
 Kept here so they are seen at every phase exit, not rediscovered by the next review.
 
-- Generated JSON-RPC request and result types (`rpc.yaml`; review fix plan 6). Until then `service.ts` is hand-written.
+- The service's `Params` models (`method_params.py`) are still hand-written beside the generated parameters classes (`rpc.yaml`): a test holds that each reads only what its class describes and needs what it requires, but the refusals' words live in the models. MCP's own methods (`initialize`, `ping`, `tools/list`, `tools/call`) are not described in `rpc.yaml`.
 - `check-panels.mjs` cross-checking panel ids, `data-demo` names and tours (fix plan 12).
 - Branch protection on `main` requiring the three jobs (fix plan 1): confirm in the repository settings; the review found none.
 - `DEBRIEF_LEGACY` importer tests never run in CI.

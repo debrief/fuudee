@@ -5,7 +5,7 @@
  * (review of 7 Nov 2026, finding 2), given what they need of it.
  */
 import * as vscode from "vscode";
-import type { LineStringGeometry, TimeRange, TrackEdit } from "@debrief/schemas";
+import type { LineStringGeometry, Speed, TimeRange, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../../webview/trackedit.js";
 import { legExtent } from "../../webview/tma.js";
@@ -331,7 +331,8 @@ export function trackEditCommands(deps: TrackEditsDeps) {
     const service = deps.service();
     if (!service || !opened.base) return { problem: report("Finding jumps needs Debrief's tool service. Run 'Debrief: Restart tool service'.") };
     const name = track.properties.name;
-    const find = (threshold?: { value: number; unit: string }) => service!.findJumps(opened.store.id, opened.item.id, opened.base!, track.id, threshold);
+    // The unit as given: the service refuses one that is not a speed, in its own words.
+    const find = (threshold?: { value: number; unit: string }) => service!.findJumps(opened.store.id, opened.item.id, opened.base!, track.id, threshold as Speed | undefined);
     let found;
     try {
       found = await find(given?.threshold);

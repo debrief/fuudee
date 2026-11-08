@@ -47,7 +47,7 @@ export interface CollationHost extends FlowHost {
   /** The open plot's tracks. */
   plotTracks(): { id: string; name: string }[];
   /** A step in the open plot's history: throws a Refusal for a conflict or a newer schema. */
-  collate(plot: PlotRef, change: CollationChange, allowNewerSchema: boolean): Promise<{ changed: boolean; message?: string }>;
+  collate(plot: PlotRef, change: CollationChange, allowNewerSchema: boolean): Promise<{ changed: boolean; message?: string | null }>;
   /** New data set aside, or a review flag cleared, in a plot's island: the plot shown again if it is the open one. */
   collationView(target: { store: string; item: string }, change: { kind: "dismiss"; source: ItemRevision } | { kind: "reviewed" }): Promise<void>;
   /** Ask the service what collation says now, and show it (Catalogues, Coverage). */

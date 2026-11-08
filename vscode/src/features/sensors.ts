@@ -6,7 +6,7 @@
  * finding 2), given what they need of it.
  */
 import * as vscode from "vscode";
-import type { AmbiguityResolution } from "@debrief/schemas";
+import type { AmbiguityResolution, Length } from "@debrief/schemas";
 import { UNIT_LABELS } from "@debrief/kernel";
 import { describeDistance, readArrayOffset, arrayOffsetTitle } from "../../webview/trackedit.js";
 import { cutChoices, cutNow, cutTitle, describeCut, KEEP_CHOICES, placeOfCut, resolutionFor, type ArrayMode, scopeChoices, sensorsOf, type CutScope, type Keep, type ResolveContext } from "../../webview/sensors.js";
@@ -27,7 +27,7 @@ export interface SensorDeps {
   /** The ids a command acts on: its Target's, else the selection. */
   targets(target?: Target): string[];
   /** A sensor change, one step, one at a time. */
-  sense<T extends { notes?: string[] }>(save: (opened: OpenedPlot, allow: boolean) => Promise<T>): Promise<{ problem?: string; answer?: T }>;
+  sense<T extends { notes?: string[] | null }>(save: (opened: OpenedPlot, allow: boolean) => Promise<T>): Promise<{ problem?: string; answer?: T }>;
   /** An input box's note on what was typed. */
   meaning(read: { problem: string } | unknown, means: () => string): vscode.InputBoxValidationMessage;
 }
@@ -127,7 +127,8 @@ export function sensorCommands(deps: SensorDeps) {
       mode = (await vscode.window.showQuickPick(modes, { title: `${title}: how does the array follow the ship?` }))?.mode;
       if (!mode) return undefined;
     }
-    const sent = { sensor_ids: chosen.map((e) => e.sensor.id), offset: offset ?? null, mode: mode ?? "worm_in_hole" };
+    // The unit as typed or given: the service refuses one that is not a length, in its own words.
+    const sent = { sensor_ids: chosen.map((e) => e.sensor.id), offset: (offset ?? null) as Length | null, mode: mode ?? "worm_in_hole" };
     const done = await sense((o, allow) => deps.service()!.setArrayOffset(o.store.id, o.item.id, o.base!, agent, sent, allow));
     if (done.problem) return (report(done.problem), done);
     if (done.answer && !done.answer.changed) void vscode.window.showInformationMessage(`${sensorWords} is so already.`);

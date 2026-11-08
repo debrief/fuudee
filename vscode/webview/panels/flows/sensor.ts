@@ -10,14 +10,11 @@ import { REASONS } from "../actions.js";
 import { changeStep } from "./step.js";
 import type { FileAt, FlowHost, OpenSpec, PickedFile, PlotRef } from "./host.js";
 import { registerCommands, type Host } from "./register.js";
+import type { SensorImportReply } from "@debrief/schemas";
 
 /** What reading the file did. */
-export interface SensorRead {
-  sensors: string[];
-  cuts: number;
-  omitted: string[];
-  notes?: string[];
-}
+/** What reading a file's sensor lines said (debrief/import_sensor), generated from rpc.yaml. */
+export type SensorRead = Pick<SensorImportReply, "sensors" | "cuts" | "omitted" | "notes">;
 
 export interface SensorHost extends FlowHost {
   /** What the file holds, said before it is read (debrief/preview_sensor): throws if it cannot be read. */

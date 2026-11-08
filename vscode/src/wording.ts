@@ -37,7 +37,7 @@ export const STEP_NAME_LENGTH = 64;
 
 /** A step in a plot's history, as the History view names it. */
 export function describeStep(
-  step: { kind: string; tool: string | null; status: string; notes?: string[] },
+  step: { kind: string; tool?: string | null; status: string; notes?: string[] | null },
   toolTitle: (name: string) => string | undefined,
 ): { label: string; status: string } {
   // An edit made without a tool is named by its note, when it has a short one; so is

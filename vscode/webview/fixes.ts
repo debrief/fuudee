@@ -13,7 +13,7 @@
  *   (debrief/smooth_track) as one step.
  */
 import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
-import type { FixMark } from "@debrief/schemas";
+import type { FixMark, Jump as GeneratedJump } from "@debrief/schemas";
 
 /** What of a track these need: its name, fixes, times and series. */
 export interface FixTrack {
@@ -93,14 +93,12 @@ export function fixRows(track: FixTrack, settings: FormatSettings = DEFAULT_SETT
 // --- Jumps ---------------------------------------------------------------------------
 
 /** A jump as the tool service returns it: speed is null for a fix at the same time as the one before, somewhere else. */
-export interface Jump {
-  time: string;
-  position: number[];
-  speed: { value: number; unit: string } | null;
-  since: string;
-  /** Plotted by dead reckoning: speed is the fix's logged speed, and since the time of the fix its leg runs to. */
-  logged?: boolean;
-}
+/**
+ * A jump as debrief/find_jumps answers it (rpc.yaml): speed null when at the same time as the fix
+ * before; logged, a track plotted by dead reckoning: speed is the fix's logged speed, and since
+ * the time of the fix its leg runs to.
+ */
+export type Jump = GeneratedJump;
 
 /** A jump as one row of the list the analyst confirms: when, where, and how fast the track would have gone. */
 export function describeJump(jump: Jump, settings: FormatSettings = DEFAULT_SETTINGS): { label: string; description: string } {

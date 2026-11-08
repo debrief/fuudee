@@ -72,7 +72,7 @@ import { fillCatalogues } from "./cataloguelist.js";
 import { bearingsEvents, coverageEvents, receiveAnnotation, receiveBearings, receiveCoverage, receiveForm, receiveMap, receiveResults, receiveTime, receiveTimeline, receiveTote, timeEvents, timelineEvents, toteEvents } from "../webview/dispatch.js";
 import { checkMessage } from "./messagecheck.js";
 import { undoRedo } from "../src/views/historyrows.js";
-import type { HistoryStep } from "../src/service.js";
+import type { ListedStep } from "@debrief/schemas";
 import { ToolsModel, type ToolsRow, type Unavailable } from "../webview/panels/tools.js";
 import { HistoryModel, NEEDS_SERVICE } from "../webview/panels/history.js";
 import { fillTools } from "./toolslist.js";
@@ -118,7 +118,7 @@ import { latestSolution, NO_SOLUTION, SOLUTION } from "../walkthroughs/contribut
 import { contentFree } from "../webview/timelinelogic.js";
 
 type Feature = PlotFeature;
-type Step = HistoryStep;
+type Step = ListedStep;
 interface Opened {
   item: StacItem;
   /** The plot, with its whole-plot feature and view (the island, SUB-22). */
@@ -3962,7 +3962,7 @@ const narrativeHost: NarrativeHost = {
   ...flowHost,
   previewNarrative: async (file, plot) => {
     status(`Reading ${file.name}…`, true);
-    const preview = await pythonJson<NarrativePreview>("narrative_preview", plot.item, file.name, file.data ?? new Uint8Array());
+    const preview = await pythonJson<NarrativePreview & { error?: string }>("narrative_preview", plot.item, file.name, file.data ?? new Uint8Array());
     status("");
     if (preview.error) throw new Error(preview.error);
     return preview;
@@ -4004,7 +4004,7 @@ const importHost: ImportHost = {
   ...flowHost,
   chooseCatalogue: async () => "play",
   previewDocument: async (file) => {
-    const preview = await pythonJson<NarrativePreview>("narrative_preview", null, file.name, file.data ?? new Uint8Array());
+    const preview = await pythonJson<NarrativePreview & { error?: string }>("narrative_preview", null, file.name, file.data ?? new Uint8Array());
     return preview.error ? undefined : preview;
   },
   repTracks: (file) => pythonJson<string[]>("rep_tracks", file.name, file.data ?? new Uint8Array()),

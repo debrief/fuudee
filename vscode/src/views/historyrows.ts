@@ -4,11 +4,11 @@
  * next marked. Colour and hiding are steps like any other (SUB-22, decision
  * 12 Oct), named by their notes, such as "Colour of BLUE ONE set to red".
  */
-import type { HistoryStep } from "../service.js";
+import type { ListedStep } from "@debrief/schemas";
 
-export type Row = { kind: "step"; step: HistoryStep; current: boolean; nextToUndo: boolean };
+export type Row = { kind: "step"; step: ListedStep; current: boolean; nextToUndo: boolean };
 
-export function historyRows(steps: HistoryStep[], current: number): Row[] {
+export function historyRows(steps: ListedStep[], current: number): Row[] {
   const next = nextToUndo(steps, current);
   return [...steps].reverse().map((step) => ({ kind: "step", step, current: step.seq === current, nextToUndo: next.has(step.seq) }));
 }
@@ -18,7 +18,7 @@ export function historyRows(steps: HistoryStep[], current: number): Row[] {
  * only the plot's records (a received plot file's arrival), the change before it
  * too, as the service does, so Undo never seems to do nothing.
  */
-function nextToUndo(steps: HistoryStep[], current: number): Set<number> {
+function nextToUndo(steps: ListedStep[], current: number): Set<number> {
   const bySeq = new Map(steps.map((s) => [s.seq, s]));
   const taken = new Set<number>();
   let step = bySeq.get(current);
