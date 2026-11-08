@@ -24,6 +24,7 @@ theme:
     - content.code.copy
 
 hooks:
+  - hooks/guides_nav.py
   - hooks/page_map.py
   - hooks/preview_banner.py
 
@@ -59,35 +60,6 @@ nav:
   - Try Debrief: try.md
   - Blog:
       - blog/index.md
-  - Guides:
-      - guides/index.md
-      - Style guide:
-          - guides/style-guide/index.md
-          - Language: guides/style-guide/language.md
-          - Theme: guides/style-guide/theme.md
-          - User interface: guides/style-guide/ui.md
-      - Interaction models:
-          - guides/interaction-models/index.md
-          - Selection and tool offering: guides/interaction-models/selection.md
-          - Tool invocation and forms: guides/interaction-models/tool-invocation.md
-          - Unavailable capabilities: guides/interaction-models/unavailable-capabilities.md
-          - Undo: guides/interaction-models/undo.md
-          - Conflicts: guides/interaction-models/conflicts.md
-          - Long-running operations: guides/interaction-models/long-running-operations.md
-          - Check overrides: guides/interaction-models/check-overrides.md
-          - Time controller: guides/interaction-models/time-controller.md
-          - Annotations: guides/interaction-models/annotations.md
-          - Track operations: guides/interaction-models/track-operations.md
-          - Labels, symbols and arrows: guides/interaction-models/labels-symbols-arrows.md
-          - Tote: guides/interaction-models/tote.md
-          - Timeline and narrative: guides/interaction-models/timeline.md
-          - Sensors and bearings: guides/interaction-models/sensors.md
-          - TMA solutions: guides/interaction-models/tma.md
-          - Collation: guides/interaction-models/collation.md
-          - Exported images: guides/interaction-models/export.md
-          - Walkthroughs: guides/interaction-models/walkthroughs.md
-          - Browser layout: guides/interaction-models/browser-layout.md
-          - Keyboard equivalents: guides/interaction-models/keyboard-equivalents.md
-      - Tool-author guide: guides/tool-author/index.md
-      - Sample data: guides/sample-data.md
-      - Glossary: guides/glossary.md
+  # Built from the folder (hooks/guides_nav.py): its index first, then each guide in the order
+  # its folder's index links to them, named by its heading. A new guide needs only that link.
+  - Guides: guides/

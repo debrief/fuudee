@@ -12,6 +12,8 @@ Three guides keep Debrief consistent as it grows one pull request at a time. A f
 
 The North Stars are drafts for the team to refine during Phase 0. Owners are provisional until the team is staffed.
 
+All of them draw on the [sample data](sample-data.md), the unclassified exercise every example and demo uses, and the [glossary](glossary.md), the words an analyst reads.
+
 ## How the guides grow
 
 - **A skeleton first.** Each guide's version 0 names every top-level section, including empty ones marked with the phase that will fill them. New material goes into a known place. Material that fits nowhere is flagged at review as either new territory or out of scope.
