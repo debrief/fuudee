@@ -28,7 +28,7 @@ import { receiveBearings } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
 import type { PoppableSurface, PoppableWhere } from "./poppableview.js";
-import { coverageOf, cutColours, cutRowsOf, FocusOnce, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
+import { coverageOf, cutColours, cutRowsOf, FocusOnce, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "@debrief/kernel";
 import { bearingsFor, bearingsTitle, outlineIndex, type BearingsShown, type OutlinePick } from "../../webview/outlinemodel.js";
 import { PANES, type PanesShown } from "../../webview/stackeddots.js";
 

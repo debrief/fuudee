@@ -4,8 +4,7 @@
  * two commands, with no script. Apart from bearingshost.ts, so the unit tests can read it.
  */
 import { poppedOutSaid } from "../../webview/bearingspopout.js";
-
-const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+import { escapeHtml } from "./escape.js";
 
 /** The panel's placeholder while Bearings is popped out: what to do, as links to the two commands. */
 export function placeholderHtml(inWindow: boolean): string {

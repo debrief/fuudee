@@ -8,8 +8,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { TmaCut, TmaResiduals, TmaSolutionRow } from "@debrief/schemas";
-import { DEFAULT_SETTINGS } from "@debrief/kernel";
-import { travel, type LonLat } from "../../webview/geodesic.js";
+import { DEFAULT_SETTINGS, travel, type LonLat } from "../src/index.js";
 import {
   across,
   cutBearings,
@@ -37,13 +36,14 @@ import {
   scrollFor,
   sideOfRow,
   splitAllowed,
+  splitAtFix,
   keptLegs,
   legIndices,
   legNear,
   wrap,
   coverageOutside,
   type CutBearing,
-} from "../../webview/tma.js";
+} from "../src/index.js";
 
 const vectors = JSON.parse(readFileSync(path.resolve(__dirname, "../../../schemas/vectors/tma-residuals.json"), "utf8"));
 
@@ -320,4 +320,21 @@ describe("what a command or a walkthrough step chooses in Bearings (TmaFocus, CA
     expect(legExtent(times, [], at("09:50"))).toBeUndefined();
     expect(legExtent(times, null, at("09:50"))).toBeUndefined();
   });
+});
+
+describe("splitting before or after a fix, held to the shared vectors", () => {
+  const vectors = JSON.parse(readFileSync(path.resolve(__dirname, "../../../schemas/vectors/tma-legs.json"), "utf8")) as {
+    fixes: string[];
+    cases: { name: string; leg_starts: string[]; index: number; side: "before" | "after"; leg_start?: string; refused?: string; leg: number; before?: number; after?: number }[];
+  };
+  const times = vectors.fixes.map((t) => Date.parse(t));
+  for (const c of vectors.cases) {
+    it(c.name, () => {
+      const found = splitAtFix(times, c.leg_starts.map((t) => Date.parse(t)), c.index, c.side);
+      expect(found.leg).toBe(c.leg);
+      if (c.refused) expect("refused" in found && found.refused).toBe(c.refused);
+      else expect("first" in found && new Date(times[found.first]).toISOString()).toBe(c.leg_start);
+      if (c.before !== undefined) expect([found.before, found.after]).toEqual([c.before, c.after]);
+    });
+  }
 });

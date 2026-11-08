@@ -21,10 +21,10 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { parseDocument, serialiseDocument, type KnownStore, type NarrativeImportAnswers, type UserConfig } from "@debrief/schemas";
+import { CONFIG_VERSION, parseDocument, serialiseDocument, type KnownStore, type NarrativeImportAnswers, type UserConfig } from "@debrief/schemas";
 
-/** The newest configuration layout this build understands. Matches Python's CONFIG_VERSION: 1, the stores; 2, also track_import_mode; 3, also narrative_import; 4, also tma_error_cut_off. */
-export const CONFIG_VERSION = 4;
+/** The newest configuration layout this build understands, generated from the schema (UserConfig's newest_config_version), as Python's is: 1, the stores; 2, also track_import_mode; 3, also narrative_import; 4, also tma_error_cut_off. */
+export { CONFIG_VERSION };
 /** The layout a file needs: 1 while it holds only stores, so an earlier Debrief still reads it; 2 once it remembers how tracks imported are plotted. As debrief_config. */
 export const STORES_VERSION = 1;
 export const IMPORT_MODE_VERSION = 2;

@@ -31,9 +31,8 @@
  *   Enter or Set chooses it. Focus stays where it was when the view is drawn again.
  * - Touch: every button, list and bar is at least 24 px tall.
  */
-import { DEFAULT_SETTINGS, formatTime, type FormatSettings } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, formatTime, along, extentOf, linkWords, rangeOf, type FormatSettings } from "@debrief/kernel";
 import type { CoverageItem, CoveragePeriod, CoveragePlatform, CoverageReport, CoverageSource, ItemRevision, SourceTrackRef, TimeRange } from "@debrief/schemas";
-import { along, extentOf, linkWords, rangeOf } from "./coveragelogic.js";
 
 export interface CoverageControlHost {
   /** Choose which source supplies a period of a track: one step. */

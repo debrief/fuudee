@@ -6,7 +6,7 @@ origin; every other edit changes courses and speeds, and the fixes after follow 
 geodesically at mid-latitude, far north and across the antimeridian; each edit is one step,
 undone and redone like any, its hash chain intact; the positions, courses and speeds as
 logged are never changed by an edit. The shared vectors (schemas/vectors/dead-reckoning.json)
-hold the same operations for the map's preview (vscode/webview/trackedit.ts) to match."""
+hold the same operations for the map's preview (ts/kernel/src/reckoning.ts) to match."""
 
 import json
 import math
@@ -582,7 +582,7 @@ def run_op(track: models.TrackFeature, op: dict) -> models.TrackFeature:
 
 def vector_cases() -> dict:
     """Each DR operation on a track at mid-latitude, far north and across the antimeridian,
-    as the map's preview must make it (vscode/test/unit/fixdrag.test.ts)."""
+    as the map's preview must make it (ts/kernel/test/reckoning.test.ts)."""
     out: dict = {"cases": []}
     places = (("mid", (-75.5, 37.1)), ("north", (20.0, 85.0)), ("antimeridian", (179.99, -30.0)))
     for label, start in places:

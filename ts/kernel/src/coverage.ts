@@ -9,7 +9,7 @@
 import type { CoveragePeriod, CoveragePlatform, CoverageReport, CoverageSource, DebriefFeatureCollection, TimeRange, TrackSupply } from "@debrief/schemas";
 
 /** A gap in the data: more than GAP_FACTOR times the median time between fixes, and more than MIN_GAP_MS. */
-export const GAP_FACTOR = 10;
+const GAP_FACTOR = 10;
 export const MIN_GAP_MS = 5 * 60_000;
 const MIN_STEPS = 3;
 

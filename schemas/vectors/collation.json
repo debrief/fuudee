@@ -1,5 +1,5 @@
 {
-  "description": "Collation (CAP-05, CAP-08, CAP-09), held by Python (debrief_stac.collation) and TypeScript (vscode/webview/coveragelogic.ts). spans: the periods a track has data for, from its fixes' times: broken at a time between fixes more than ten times the median time between them (the upper of the middle two; with fewer than three steps there is no median, so no gap) and more than five minutes. platform_keys: a track's name as collation matches platforms, case and runs of spaces ignored. periods: a platform's time cut where the sources with data change, by each source's spans.",
+  "description": "Collation (CAP-05, CAP-08, CAP-09), held by Python (debrief_stac.collation) and TypeScript (ts/kernel/src/coverage.ts). spans: the periods a track has data for, from its fixes' times: broken at a time between fixes more than ten times the median time between them (the upper of the middle two; with fewer than three steps there is no median, so no gap) and more than five minutes. platform_keys: a track's name as collation matches platforms, case and runs of spaces ignored. periods: a platform's time cut where the sources with data change, by each source's spans.",
   "spans": [
     {
       "name": "no fixes",

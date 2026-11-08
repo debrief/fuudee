@@ -13,7 +13,7 @@
  * ditchBearing did. The same rules as debrief_kernel.sensors, held to
  * schemas/vectors/sensor-cuts.json.
  */
-import { DEFAULT_SETTINGS, formatTime, fixed, formatRange, type FormatSettings } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, formatTime, fixed, formatRange, type FormatSettings } from "./formatting.js";
 import type { AmbiguityResolution, DebriefFeatureCollection } from "@debrief/schemas";
 import { alongOf, legLengthM, pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
 

@@ -35,7 +35,7 @@ from debrief_schemas import models
 
 FIELDS = ("label_interval", "symbol_interval", "arrow_interval")
 # The intervals the forms offer, in seconds: legacy Debrief's, from 1 s to 24 h (as
-# PRESETS in vscode/webview/frequencies.ts).
+# PRESETS in ts/kernel/src/frequencies.ts).
 PRESETS = (1, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21_600, 43_200, 86_400)
 NOUNS = {"label_interval": "labels", "symbol_interval": "symbols", "arrow_interval": "arrows"}
 
@@ -137,7 +137,7 @@ def describe_track(props: Any) -> str:
     """A track's intervals in words, as its details show them (product owner, 15 Oct
     2026): "Labels every 10 min · Symbols off · Arrows default". Left out is "off" for
     labels and symbols (none are drawn) and "default" for arrows (product owner, 16 Oct 2026).
-    As describeFrequencies in vscode/webview/frequencies.ts, held to the shared vectors."""
+    As describeFrequencies in ts/kernel/src/frequencies.ts, held to the shared vectors."""
     parts = []
     for field in FIELDS:
         value = getattr(props, field, None) if not isinstance(props, Mapping) else props.get(field)

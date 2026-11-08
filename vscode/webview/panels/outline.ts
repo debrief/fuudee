@@ -20,14 +20,12 @@
  * A row's actions are the action catalogue's (panels/actions.ts, PAR-05) for its menu context, by id.
  */
 import type { DebriefFeatureCollection, StacItem } from "@debrief/schemas";
-import { formatTime } from "@debrief/kernel";
+import { formatTime, trackDetails, featureName, sensorDetail, type CutFeature, type SensorEntry } from "@debrief/kernel";
 import { isFeature, isHidden, type PlotFeature } from "../../src/hidden.js";
 import { count, describeTimes } from "../../src/format.js";
 import { shapeOf } from "../annotationlook.js";
 import { DR_TAG, isDeadReckoned } from "../fixes.js";
-import { trackDetails } from "../frequencies.js";
 import { cutRow, fixKey, fixRow, legKey, legRow, outlineIndex, type OutlineIndex } from "../outlinemodel.js";
-import { featureName, sensorDetail, type CutFeature, type SensorEntry } from "../sensors.js";
 import { rowActions } from "./actions.js";
 
 /** How many cuts a page of a sensor's cuts holds: a sensor of more opens to pages, by time. */

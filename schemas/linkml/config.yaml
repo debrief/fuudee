@@ -37,6 +37,10 @@ enums:
 
 classes:
   UserConfig:
+    annotations:
+      # The newest layout (config_version) this build reads and writes; a file saying more is
+      # refused. The generators give it to Python and TypeScript as CONFIG_VERSION.
+      newest_config_version: 4
     attributes:
       config_version:
         description: "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import; 4 once it holds tma_error_cut_off. An earlier Debrief cannot read a later layout."
