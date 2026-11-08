@@ -2206,7 +2206,7 @@
 </tr>
 </tbody>
 </table>
-<p>Every measurement is well inside 100 ms, so the Tote stays on the architecture the Phase 0 spike chose: one request per time. The dense-sampling fallback is not built. Each check reports its numbers and asserts generously (three times the budget at p95), so a slow CI machine does not fail it: <code>python/debrief-tools/tests/test_tote_latency.py</code>, the integration test's Tote steps and <code>vscode/test/play/tote.mjs</code>.</p>
+<p>Every measurement is well inside 100 ms, so the Tote stays on the architecture the Phase 0 spike chose: one request per time. The dense-sampling fallback is not built. Each check reports its numbers and asserts generously (three times the budget at p95), so a slow CI machine does not fail it: <code>python/debrief-tools/tests/test_tote_latency.py</code>, the integration test's Tote steps and <code>vscode/test/play/tote.mjs</code>. The Python check runs with <code>DEBRIEF_PERF=1</code> only, in CI's step for performance budgets, which reports and never blocks.</p>
 <h2 id="measure-groups-what-part-b-adds">Measure groups: what part B adds<a class="headerlink" href="#measure-groups-what-part-b-adds" title="Permanent link">&para;</a></h2>
 <p>The schema and the service are ready for groups beyond core:</p>
 <ul>
