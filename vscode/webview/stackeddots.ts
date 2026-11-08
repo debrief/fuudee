@@ -13,10 +13,8 @@
  *   pink otherwise, as legacy shaded it; a word and a mark say so too.
  * - A box dragged zooms; double-click or Reset undoes it; a zoom stays while dragging.
  */
-import { DEFAULT_SETTINGS, fixed, formatTime, type FormatSettings } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, fixed, formatTime, wrap, type FormatSettings } from "@debrief/kernel";
 import type { TmaCut, TmaResidualRow } from "@debrief/schemas";
-import type { LonLat } from "./geodesic.js";
-import { wrap } from "./tma.js";
 
 export type Pane = "bearing" | "error" | "course";
 /** The panes, left to right, as legacy laid them out. */
@@ -378,64 +376,6 @@ export function nearestPoint(xs: ArrayLike<number>, ys: ArrayLike<number>, px: n
     }
   }
   return best;
-}
-
-// --- Course and speed -----------------------------------------------------------------------
-
-/**
- * A solution's course and speed at each fix as its DR legs give them (product owner, 25 Oct
- * 2026): from each fix to the next, the last fix keeping the one before's. Metres a second.
- */
-export function legCourses(coordinates: readonly LonLat[], times: ArrayLike<number>): { courses: number[]; speeds: number[] } {
-  const courses: number[] = [];
-  const speeds: number[] = [];
-  for (let i = 0; i + 1 < coordinates.length; i++) {
-    // Fixes sharing a time: from this fix to the next at a later time (the first fixes too), else the leg before's.
-    let j = i + 1;
-    while (j < coordinates.length && times[j] - times[i] <= 0) j++;
-    if (j < coordinates.length) {
-      const { course, metresPerSecond } = localCourse(coordinates[i], coordinates[j], (times[j] - times[i]) / 1000);
-      courses.push(course);
-      speeds.push(metresPerSecond);
-    } else {
-      courses.push(i > 0 ? courses[i - 1] : 0);
-      speeds.push(i > 0 ? speeds[i - 1] : 0);
-    }
-  }
-  if (coordinates.length) {
-    courses.push(courses.length ? courses[courses.length - 1] : 0);
-    speeds.push(speeds.length ? speeds[speeds.length - 1] : 0);
-  }
-  return { courses, speeds };
-}
-
-const RAD = Math.PI / 180;
-/** WGS84: the equatorial radius, metres, and the first eccentricity squared. */
-const WGS84_A = 6378137;
-const WGS84_E2 = 0.00669437999014;
-
-/**
- * The course and speed from a to b on the WGS84 ellipsoid, locally: the radii of curvature in the
- * meridian (M) and the prime vertical (N) at the leg's middle latitude, so north and east are
- * metres. Drawn while a drag goes on, a frame at a time, where the ellipsoid's geodesic
- * (tma.courseSpeed, geographiclib) would cost a third of a frame's budget at 2,000 fixes. The
- * course is the middle's less half the meridians' convergence, so the course from a. Against
- * geographiclib (stackeddots.test.ts): within 0.0001° and 0.0001% for legs to 10 km at latitudes
- * to 70°; the worst case measured there, a 20 km leg at 75°, 0.0002° and 0.0006%. The pane draws
- * the track's own courses and speeds again once the drag is saved.
- */
-export function localCourse(a: LonLat, b: LonLat, seconds: number): { course: number; metresPerSecond: number } {
-  const phi = ((a[1] + b[1]) / 2) * RAD;
-  const s = Math.sin(phi);
-  const w = 1 - WGS84_E2 * s * s;
-  const m = (WGS84_A * (1 - WGS84_E2)) / (w * Math.sqrt(w));
-  const n = WGS84_A / Math.sqrt(w);
-  const north = (b[1] - a[1]) * RAD * m;
-  const east = wrap(b[0] - a[0]) * RAD * n * Math.cos(phi);
-  // The course at the leg's middle, less half the meridians' convergence over it: the course from a, as the geodesic's.
-  const course = (((Math.atan2(east, north) - (wrap(b[0] - a[0]) * RAD * s) / 2) / RAD) % 360 + 360) % 360;
-  const metres = Math.hypot(north, east);
-  return { course, metresPerSecond: seconds > 0 ? metres / seconds : 0 };
 }
 
 /** An angle as near a reference as it goes round: so a course through north stays one line. */

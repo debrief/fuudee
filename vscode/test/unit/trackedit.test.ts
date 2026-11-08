@@ -7,9 +7,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, formatBearing, formatQuantity } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, formatBearing, formatQuantity, rangeBearing, travel, endsOf, type LonLat } from "@debrief/kernel";
 import { checkMessage } from "../../src/messages.js";
-import { rangeBearing, travel, type LonLat } from "../../webview/geodesic.js";
 import {
   changesNothing,
   defaultPivotIndex,
@@ -17,7 +16,6 @@ import {
   describeTurn,
   dragGesture,
   endPlaces,
-  endsOf,
   frameXY,
   fromFrame,
   gestureChange,

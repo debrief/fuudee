@@ -19,7 +19,7 @@
  *
  * Pure: no Leaflet, no DOM. The map (map.ts) and the forms use it.
  */
-import { wallClock, type FormatSettings } from "@debrief/kernel";
+import { wallClock, type FormatSettings } from "./formatting.js";
 import type { Duration } from "@debrief/schemas";
 
 export const FIELDS = ["label_interval", "symbol_interval", "arrow_interval"] as const;

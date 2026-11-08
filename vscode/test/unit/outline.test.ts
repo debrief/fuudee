@@ -3,10 +3,9 @@
  * the rows of open branches with their place for a screen reader, kept while virtualised; the
  * keys and clicks of a WAI-ARIA tree; what a TMA solution's legs and fixes and a sensor's cuts
  * say; what Bearings shows for a selection; each Tools entry shown when it applies, or disabled
- * with its reason; and splitting before or after a fix held to schemas/vectors/tma-legs.json.
+ * with its reason. Splitting before or after a fix is held to schemas/vectors/tma-legs.json in
+ * ts/kernel/test/tma.test.ts.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
 import { flatten, rangeKeys, rowsInWindow, treeClick, treeKey, type TreeNode } from "../../webview/outlinetree.js";
@@ -29,7 +28,6 @@ import {
   tmaRequestOf,
   type OutlinePick,
 } from "../../webview/outlinemodel.js";
-import { splitAtFix } from "../../webview/tma.js";
 import { panesDrawn } from "../../webview/stackeddots.js";
 
 // --- The tree ---------------------------------------------------------------------------------
@@ -264,23 +262,6 @@ describe("the Tools' entries for the Outline's selection", () => {
     expect(outlineChoice(index, "sensor-ta", { period: { start: T("10:00"), end: T("11:00") } })).toBe("There are no cuts in that period.");
     expect(outlineChoice(index, "nothing")).toBe("That is not in this plot.");
   });
-});
-
-describe("splitting before or after a fix, held to the shared vectors", () => {
-  const vectors = JSON.parse(readFileSync(path.resolve(__dirname, "../../../schemas/vectors/tma-legs.json"), "utf8")) as {
-    fixes: string[];
-    cases: { name: string; leg_starts: string[]; index: number; side: "before" | "after"; leg_start?: string; refused?: string; leg: number; before?: number; after?: number }[];
-  };
-  const times = vectors.fixes.map((t) => Date.parse(t));
-  for (const c of vectors.cases) {
-    it(c.name, () => {
-      const found = splitAtFix(times, c.leg_starts.map((t) => Date.parse(t)), c.index, c.side);
-      expect(found.leg).toBe(c.leg);
-      if (c.refused) expect("refused" in found && found.refused).toBe(c.refused);
-      else expect("first" in found && new Date(times[found.first]).toISOString()).toBe(c.leg_start);
-      if (c.before !== undefined) expect([found.before, found.after]).toEqual([c.before, c.after]);
-    });
-  }
 });
 
 export type { OutlinePick };

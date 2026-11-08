@@ -4,7 +4,8 @@ LinkML is the single source. This script writes:
 
 - schemas/generated/debrief.schema.json  (JSON Schema, also the input for TypeScript)
 - python/debrief-schemas/src/debrief_schemas/generated/debrief.py  (Pydantic)
-- python/debrief-schemas/src/debrief_schemas/generated/schema_version.py
+- python/debrief-schemas/src/debrief_schemas/generated/schema_version.py  (SCHEMA_VERSION, and
+  CONFIG_VERSION: the newest per-user configuration layout)
 - python/debrief-schemas/src/debrief_schemas/generated/debrief.schema.json  (packaged copy)
 
 TypeScript is generated from the JSON Schema by `npm run generate` in ts/schemas,
@@ -205,6 +206,16 @@ def _union_in_json_schema(view: SchemaView, json_schema: dict) -> None:
         }
 
 
+def _newest_config_version(view: SchemaView) -> int:
+    """The newest per-user configuration layout this build understands: UserConfig's
+    newest_config_version annotation (schemas/linkml/config.yaml). Python reads it as
+    CONFIG_VERSION from schema_version.py; TypeScript from the JSON Schema's top-level
+    config_version, beside its version."""
+    cls = view.get_class("UserConfig")
+    annotations = {a.tag: a.value for a in (cls.annotations or {}).values()}
+    return int(annotations["newest_config_version"])
+
+
 def _union_in_pydantic(view: SchemaView, pydantic: str) -> str:
     """Add each discriminated union as a root model of its members, told apart by
     the slot. gen-pydantic writes each member, fixing the slot as a Literal, but
@@ -247,6 +258,8 @@ def generate() -> dict[Path, str]:
     json_schema = json.loads(json_schema)
     _strip_null_array_items(view, json_schema)
     _union_in_json_schema(view, json_schema)
+    config_version = _newest_config_version(view)
+    json_schema["config_version"] = config_version
     json_schema = json.dumps(json_schema, indent=2, sort_keys=True) + "\n"
 
     pydantic = PydanticGenerator(schema, mergeimports=True).serialize()
@@ -257,7 +270,7 @@ def generate() -> dict[Path, str]:
     return {
         JSON_SCHEMA: json_schema,
         PYDANTIC: HEADER + pydantic,
-        PY_VERSION: HEADER + f'SCHEMA_VERSION = "{version}"\n',
+        PY_VERSION: HEADER + f'SCHEMA_VERSION = "{version}"\nCONFIG_VERSION = {config_version}\n',
         PY_GENERATED / "__init__.py": HEADER,
         PY_GENERATED / "debrief.schema.json": json_schema,
     }

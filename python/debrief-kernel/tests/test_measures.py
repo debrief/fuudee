@@ -251,7 +251,7 @@ def test_no_depth_where_none_is_recorded() -> None:
 
 
 def test_position_is_where_the_map_puts_the_marker() -> None:
-    # The map's positionAt is held to the same vectors (vscode/test/unit/tote.test.ts).
+    # The map's positionAt is held to the same vectors (ts/kernel/test/geodesic.test.ts).
     cases = json.loads((VECTORS / "track-positions.json").read_text())["cases"]
     for case in cases:
         times = [parse_utc(t) for t in case["times"]]

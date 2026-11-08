@@ -31,10 +31,15 @@ def plot(catalogue):
 def test_offered_tools_are_the_registrys_rule_in_declared_order():
     registry = Registry.discover(["debrief_tools.core"])
     declarations = {n: t.declaration for n, t in registry.tools.items()}
+    # Declared: track_summary, closest_approach, range_rings (one track), add_note (any).
+    assert list(declarations)[:3] == [
+        "core.track_summary",
+        "core.closest_approach",
+        "core.range_rings",
+    ]
     offered = offered_tools(declarations, ["track", "track"])
-    assert offered == [t.name for t in registry.for_selection(["track", "track"])]
-    assert "core.closest_approach" in offered
-    assert offered_tools(declarations, []) == [t.name for t in registry.for_selection([])]
+    assert offered == ["core.track_summary", "core.closest_approach", "core.add_note"]
+    assert offered_tools(declarations, []) == ["core.add_note"]
 
 
 def test_unavailable_tools_say_library_tool_and_reason():

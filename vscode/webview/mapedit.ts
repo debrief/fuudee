@@ -27,10 +27,9 @@
  * Interface colours from the theme (map.css); the annotation's own look from annotationlook.ts.
  */
 import L from "leaflet";
-import { convert, DEFAULT_SETTINGS } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, circleRing, densify, ellipseRing, type LonLat } from "@debrief/kernel";
 import type { AnnotationSpec, WebviewMessage } from "@debrief/schemas";
 import { lookOf } from "./annotationlook.js";
-import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
 import {
   dragTo,
   dropRepeats,

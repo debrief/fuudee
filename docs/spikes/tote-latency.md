@@ -6,7 +6,7 @@
 
 ## Method
 
-`spikes/tote-latency/run.sh` starts a minimal tool service and drives it from a Node client standing in for the VS Code extension host.
+`spikes/tote-latency/run.sh` started a minimal tool service and drove it from a Node client standing in for the VS Code extension host. The harness was removed once nothing used it (health check, 7 Nov 2026); it is in the history at commit 24a1865f.
 
 - **Service:** Starlette and uvicorn, the stack the Python MCP SDK uses for HTTP. It listens on loopback only (SEC-07) and requires a per-session bearer token (SEC-08).
 - **Client:** sequential requests over a keep-alive connection, with no concurrency.

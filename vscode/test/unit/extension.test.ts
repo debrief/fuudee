@@ -7,7 +7,7 @@ import type { ParameterDeclaration, ToolDeclaration } from "@debrief/schemas";
 import { describeStep, needs } from "../../src/wording.js";
 import { checkMessage } from "../../src/messages.js";
 import { changedSince, historyIn, historyOnDisk, openPlot, plotFile, readCatalogue } from "../../src/catalogue.js";
-import { densify } from "../../webview/geodesic.js";
+import { densify } from "@debrief/kernel";
 import { initial } from "../../webview/formdraft.js";
 import { count, describeTimes } from "../../src/format.js";
 import { Session } from "../../src/session.js";

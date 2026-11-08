@@ -8,7 +8,7 @@
  * is unit-tested; nothing in it changed.
  */
 import type { TmaCut, TmaResidualRow, TmaSolutionRow } from "@debrief/schemas";
-import type { LonLat } from "./geodesic.js";
+import { legCourses, type LonLat } from "@debrief/kernel";
 import {
   about,
   courseAxes,
@@ -19,7 +19,6 @@ import {
   errorExtent,
   fitErrors,
   fitRange,
-  legCourses,
   offScale,
   type Pane,
   panesDrawn,

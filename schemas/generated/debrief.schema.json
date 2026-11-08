@@ -14097,6 +14097,7 @@
   "$id": "https://debrief.info/schemas/debrief",
   "$schema": "https://json-schema.org/draft/2019-09/schema",
   "additionalProperties": false,
+  "config_version": 4,
   "description": "The unit of analysis (SUB-05), stored as an asset of a STAC item.",
   "metamodel_version": "1.12.0",
   "properties": {

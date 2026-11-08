@@ -15,10 +15,8 @@
  * - What Bearings shows for the selection: a solution (for it, a leg or a fix), or a sensor's
  *   coverage (for it or some of its cuts); something unrelated keeps what it shows.
  */
-import { convert, DEFAULT_SETTINGS, fixed, formatRange, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, fixed, formatRange, formatTime, UNIT_LABELS, bearingText, degrees, metres, placeOfCut, sensorsOf, sideOf, legBounds, splitAtFix, type FormatSettings, type CutFeature, type SensorEntry } from "@debrief/kernel";
 import type { DebriefFeatureCollection, TmaRequest } from "@debrief/schemas";
-import { bearingText, degrees, metres, placeOfCut, sensorsOf, sideOf, type CutFeature, type SensorEntry } from "./sensors.js";
-import { legBounds, splitAtFix } from "./tma.js";
 
 type PlotFeature = DebriefFeatureCollection["features"][number];
 type Track = Extract<PlotFeature, { properties: { kind: "track" } }>;

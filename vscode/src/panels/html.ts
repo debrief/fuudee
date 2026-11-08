@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import { startup } from "../startup.js";
+import { escapeHtml } from "./escape.js";
 
 /** A webview page loading one bundle, with a strict content security policy; data, as the body's data- attributes. */
 export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bundle: string, title: string, data: Record<string, string> = {}): string {
@@ -32,8 +33,4 @@ export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bund
 <script nonce="${nonce}" src="${asset(`${bundle}.js`)}"></script>
 </body>
 </html>`;
-}
-
-export function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }

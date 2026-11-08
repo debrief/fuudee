@@ -39,10 +39,8 @@
  *   edge it is not at; the Bearing axis kept as it was when the drag began, widened the same
  *   way; a zoom kept. The whole frame is timed (timings) against the drag budget (NFR-04).
  */
-import { convert, DEFAULT_SETTINGS, fixed, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, fixed, formatTime, UNIT_LABELS, bearingText, type FormatSettings, type LonLat, type Kept } from "@debrief/kernel";
 import type { AmbiguityResolution, TmaCut, TmaFocus, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
-import type { LonLat } from "./geodesic.js";
-import { bearingText, type Kept } from "./sensors.js";
 import {
   about,
   controlsBeside,
@@ -99,7 +97,7 @@ import {
   sideOfRow,
   splitAllowed,
   coverageOutside,
-} from "./tma.js";
+} from "@debrief/kernel";
 import { otherOf, plotGeometry, type PlotLayout } from "./tmalayout.js";
 import { describeDistance, describeSpeed, readBearing, readDistance, readSpeed } from "./trackedit.js";
 

@@ -1,5 +1,5 @@
 """Intervals for labels, symbols and arrows (CAP-32), held to the vectors shared with
-TypeScript (vscode/webview/frequencies.ts)."""
+TypeScript (ts/kernel/src/frequencies.ts)."""
 
 import json
 from pathlib import Path

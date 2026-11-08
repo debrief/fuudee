@@ -28,9 +28,9 @@ PRN-04 says every boundary type is generated. The review found that rule honoure
 | Files: plots, STAC, history, provenance | `schemas/linkml/*.yaml` | `debrief_schemas.models` | `@debrief/schemas` | 414 fixtures in 11 kinds, both languages; the cross-language round trip |
 | Host-to-page messages | `messages.yaml`, one class per kind under a union on `kind` | same | same, as a discriminated union | `checkMessage` on every post; semantic fixtures in both languages |
 | Tool declarations and results | `tools.yaml` | same | same | the tool contract tests in `run.py` |
-| Shared state, formatting, config | `state.yaml`, `formatting.yaml`, `config.yaml` | same | same | the shared vectors |
+| Shared state, formatting, config | `state.yaml`, `formatting.yaml`, `config.yaml`; the newest config layout as `UserConfig`'s `newest_config_version` | same, and `CONFIG_VERSION` | same, and `CONFIG_VERSION` | the shared vectors |
 | JSON-RPC parameters and replies | `rpc.yaml`, a parameters class and a reply class per method or family, named by the method's registration (`request=`, `reply=`) | same | same; `RpcMethods` in `vscode/src/generated/rpc.ts`, printed from the registry, types `ToolService.call` per method | `test_rpc_schema.py`: every method but MCP's own names both; the service's tests check every request that succeeds, and its reply, against them (`conftest.py`) |
-| Kernel behaviour (units, geodesy, formatting, residuals) | `schemas/vectors/*.json` | `debrief_kernel` | `@debrief/kernel` | 17 vector files, both languages |
+| Kernel behaviour (units, formatting, positions, figure IDs, geodesy, sensors, TMA residuals and legs, dead reckoning, intervals, collation) | `schemas/vectors/*.json` | `debrief_kernel`, `debrief_stac` | `@debrief/kernel` (`ts/kernel`): the functions these vectors hold, each with its vector's test; pages and hosts import them from there (config paths are `@debrief/config`'s; narrative order, redaction and the service's methods are still held in `vscode/src`, section 7) | the vector files, both languages; `ts/kernel`'s tests run without the extension |
 
 ### Extension points
 
@@ -103,7 +103,7 @@ Not touched: `KNOWN_METHODS`, group tuples, elif ladders, the module docstring. 
 
 ### Add a schema module or vector
 
-A vector is a fact both languages must agree on. Add the JSON under `schemas/vectors/`, a test in each language that reads it, and nothing that hand-copies the values.
+A vector is a fact both languages must agree on. Add the JSON under `schemas/vectors/`, a test in each language that reads it, and nothing that hand-copies the values. The TypeScript that a vector holds lives in `ts/kernel/src`, its test in `ts/kernel/test`, never in `vscode/webview`: a page imports it from `@debrief/kernel`, so a future web host has it too and it is tested without the extension's setup. Keep the kernel free of the DOM and of VS Code; its words are held to the language guide and its colours to the theme check like a page's (`check-language.mjs` and `check-theme.mjs` read `ts/kernel/src`).
 
 ## 3. Policies
 
@@ -180,7 +180,7 @@ Rules:
 
 ### Performance budgets
 
-A test that times work asserts its budget only with `DEBRIEF_PERF=1` (review, 7 Nov 2026, finding 10): a budget on shared hardware fails with the machine's load, not the code. The work and its result are checked on every run. In vitest, `withinBudget(ms, budget, what)` from `test/unit/budget.ts` (coverage, timeline, sensors and TMA live residuals); in Python, `test_tote_latency.py` (NFR-04), skipped without the flag as it takes ten seconds. CI runs both with the flag in a step of their own that reports and never blocks, so a regression shows in the job's log without failing a pull request on a busy runner. The playground's drag and Tote budgets are unchanged: they run in a browser, and each asserts generously.
+A test that times work asserts its budget only with `DEBRIEF_PERF=1` (review, 7 Nov 2026, finding 10): a budget on shared hardware fails with the machine's load, not the code. The work and its result are checked on every run. In vitest, `withinBudget(ms, budget, what)` from `vscode/test/unit/budget.ts` (coverage, timeline, sensors) and its copy in `ts/kernel/test/budget.ts` (TMA live residuals); in Python, `test_tote_latency.py` (NFR-04), skipped without the flag as it takes ten seconds. CI runs both with the flag in a step of their own that reports and never blocks, so a regression shows in the job's log without failing a pull request on a busy runner. The playground's drag and Tote budgets are unchanged: they run in a browser, and each asserts generously.
 
 ## 7. Open items and rules not yet enforced
 
@@ -193,6 +193,8 @@ Kept here so they are seen at every phase exit, not rediscovered by the next rev
 - Webview controls with no jsdom test yet: `map.ts`, `trackmap.ts`, `mapedit.ts`, `sensormap.ts`, `timelinecontrol.ts`, `timecontrol.ts`; `TmaControl`'s form, keys and drag frames (the play suite's part six covers them). `TmaControl.drawPlot` is still one method for the drawing itself, its layout split out (`tmalayout.ts`).
 - The review image on Heroku is never built by CI; VS Code's version is pinned in three places.
 - No CODEOWNERS; guide owners are one person, provisional.
+- Three vectors are still held by the extension host rather than `ts/kernel`: narrative order (`vscode/src/timeline.ts`, which leans on the host's `hidden.ts` and `format.ts`), redaction (`vscode/src/diagnostics.ts`) and the service's methods (`vscode/src/figures.ts`, the host's own guard). The track operations that are not dead reckoning (move, rotate, shear and stretch, as `debrief_stac.tracks`) stay in `vscode/webview/trackedit.ts`: no vector holds them yet.
+- Config and catalogues are read again on every service call (`service.py`); an mtime-keyed cache is not yet written.
 
 ## 8. Health check
 

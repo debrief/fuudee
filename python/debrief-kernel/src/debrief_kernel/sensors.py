@@ -21,7 +21,7 @@ at or after the time (TrackPath.reported_course_at), where the track records cou
 a turn it can differ from the direction the line between fixes takes. For an array with
 an offset, the course where the array is.
 
-Python (here) and TypeScript (vscode/webview/sensors.ts) are held to
+Python (here) and TypeScript (ts/kernel/src/sensors.ts) are held to
 schemas/vectors/sensor-cuts.json.
 """
 
@@ -158,7 +158,7 @@ def _along(host: TrackPath) -> list[float]:
     _leg_m measures it (from the later fix back), summed in order; worked out once per
     track and kept with it, so a worm on a track of 200,000 fixes, or one that sat still
     for hours, bisects it rather than walking every leg (round 3: 26 s for 600 cuts on a
-    track three-quarters still). vscode/webview/sensors.ts alongOf does the same."""
+    track three-quarters still). ts/kernel/src/sensors.ts alongOf does the same."""
     found = getattr(host, "_worm_along", None)
     if found is not None:
         return found

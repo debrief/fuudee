@@ -28,7 +28,7 @@
 import L from "leaflet";
 import geodesic from "geographiclib-geodesic";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
-import type { LonLat } from "./geodesic.js";
+import type { LonLat } from "@debrief/kernel";
 import {
   arrayOf,
   cutPlace,
@@ -48,7 +48,7 @@ import {
   type HostPath,
   type Kept,
   type SensorEntry,
-} from "./sensors.js";
+} from "@debrief/kernel";
 
 const WGS84 = geodesic.Geodesic.WGS84;
 const MASK = geodesic.Geodesic.LONGITUDE | geodesic.Geodesic.LATITUDE | geodesic.Geodesic.LONG_UNROLL;

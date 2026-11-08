@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import geodesic from "geographiclib-geodesic";
-import { DEFAULT_SETTINGS } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, rangeBearing, travel, type LonLat } from "@debrief/kernel";
 import type { AnnotationSpec } from "@debrief/schemas";
 import { drawnDraft, specOf } from "../../webview/annotationdraft.js";
 import {
@@ -29,7 +29,6 @@ import {
   startDrawing,
   type Drawing,
 } from "../../webview/drawing.js";
-import { rangeBearing, travel, type LonLat } from "../../webview/geodesic.js";
 import { checkMessage } from "../../src/messages.js";
 
 const WGS84 = geodesic.Geodesic.WGS84;

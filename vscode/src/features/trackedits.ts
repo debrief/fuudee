@@ -6,9 +6,8 @@
  */
 import * as vscode from "vscode";
 import type { LineStringGeometry, Speed, TimeRange, TrackEdit } from "@debrief/schemas";
-import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../../webview/trackedit.js";
-import { legExtent } from "../../webview/tma.js";
+import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS, reckoningOf, legExtent, type Anchor } from "@debrief/kernel";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../../webview/trackedit.js";
 import { MODE_LABELS, type PlottingMode } from "../importmode.js";
 import { count, describeTimes, settings as displaySettings } from "../format.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../../webview/fixes.js";
