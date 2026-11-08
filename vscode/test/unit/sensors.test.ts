@@ -37,6 +37,7 @@ import {
 import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../../src/sensorimport.js";
 import { describeStep, SENSOR_IMPORTER } from "../../src/wording.js";
 import { arrayOffsetTitle, readArrayOffset } from "../../webview/trackedit.js";
+import { withinBudget } from "./budget.js";
 
 const repo = path.resolve(__dirname, "../../..");
 const vectors = JSON.parse(readFileSync(path.join(repo, "schemas/vectors/sensor-cuts.json"), "utf8")) as {
@@ -292,7 +293,7 @@ describe("a worm on a track that sat still (round 3, M-5)", () => {
     const began = performance.now();
     const places = Array.from({ length: 600 }, (_, k) => arrayPlace(host, at(k), 500)!);
     // 3.2 s before (every still leg walked, and a course looked for behind each).
-    expect(performance.now() - began).toBeLessThan(1000);
+    withinBudget(performance.now() - began, 1000, "600 worm places on a track that sat still");
     for (const [k, place] of places.entries()) {
       if (at(k) <= (still + 101) * 1000) expect(place.position[1]).toBeLessThan(50 + 1e-9);
     }

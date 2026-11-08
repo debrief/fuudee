@@ -31,6 +31,7 @@ import {
   whereIs,
   type Filter,
 } from "../../webview/timelinelogic.js";
+import { withinBudget } from "./budget.js";
 
 const ROOT = path.resolve(__dirname, "../../..");
 const vectors = JSON.parse(readFileSync(path.join(ROOT, "schemas/vectors/narrative-order.json"), "utf8")) as {
@@ -322,7 +323,7 @@ describe("at the track-heavy scale (NFR-06: 12,000 entries scaled by five)", () 
     expect(ordered).toHaveLength(60_000);
     expect(middle[1] - middle[0]).toBeLessThan(40); // a screenful drawn, not sixty thousand
     expect(found.length).toBeGreaterThan(0);
-    expect(orderMs).toBeLessThan(2000);
-    expect(allMs + searchMs).toBeLessThan(500);
+    withinBudget(orderMs, 2000, "ordering sixty thousand entries");
+    withinBudget(allMs + searchMs, 500, "filter, rows, layout and search");
   });
 });
