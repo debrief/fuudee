@@ -27,11 +27,9 @@ WHERE = {"store": "exercise", "item": "serial"}
 
 
 @pytest.fixture
-def client(config_file: Path, lab_library: str):
-    worker = ToolWorker([lab_library], str(config_file), timeout_s=3)
+def client(config_file: Path, worker: ToolWorker):
     app = build_app(ToolService(worker, str(config_file)), TOKEN, PORT)
-    yield TestClient(app, base_url=f"http://127.0.0.1:{PORT}")
-    worker.close()
+    return TestClient(app, base_url=f"http://127.0.0.1:{PORT}")
 
 
 def rpc(client: TestClient, method: str, params: dict | None = None) -> dict:
@@ -296,60 +294,56 @@ def test_an_agents_export_with_no_map_open_is_refused(client, tmp_path: Path) ->
 
 
 def test_an_agents_export_is_drawn_by_the_open_map(
-    config_file: Path, lab_library: str, tmp_path: Path
+    config_file: Path, worker: ToolWorker, tmp_path: Path
 ) -> None:
-    worker = ToolWorker([lab_library], str(config_file), timeout_s=3)
     service = ToolService(worker, str(config_file))
-    try:
-        asked: list[dict] = []
-        # What the host's export says, as VS Code answers (an ExportedImage).
-        figure = service.handle("debrief/figure_id", WHERE)
-        exported = {**figure, "recorded": True}
+    asked: list[dict] = []
+    # What the host's export says, as VS Code answers (an ExportedImage).
+    figure = service.handle("debrief/figure_id", WHERE)
+    exported = {**figure, "recorded": True}
 
-        def host() -> None:
-            # The host polls, is asked, draws (here: says what it was asked) and answers.
-            for request in service.handle("debrief/host_poll", {"wait_s": 5})["requests"]:
-                asked.append(request)
-                service.handle(
-                    "debrief/host_answer",
-                    {"id": request["id"], "result": {"file": request["file"], **exported}},
-                )
+    def host() -> None:
+        # The host polls, is asked, draws (here: says what it was asked) and answers.
+        for request in service.handle("debrief/host_poll", {"wait_s": 5})["requests"]:
+            asked.append(request)
+            service.handle(
+                "debrief/host_answer",
+                {"id": request["id"], "result": {"file": request["file"], **exported}},
+            )
 
-        service.handle("debrief/host_poll", {"wait_s": 0})  # a map is open
-        drawing = threading.Thread(target=host)
-        drawing.start()
-        target = str(tmp_path / "serial.svg")
-        answer = service.handle(
-            "debrief/export_image",
-            {
-                **WHERE,
-                "file": target,
-                "theme": "light",
-                "agent": {"kind": "software_agent", "name": "a"},
-            },
-        )
-        drawing.join(5)
-        assert answer == {"file": target, **exported}
-        [request] = asked
-        assert (request["kind"], request["format"], request["theme"]) == (
-            "export_image",
-            "svg",
-            "light",
-        )
-        assert request["agent"]["name"] == "a" and "footer" not in request
-        # The host's refusal is the agent's.
-        drawing = threading.Thread(
-            target=lambda: [
-                service.handle("debrief/host_answer", {"id": r["id"], "problem": "Another plot."})
-                for r in service.handle("debrief/host_poll", {"wait_s": 5})["requests"]
-            ]
-        )
-        drawing.start()
-        with pytest.raises(RpcError, match="Another plot"):
-            service.handle("debrief/export_image", {**WHERE, "file": target, "agent": AGENT})
-        drawing.join(5)
-    finally:
-        worker.close()
+    service.handle("debrief/host_poll", {"wait_s": 0})  # a map is open
+    drawing = threading.Thread(target=host)
+    drawing.start()
+    target = str(tmp_path / "serial.svg")
+    answer = service.handle(
+        "debrief/export_image",
+        {
+            **WHERE,
+            "file": target,
+            "theme": "light",
+            "agent": {"kind": "software_agent", "name": "a"},
+        },
+    )
+    drawing.join(5)
+    assert answer == {"file": target, **exported}
+    [request] = asked
+    assert (request["kind"], request["format"], request["theme"]) == (
+        "export_image",
+        "svg",
+        "light",
+    )
+    assert request["agent"]["name"] == "a" and "footer" not in request
+    # The host's refusal is the agent's.
+    drawing = threading.Thread(
+        target=lambda: [
+            service.handle("debrief/host_answer", {"id": r["id"], "problem": "Another plot."})
+            for r in service.handle("debrief/host_poll", {"wait_s": 5})["requests"]
+        ]
+    )
+    drawing.start()
+    with pytest.raises(RpcError, match="Another plot"):
+        service.handle("debrief/export_image", {**WHERE, "file": target, "agent": AGENT})
+    drawing.join(5)
 
 
 def test_the_methods_vs_code_allows_on_a_revision_shown_read_only_are_pythons() -> None:

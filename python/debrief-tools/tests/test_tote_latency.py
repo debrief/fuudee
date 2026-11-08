@@ -7,6 +7,11 @@ itself, far above what is measured (a few milliseconds), so a slow CI machine do
 not fail it; the report says precisely what was seen. The playground test reports
 the same under Pyodide, and the VS Code integration test through the real service.
 Set DEBRIEF_LATENCY_REPORT to a file to keep the numbers as JSON.
+
+A performance budget, so it runs only when DEBRIEF_PERF=1 (review, 7 Nov 2026, finding 10):
+a budget asserted on shared hardware fails with the machine's load, not the code, and this
+one takes ten seconds. CI runs it in its own step that reports and never blocks; see
+docs/engineering.md, "Performance budgets".
 """
 
 import json
@@ -30,6 +35,10 @@ from debrief_tools.worker import ToolWorker
 BUDGET_MS = 100.0
 TOKEN = "t" * 40
 PORT = 43211
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("DEBRIEF_PERF") != "1", reason="a performance budget: set DEBRIEF_PERF=1"
+)
 HEADERS = {"authorization": f"Bearer {TOKEN}", "host": f"127.0.0.1:{PORT}"}
 STEPS = 400  # a two-hour drag of the slider, a position every 18 s
 

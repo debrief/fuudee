@@ -1,7 +1,9 @@
 """A catalogue holding one imported plot: two crossing tracks and a third far away in time."""
 
 import os
+import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,7 @@ import pytest
 from debrief_config import add_store, update_config
 from debrief_io import import_rep
 from debrief_stac import Catalogue
+from debrief_tools.worker import ToolWorker
 
 # Tests, and the worker processes they start, never touch the user's log folder or log key.
 os.environ.setdefault("DEBRIEF_LOG_DIR", tempfile.mkdtemp(prefix="debrief-test-logs-"))
@@ -83,13 +86,40 @@ def rename_selected(context):
 """
 
 
-@pytest.fixture
-def lab_library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
-    folder = tmp_path / "lab"
-    folder.mkdir()
+@pytest.fixture(scope="session")
+def lab_library(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+    """A tool library whose tools hang, exit, crash or overstep, importable for the session."""
+    folder = tmp_path_factory.mktemp("lab")
     (folder / "lab_misbehaving.py").write_text(MISBEHAVING)
-    monkeypatch.syspath_prepend(str(folder))
-    return "lab_misbehaving"
+    sys.path.insert(0, str(folder))
+    yield "lab_misbehaving"
+    sys.path.remove(str(folder))
+
+
+# One worker process for the whole run (review, 7 Nov 2026, finding 10): starting one costs
+# about a second, which every service test used to pay. Sharing it shares nothing a test can
+# see: the worker reads the configuration it is given on every call and opens the catalogue
+# that names, and each test points it at its own configuration (its own catalogue under its
+# own tmp_path) and takes it back afterwards. A test that hangs or kills the worker gets a
+# fresh one, as the service does; the next test uses that. test_shared_worker.py holds this.
+@pytest.fixture(scope="session")
+def shared_worker(
+    lab_library: str, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[ToolWorker]:
+    # Between tests it reads a configuration with no catalogues, never the user's own.
+    nowhere = tmp_path_factory.mktemp("no-config") / "config.json"
+    worker = ToolWorker([lab_library], str(nowhere), timeout_s=3)
+    yield worker
+    worker.close()
+
+
+@pytest.fixture
+def worker(shared_worker: ToolWorker, config_file: Path) -> Iterator[ToolWorker]:
+    """The session's worker, reading this test's configuration and nothing else."""
+    between = shared_worker.config_path
+    shared_worker.config_path = str(config_file)
+    yield shared_worker
+    shared_worker.config_path = between
 
 
 # Every request the service answers in these tests, through any route (a JSON-RPC request,

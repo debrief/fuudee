@@ -158,7 +158,12 @@ def test_the_log_file_is_redacted(log_file) -> None:
 def test_logging_never_stops_debrief(tmp_path: Path) -> None:
     blocked = tmp_path / "file"
     blocked.write_text("")
-    assert diagnostics.configure("test", blocked / "logs", to_stderr=False) is None
+    try:
+        assert diagnostics.configure("test", blocked / "logs", to_stderr=False) is None
+    finally:
+        # configure captured warnings: left on, a later test's capture would be a no-op once
+        # pytest restores its own warning hook (found running the tests in a random order).
+        logging.captureWarnings(False)
 
 
 def _line_of(text: str) -> int:
