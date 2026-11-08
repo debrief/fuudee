@@ -34,8 +34,15 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; flex: none; }
 .tma-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; flex: none; }
 .tma-more .tma-key, .tma-more .tma-notes { flex: 1 1 100%; }
-.tma-statusline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; flex: none; min-width: 0; }
-.tma-statusline > p { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* The cue, the RMS and the bearings off scale: one line, its height kept whatever is said (the cue's
+   mark and border too), each cut short with an ellipsis where the view is narrow, the line's words
+   whole in its tooltip: the plot above keeps its size as they come, go and change (it shrank 16 px
+   as "(while dragging)" wrapped to a second line under a drag). */
+.tma-statusline { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 0 10px; flex: none; min-width: 0; height: calc(1lh + 2px); overflow: hidden; }
+.tma-statusline > p { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Beside the plot, the column's height is not the plot's: there they wrap whole. */
+.tma-wide.tma-side .tma-statusline { flex-wrap: wrap; height: auto; overflow: visible; }
+.tma-wide.tma-side .tma-statusline > p { white-space: normal; overflow: visible; overflow-wrap: anywhere; max-width: 100%; }
 .tma-panes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
 .tma .tma-tools button { padding: 1px 4px; }
 .tma .tma-tools button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-contrastActiveBorder, var(--vscode-button-background)); }
