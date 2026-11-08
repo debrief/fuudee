@@ -287,3 +287,6 @@ export async function vscodeCoverageView(browser, files, errors, shot, repo) {
   assert.equal(await view.locator(".cov-platform").count(), 1);
   await view.close();
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "collation", start: "arranged", cost: 46, play: ({ page, shot }) => playCollation(page, shot) }];

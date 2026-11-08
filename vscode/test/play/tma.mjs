@@ -1516,3 +1516,10 @@ export async function playBearingsPopOut(page, shot) {
   await page.waitForFunction((id) => window.debriefTma.shown?.solution_id === id, solution, { timeout: 30000 });
   console.log(`Bearings popped out and brought back twice; a dot clicked in its window selected ${row.id} at ${row.time}.`);
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [
+  { name: "tma", after: "sensors", cost: 73, play: ({ page, shot }) => playTma(page, shot) },
+  { name: "select-bearings", after: "tma", cost: 16, play: ({ page, shot }) => playSelectBearings(page, shot) },
+  { name: "bearings-pop-out", after: "select-bearings", cost: 5, play: ({ page, shot }) => playBearingsPopOut(page, shot) },
+];

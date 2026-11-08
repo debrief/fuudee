@@ -31,3 +31,9 @@ export async function playParity(page) {
   assert.deepEqual(commands.filter((c) => c.problem), []);
   assert.deepEqual({ current: plot.history.current, steps: plot.history.steps.length }, EXPECTED);
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [
+  // The cross-host parity check's sequence (test/parity), on serial 1 as the page opens it.
+  { name: "parity", start: "ready", cost: 27, play: async ({ page, shot }) => (await playParity(page), await shot("play-parity")) },
+];

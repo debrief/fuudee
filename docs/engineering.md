@@ -82,9 +82,10 @@ Not touched: `KNOWN_METHODS`, group tuples, elif ladders, the module docstring. 
 1. A `WebviewHost` owner under `src/panels/`; its retention in `RETAIN_CONTEXT_WHEN_HIDDEN`; a `PoppableView` if it pops out.
 2. The page under `webview/`, its controller as a pure class (`*control.ts`) with a jsdom unit test, its DOM half thin.
 3. Its message kinds (below).
-4. The playground's panel in `play/`, through the same page and flows.
-5. Its play part, its tracer suite (section 6), its walkthrough step if any (`vscode/walkthroughs/tours.json`), its interaction model, its blog post (DEV-02).
-6. Its entry in the panel inventory that `check-panels.mjs` reads once that script exists (review fix plan 12; until then, check `play/index.html`, the tours and the blog's `data-demo` names by hand and say so in the pull request).
+4. The playground's panel in `play/`, through the same page and flows: its row in `play/panels.mjs` (`PANELS`, titled as its VS Code view is named, and a group in `DEFAULT_GROUPS`), its `<section class="panel" id="panel-<name>">` in `play/index.html`, and its name in `play/host.ts`'s `OPTIONAL` and default `panels` list so a blog's demo can choose it.
+5. Its view in `package.json` (`contributes.views`), registered in `src/extension.ts`.
+6. Its plays: a module under `test/play` exporting `plays` (`{ name, cost, start | after, play }`, `test/play/shards.mjs`); CI's parts are made from them, so nothing else is edited. Its tracer suite (section 6), its walkthrough step if any (`vscode/walkthroughs/tours.json`), its interaction model (a row in `site/docs/guides/interaction-models/index.md`, which places it in the nav; `mkdocs.yml` is not edited), its blog post (DEV-02) with its demo's `data-demo="?panels=..."`, and its name in the browser layout guide's **Panels.** list.
+7. `npm run check:panels` (`scripts/check-panels.mjs`, in CI) holds all of these to each other: package.json's views and their registration and retention, the playground's table, page and host, every `data-demo` and `data-page` in the site, every view a when clause, walkthrough or command names, the walkthroughs' `focus:` targets, and the browser layout guide. A missing one fails with the file and what to add.
 
 ### Add a message kind (review finding 3)
 
@@ -119,6 +120,9 @@ Rules the code holds everyone to. Each names its enforcement; an unenforced rule
 | Both hosts register the same commands (PAR-09) | `registration.test.ts` |
 | Every message posted is valid | `checkMessage` before every post, both hosts |
 | User-facing text follows the language guide; no hard-coded colours | `check-language.mjs`, `check-theme.mjs` |
+| A panel is registered alike in both hosts, the demos, the walkthroughs and the guides | `check-panels.mjs` |
+| A guide is in the site's nav | `site/hooks/guides_nav.py` builds the Guides nav from the folder, in the order each folder's `index.md` links its pages; one not linked fails the strict build |
+| The playground's CI parts are balanced and complete | `test/play/shards.mjs` makes CI's matrix from every module's `plays` |
 | Walkthrough steps match in both hosts | `scripts/walkthroughs.mjs` from one `tours.json` |
 | The pull-request checklist is filled in | `pr-checklist.yml` |
 | Generated paths are collapsed in review | `.gitattributes` |
@@ -149,10 +153,10 @@ uv run pytest
 ```
 
 ```bash
-cd vscode && npm run typecheck && npm test && npm run check:theme && npm run check:language
+cd vscode && npm run typecheck && npm test && npm run check:theme && npm run check:language && npm run check:panels
 ```
 
-Then whichever slow suite covers the change: `DEBRIEF_IT_ONLY=<suite> npm run test:integration` for VS Code, `DEBRIEF_PLAY_PART=<n> npm run test:play` for the playground, `mkdocs build --strict` for the site.
+Then whichever slow suite covers the change: `DEBRIEF_IT_ONLY=<suite> npm run test:integration` for VS Code, `DEBRIEF_PLAY=<play> npm run test:play` for the playground (the plays' names: `node test/play/shards.mjs`; `DEBRIEF_PLAY_PART=<n>` plays CI's part n), `mkdocs build --strict` for the site.
 
 - **Commit messages name the review finding or requirement** the change serves, as the recent ones do (`(review finding 2)`, `SUB-24`), so `git log` answers why.
 
@@ -165,13 +169,13 @@ Which layer owns what, so each new feature adds the right tests and not a longer
 | Python unit and service tests | `pytest` | Domain logic, every method, every error path; the service `client` fixture for RPC | 1,971 tests in under 3 minutes; the service tests share a worker where they can |
 | Vitest unit | `vscode`, `ts/*` | Kernel and controller logic (`*control.ts` under jsdom), flows against the fake host, parity tests | Seconds; no wall-clock assertions unless behind an opt-in flag |
 | Tracer | `test/integration`, real VS Code | One Mocha suite per feature after `smoke`; each sets up its own serial; `DEBRIEF_IT_ONLY` to run one | Each test 5 minutes, the run 20, in two VS Code versions as a CI matrix |
-| Play | `test/play`, Chromium | Every demo under CSP with message validation, in six parts; sensors and TMA are part six | Each part 2 to 4 minutes |
+| Play | `test/play`, Chromium | Every demo under CSP with message validation; each module's `plays`, shared out into CI's parts by cost (`shards.mjs`), each unit on a fresh page | Each part about 4 minutes (`BUDGET`) |
 
 Rules:
 
 - A panel's logic is tested in vitest; the tracer and play suites show it works in a host, they do not test it.
 - A timing-sensitive step waits on the status line or a message, never on a delay. A flake is a bug in the test; it is fixed, not retried, and never quarantined.
-- A new play step goes in the part that stays shortest; a new part is cut when one passes four minutes.
+- A new play is a descriptor in its module's `plays`: `start` (`blank`, `ready` or `arranged`) for one on a page of its own, `after` for one that needs the page a play leaves; its `cost` the seconds it takes in CI (the run prints each play's). The parts, and how many, follow; a unit of plays is never split, so a play that does not need the page before it starts its own.
 - The 12 importer tests gated on `DEBRIEF_LEGACY` are a known gap until the legacy samples can be committed or synthesised.
 
 ## 7. Open items and rules not yet enforced
@@ -179,7 +183,6 @@ Rules:
 Kept here so they are seen at every phase exit, not rediscovered by the next review.
 
 - The service's `Params` models (`method_params.py`) are still hand-written beside the generated parameters classes (`rpc.yaml`): a test holds that each reads only what its class describes and needs what it requires, but the refusals' words live in the models. MCP's own methods (`initialize`, `ping`, `tools/list`, `tools/call`) are not described in `rpc.yaml`.
-- `check-panels.mjs` cross-checking panel ids, `data-demo` names and tours (fix plan 12).
 - Branch protection on `main` requiring the three jobs (fix plan 1): confirm in the repository settings; the review found none.
 - `DEBRIEF_LEGACY` importer tests never run in CI.
 - The review image on Heroku is never built by CI; VS Code's version is pinned in three places.

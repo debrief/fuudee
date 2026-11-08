@@ -359,3 +359,6 @@ export async function playFixDrag(page, shot) {
   await asked.locator("#ask-buttons button", { hasText: "Cancel" }).click();
   await page.locator(".toast", { hasText: "Nothing was imported." }).waitFor();
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "fixdrag", after: "cleaning", cost: 22, play: ({ page, shot }) => playFixDrag(page, shot) }];

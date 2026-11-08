@@ -354,3 +354,6 @@ export async function playSensors(page, shot) {
   await resizeTo(page, 1400, 820);
   await showPanel(page, "outline");
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "sensors", start: "arranged", cost: 36, play: ({ page, shot }) => playSensors(page, shot) }];

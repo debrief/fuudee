@@ -294,3 +294,6 @@ export async function playDrawing(page, shot) {
   assert.equal(await timeLabel(), before);
   assert.match(await history(), /Area 'Patrol box' moved/);
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "drawing", after: "annotations", cost: 27, play: ({ page, shot }) => playDrawing(page, shot) }];

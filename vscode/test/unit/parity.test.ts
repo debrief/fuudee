@@ -45,7 +45,8 @@ describe("the cross-host parity check", () => {
     const ci = readFileSync(path.join(vscodeDir, "..", ".github", "workflows", "ci.yml"), "utf8");
     expect(ci).toContain("test/parity/compare.mjs");
     expect(readFileSync(path.join(vscodeDir, "test/integration/suite.ts"), "utf8")).toMatch(/\bparity\(\)/);
-    expect(readFileSync(path.join(vscodeDir, "test/play/play.mjs"), "utf8")).toMatch(/\bplayParity\(page\)/);
+    // The playground's runner plays each module's descriptors (test/play/shards.mjs); parity.mjs's plays the sequence.
+    expect(readFileSync(path.join(vscodeDir, "test/play/parity.mjs"), "utf8")).toMatch(/\bplays = \[[^]*\bplayParity\(page\)/);
   });
 
   it("drops when, who by name and hashes, and keeps everything else", () => {

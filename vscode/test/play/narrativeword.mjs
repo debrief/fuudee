@@ -245,3 +245,6 @@ async function playTimelineExtras(page, shot) {
   assert.deepEqual((await state(page)).view, { highlights: [], moveTime: true, textSize: 12, wrap: true, hidden: [] });
   await resizeTo(page, 1400, 820);
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "narrativeword", after: "narrative", cost: 10, play: ({ page, shot }) => playWordNarrative(page, shot) }];

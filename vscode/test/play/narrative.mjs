@@ -591,3 +591,10 @@ export async function vscodeTimelineView(browser, files, errors, shot, plot) {
   await view.locator(".tl-empty", { hasText: "Open a plot" }).waitFor();
   await view.close();
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [
+  { name: "narrative", after: "fixdrag", cost: 19, play: ({ page, shot }) => playNarrative(page, shot) },
+  // As it fills a plot with sixty thousand entries, on a page of its own: the Timeline at scale (NFR-06).
+  { name: "timeline-at-scale", start: "ready", cost: 27, play: ({ page, shot }) => playNarrativeAtScale(page, shot) },
+];

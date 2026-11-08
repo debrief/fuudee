@@ -23,10 +23,10 @@ uv run pytest
 ```
 
 ```bash
-cd vscode && npm run typecheck && npm test && npm run check:theme && npm run check:language
+cd vscode && npm run typecheck && npm test && npm run check:theme && npm run check:language && npm run check:panels
 ```
 
-Then the slow suite that covers the change: `DEBRIEF_IT_ONLY=<suite> xvfb-run -a npm run test:integration` for VS Code, `DEBRIEF_PLAY_PART=<n> npm run test:play` for the playground, `uv run --only-group docs mkdocs build --strict --config-file site/mkdocs.yml` for the site.
+Then the slow suite that covers the change: `DEBRIEF_IT_ONLY=<suite> xvfb-run -a npm run test:integration` for VS Code, `DEBRIEF_PLAY=<play> npm run test:play` for the playground (the plays' names: `node test/play/shards.mjs`; `DEBRIEF_PLAY_PART=<n>` plays CI's part n), `uv run --only-group docs mkdocs build --strict --config-file site/mkdocs.yml` for the site.
 
 ## Pull requests
 

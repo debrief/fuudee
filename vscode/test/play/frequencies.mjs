@@ -250,3 +250,6 @@ export async function playFrequencies(page, shot) {
   for (let i = 0; i < 6; i++) await undo();
   await page.waitForFunction(() => ["track-blue-one", "track-red-one"].every((id) => document.querySelector(`#outline li[data-id="${id}"]`)?.title.endsWith("Labels off · Symbols off · Arrows default")), null, { timeout: 30000 });
 }
+
+/** Played by play.mjs (shards.mjs: the descriptor's fields). */
+export const plays = [{ name: "frequencies", after: "narrativeword", cost: 33, play: ({ page, shot }) => playFrequencies(page, shot) }];
