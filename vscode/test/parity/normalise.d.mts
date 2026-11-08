@@ -8,6 +8,9 @@ export interface Projection {
   provenance: unknown[];
   history: { current: number; steps: { seq: number; state: string; records: unknown[] }[] };
 }
+export declare const STRICT: number;
+export declare const LOOSE: number;
+export declare const DIFFERENCED: RegExp;
 export declare function normalise(text: string): Projection;
 export declare function differences(a: unknown, b: unknown, limit?: number): { path: string; a: string; b: string }[];
 export declare function without<T>(projection: T, paths: readonly string[]): T;

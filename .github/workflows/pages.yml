@@ -18,6 +18,12 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# The uv every job installs, pinned: unpinned, setup-uv looks up the latest release on every
+# job, so a new release can change a run unannounced. This is the version CI last resolved.
+# The same in ci.yml, pages.yml and preview.yml.
+env:
+  UV_VERSION: "0.13.7"
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -25,6 +31,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
+          version: ${{ env.UV_VERSION }}
           python-version: "3.12"
       - uses: actions/setup-node@v4
         with:

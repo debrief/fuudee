@@ -52,12 +52,17 @@ export function normalise(text) {
  * Two numbers the same but for the last bits: VS Code's service runs Python on the machine's maths
  * library and the playground on Pyodide's (WebAssembly), so a geodesic sum may round differently in
  * its sixteenth figure (a moved track's positions, say: some nanometres, about 2 parts in 10^15).
- * A course or speed worked out from two such positions a few hundred metres apart differs more,
- * the difference divided by the distance: about 2 parts in 10^10 for a sheared or stretched track's
- * courses and speeds. One part in 10^9 holds both, and is far below anything Debrief shows (a speed
- * to a tenth of a knot) or a command could mean.
+ * Every number is held to one part in 10^12 (STRICT), but for what is worked out by differencing
+ * neighbouring positions: a course or speed from two such positions a few hundred metres apart
+ * differs by the difference divided by the distance, about 2 parts in 10^10 for a sheared or
+ * stretched track's courses and speeds. Those (DIFFERENCED) are held to one part in 10^9, still far
+ * below anything Debrief shows (a speed to a tenth of a knot) or a command could mean.
  */
-const close = (x, y) => x === y || Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(x), Math.abs(y));
+export const STRICT = 1e-12;
+export const LOOSE = 1e-9;
+/** The paths of values worked out by differencing neighbouring positions: a track's courses and speeds. */
+export const DIFFERENCED = /\.properties\.(courses|speeds)\.values\[\d+\]$/;
+const close = (x, y, tolerance) => x === y || Math.abs(x - y) <= tolerance * Math.max(1, Math.abs(x), Math.abs(y));
 
 /** Where two projections differ: each path, with both values (cut short), at most limit of them. */
 export function differences(a, b, limit = 40) {
@@ -86,7 +91,7 @@ export function differences(a, b, limit = 40) {
       for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) walk(x[k], y[k], path ? `${path}.${k}` : k);
       return;
     }
-    if (typeof x === "number" && typeof y === "number" && close(x, y)) return;
+    if (typeof x === "number" && typeof y === "number" && close(x, y, DIFFERENCED.test(path) ? LOOSE : STRICT)) return;
     if (JSON.stringify(x) !== JSON.stringify(y)) found.push({ path: path || "(whole)", a: short(x), b: short(y) });
   };
   walk(a, b, "");

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { FEATURE_COMMANDS } from "../../webview/panels/flows/features.js";
-import { differences, normalise, without } from "../parity/normalise.mjs";
+import { DIFFERENCED, differences, LOOSE, normalise, STRICT, without } from "../parity/normalise.mjs";
 import { KNOWN_DIFFERENCES, LEFT_OUT, SEQUENCE } from "../parity/sequence.mjs";
 
 const vscodeDir = path.resolve(__dirname, "..", "..");
@@ -62,12 +62,24 @@ describe("the cross-host parity check", () => {
     expect(differences(without(vscode, ["view"]), without(normalise(plotFile("x", "y").replace('"faint"', '"hidden"')), ["view"]))).toEqual([]);
   });
 
-  it("holds numbers to one part in 10^9, as two Pythons' maths libraries round, and courses and speeds worked out from their positions", () => {
-    expect(differences({ x: -75.82790233909675 }, { x: -75.82790233909674 })).toEqual([]);
-    // A sheared track's speed, worked out in each host.
-    expect(differences({ x: 6.02906254781588 }, { x: 6.029062547884595 })).toEqual([]);
-    // A hundredth of a metre, or a thousandth of a knot, is a difference.
-    expect(differences({ x: 37.03617954 }, { x: 37.03617964 })).toHaveLength(1);
-    expect(differences({ x: 6.029 }, { x: 6.03 })).toHaveLength(1);
+  it("holds positions and every other number to one part in 10^12, and courses and speeds worked out from positions to one in 10^9", () => {
+    expect([STRICT, LOOSE]).toEqual([1e-12, 1e-9]);
+    const at = (x: number) => x * (1 + 1e-10);
+    const track = (lon: number, speed: number, course: number) => ({
+      features: [{ id: "track-red-one", geometry: { coordinates: [[lon, 37.03617954352515]] }, properties: { speeds: { values: [speed] }, courses: { values: [course] } } }],
+    });
+    const base = track(-75.82790233909675, 6.02906254781588, 200.11);
+    // The last bits of a position, as two Pythons' maths libraries round: the same.
+    expect(differences(base, track(-75.82790233909674, 6.02906254781588, 200.11))).toEqual([]);
+    // One part in 10^10 in a position (about a micrometre): a difference.
+    expect(differences(base, track(at(-75.82790233909675), 6.02906254781588, 200.11)).map((d) => d.path)).toEqual(["features[track-red-one].geometry.coordinates[0][0]"]);
+    // The same in a speed or course worked out from positions: the same, as a sheared track's in each host.
+    expect(differences(base, track(-75.82790233909675, at(6.02906254781588), at(200.11)))).toEqual([]);
+    // A thousandth of a knot is a difference even there.
+    expect(differences(base, track(-75.82790233909675, 6.03006254781588, 200.11)).map((d) => d.path)).toEqual(["features[track-red-one].properties.speeds.values[0]"]);
+    // Anything else, such as a time window's or an annotation's numbers, is held strictly.
+    expect(differences({ view: { radius: 1000 } }, { view: { radius: at(1000) } })).toHaveLength(1);
+    expect(DIFFERENCED.test("features[track-red-one].properties.speeds.values[3]")).toBe(true);
+    expect(DIFFERENCED.test("features[track-red-one].geometry.coordinates[3][0]")).toBe(false);
   });
 });
