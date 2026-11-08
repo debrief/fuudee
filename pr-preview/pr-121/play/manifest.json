@@ -1,0 +1,35 @@
+{
+ "wheels": [
+  "debrief_config-0.0.1-py3-none-any.whl",
+  "debrief_io-0.0.1-py3-none-any.whl",
+  "debrief_kernel-0.0.1-py3-none-any.whl",
+  "debrief_sample-0.0.1-py3-none-any.whl",
+  "debrief_schemas-0.0.1-py3-none-any.whl",
+  "debrief_stac-0.0.1-py3-none-any.whl",
+  "debrief_tools-0.0.1-py3-none-any.whl",
+  "geographiclib-2.1-py3-none-any.whl",
+  "olefile-0.47-py2.py3-none-any.whl",
+  "pypdf-6.20.1-py3-none-any.whl"
+ ],
+ "sample": [
+  "catalog.json",
+  "serial-1/media/narrative.txt",
+  "serial-1/plot.geojson",
+  "serial-1/serial-1.json",
+  "serial-1/sources/ais-2023-06-15-chesapeake-approaches.csv",
+  "serial-1/sources/blue-one.rep",
+  "serial-1/sources/red-one.rep",
+  "serial-2/media/narrative.txt",
+  "serial-2/plot.geojson",
+  "serial-2/serial-2.json",
+  "serial-2/sources/ais-2023-06-15-chesapeake-approaches.csv",
+  "serial-2/sources/blue-one.rep",
+  "serial-2/sources/red-one.rep",
+  "serial-3/media/narrative.txt",
+  "serial-3/plot.geojson",
+  "serial-3/serial-3.json",
+  "serial-3/sources/ais-2023-06-15-chesapeake-approaches.csv",
+  "serial-3/sources/blue-one.rep",
+  "serial-3/sources/red-one.rep"
+ ]
+}
