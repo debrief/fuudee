@@ -1109,8 +1109,9 @@ export async function playSelectBearings(page, shot) {
 
   // A box over a pane, from values and times, drawn as the analyst draws it. The box is turned into
   // times and values with the plot's geometry as the button is let go, so the geometry its pixels
-  // were worked out from must still be the plot's then. The plot's height follows the select hint
-  // (shown while Select bearings is on) and the status line (one line or two); its ResizeObserver
+  // were worked out from must still be the plot's then. The plot's height followed the select hint
+  // (shown while Select bearings was on) and the status line (one line or two) until both shared one
+  // line (the plot's size checked below, as Select bearings is turned on); its ResizeObserver
   // redraws it a frame after either changes, and on a busy machine some frames later. Its pixels were
   // read before that redraw, and the box then covered other times: on CI (31 Oct 2026, jobs
   // 124648660288, 124612606674, 124604119493, 124608302072, 124599995443), 23 cuts from 09:18 kept
@@ -1183,9 +1184,36 @@ export async function playSelectBearings(page, shot) {
   // Select bearings on: a toggle, said, the pointer and a hint saying so.
   const toggle = view.getByRole("button", { name: "Select bearings", exact: true });
   assert.equal(await toggle.getAttribute("aria-pressed"), "false");
-  await toggle.click();
+  // The plot keeps its size as the hint comes and goes and as a message is said, short or long
+  // (it grew 78 px as the hint went, under a box being drawn): its box and the canvas drawn in it,
+  // a couple of frames on, so its ResizeObserver has drawn it again if it was to.
+  const plotSize = () =>
+    page.evaluate(async () => {
+      for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
+      return ["#bearings .tma-plot", "#bearings .tma-canvas"].map((s) => {
+        const b = document.querySelector(s).getBoundingClientRect();
+        return [b.x, b.y, b.width, b.height].map(Math.round);
+      });
+    });
+  await plotStill();
+  const sized = await plotSize();
+  const hint = view.locator(".tma-select-hint");
+  for (const pressed of ["true", "false", "true"]) {
+    await toggle.click();
+    assert.equal(await toggle.getAttribute("aria-pressed"), pressed);
+    assert.deepEqual(await plotSize(), sized, `the plot kept its size, Select bearings ${pressed === "true" ? "on" : "off"}`);
+  }
+  // On, what a box does is said, read aloud, and whole in the line's tooltip.
+  assert.match(await view.locator(".tma-status").textContent(), /^Select bearings on: box the Bearing pane's dots; /);
+  assert.equal(await view.locator(".tma-status").getAttribute("title"), await view.locator(".tma-status").textContent());
+  await page.evaluate(() => window.debriefTma.say("A long message, as a box that keeps many cuts says: ".repeat(8)));
+  assert.deepEqual(await plotSize(), sized, "the plot kept its size, a long message said");
+  // Nothing said: the hint in the line's place, the plot the same size.
+  await page.evaluate(() => window.debriefTma.say(""));
+  await hint.waitFor({ state: "visible" });
+  assert.deepEqual(await plotSize(), sized, "the plot kept its size, the hint shown");
+  assert.equal(await hint.getAttribute("title"), await hint.textContent(), "the hint whole in its tooltip");
   assert.equal(await toggle.getAttribute("aria-pressed"), "true");
-  assert.equal(await view.locator(".tma-select-hint").isVisible(), true);
   assert.equal(await canvas.evaluate((c) => getComputedStyle(c).cursor), "cell");
 
   // The right-hand run of the towed array's dots, as the analyst boxes it: the longest run of

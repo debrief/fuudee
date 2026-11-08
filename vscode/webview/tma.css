@@ -65,7 +65,9 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-canvas { cursor: crosshair; touch-action: none; }
 /* Select bearings on (product owner, 28 Oct 2026): a box keeps sides, so the pointer says so. */
 .tma-selecting .tma-canvas { cursor: cell; }
-.tma-select-hint { margin: 0; color: var(--vscode-descriptionForeground); }
+/* Select bearings' hint, in the status line's place while nothing is said there (tma-message, below). */
+.tma-select-hint { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; visibility: hidden; }
+.tma-selecting .tma-status:empty + .tma-select-hint { visibility: visible; }
 .tma-legend { flex: 1 1 100%; margin: 0; padding: 0; list-style: none; font-size: 11px; color: var(--vscode-descriptionForeground); }
 .tma-legend-swatch { font-weight: bold; letter-spacing: 1px; }
 .tma-canvas:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
@@ -99,8 +101,15 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-means.tma-problem, .tma-form-problem { color: var(--vscode-errorForeground); }
 .tma-form-problem:empty { display: none; }
 .tma-form-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-/* A line kept for what is said, said or not: the plot above never moves when a message comes or goes. */
-.tma-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; min-height: 1lh; }
+/* What is said and the hint share one line, the one cell (a plot that grew under the pointer as
+   the hint went, by 78 px, took other times for a box). */
+.tma-message { display: grid; flex: none; min-width: 0; }
+.tma-message > p { grid-area: 1 / 1; min-width: 0; }
+/* A line kept for what is said, said or not, and one line, cut short with its words whole in its
+   tooltip and read aloud whole: the plot above never moves when a message comes or goes. */
+.tma-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; min-height: 1lh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Beside the plot, the column's height is not the plot's: there the hint and what is said wrap whole. */
+.tma-wide.tma-side .tma-status, .tma-wide.tma-side .tma-select-hint { white-space: normal; }
 
 /* Forced colours (Windows High Contrast): a pressed toggle in the system's Highlight, never only a theme colour it drops. */
 @media (forced-colors: active) {
