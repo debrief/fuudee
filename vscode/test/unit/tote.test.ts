@@ -1,6 +1,6 @@
 /**
- * The Tote's view logic (CAP-06, CAP-07): positions as the map places them (held to the
- * vectors the kernel is), choosing tracks, formatting values with the analyst's settings,
+ * The Tote's view logic (CAP-06, CAP-07): choosing tracks (positions as the map places them
+ * are held to the kernel's vectors in ts/kernel/test/geodesic.test.ts), formatting values with the analyst's settings,
  * and asking for values as current time moves without queueing (NFR-04).
  */
 import { readFileSync } from "node:fs";
@@ -8,7 +8,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "@debrief/kernel";
 import type { DebriefFeatureCollection, ToteResult } from "@debrief/schemas";
-import { positionAt, type LonLat } from "../../webview/geodesic.js";
 import {
   formatMeasure,
   latencySummary,
@@ -31,26 +30,6 @@ import { checkMessage, toteViewProblems } from "../../src/messages.js";
 
 const repo = path.resolve(__dirname, "../../..");
 const read = (file: string) => JSON.parse(readFileSync(path.join(repo, file), "utf8"));
-
-describe("the map places a track at current time where the Tote measures it (SUB-03)", () => {
-  const { cases } = read("schemas/vectors/track-positions.json") as {
-    cases: { name: string; coordinates: LonLat[]; times: string[]; samples: { at: string; expected: LonLat | null }[] }[];
-  };
-  it.each(cases.map((c) => [c.name, c] as const))("%s", (_name, c) => {
-    const times = c.times.map(Date.parse);
-    for (const sample of c.samples) {
-      const found = positionAt(c.coordinates, times, Date.parse(sample.at));
-      if (sample.expected === null) {
-        expect(found, sample.at).toBeUndefined();
-        continue;
-      }
-      // Longitude the same place on the globe: ±180 are one meridian.
-      const dLon = ((found![0] - sample.expected[0] + 540) % 360) - 180;
-      expect(Math.abs(dLon), sample.at).toBeLessThan(1e-9);
-      expect(found![1]).toBeCloseTo(sample.expected[1], 9);
-    }
-  });
-});
 
 const plot = {
   type: "FeatureCollection",

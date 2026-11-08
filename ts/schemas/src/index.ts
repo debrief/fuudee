@@ -22,10 +22,10 @@ import type {
   HistoryHead,
   ProvRecord,
 } from "./generated/debrief.js";
-import { SCHEMA_VERSION } from "./generated/schemaVersion.js";
+import { CONFIG_VERSION, SCHEMA_VERSION } from "./generated/schemaVersion.js";
 
 export * from "./generated/debrief.js";
-export { SCHEMA_VERSION };
+export { CONFIG_VERSION, SCHEMA_VERSION };
 
 /** A webview message's kind (CON-08). */
 export type MessageKind = WebviewMessage["kind"];

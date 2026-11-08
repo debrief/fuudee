@@ -47,7 +47,7 @@ from debrief_schemas.chain import (
     text_hash,
 )
 from debrief_schemas.generated import debrief as g
-from debrief_schemas.generated.schema_version import SCHEMA_VERSION
+from debrief_schemas.generated.schema_version import CONFIG_VERSION, SCHEMA_VERSION
 from debrief_schemas.island import dump_json
 from debrief_schemas.migrations import chain, migration_record, now_utc
 
@@ -1200,12 +1200,12 @@ def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -
     return problems
 
 
-# The newest per-user configuration layout this build understands: 1, the stores; 2, also
-# the choice of how tracks imported are plotted (track_import_mode), which an earlier
-# Debrief cannot read, so a file holding it says 2 and an earlier Debrief says to update;
-# 3, also the answers to a narrative import's questions (narrative_import); 4, also the
-# Bearings view's error cut-off (tma_error_cut_off).
-CONFIG_VERSION = 4
+# CONFIG_VERSION, the newest per-user configuration layout this build understands, is
+# generated from UserConfig's newest_config_version (schemas/linkml/config.yaml), as
+# TypeScript's is: 1, the stores; 2, also the choice of how tracks imported are plotted
+# (track_import_mode), which an earlier Debrief cannot read, so a file holding it says 2
+# and an earlier Debrief says to update; 3, also the answers to a narrative import's
+# questions (narrative_import); 4, also the Bearings view's error cut-off (tma_error_cut_off).
 
 
 def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str]:

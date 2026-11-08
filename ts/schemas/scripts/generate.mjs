@@ -15,6 +15,7 @@ const header =
   "// Generated from schemas/linkml/debrief.yaml via JSON Schema by ts/schemas/scripts/generate.mjs. Do not edit.\n";
 
 const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+if (!Number.isInteger(schema.config_version)) throw new Error("debrief.schema.json has no config_version: run scripts/generate_schemas.py");
 // Emit every definition once; the root is the LinkML tree_root, already in $defs.
 const typeSource = { $defs: refsWithoutSiblings(schema.$defs), title: "DebriefSchemaDefinitions", type: "object" };
 const types = await compile(typeSource, "DebriefFeatureCollection", {
@@ -26,7 +27,12 @@ const types = await compile(typeSource, "DebriefFeatureCollection", {
 
 const outputs = {
   "debrief.ts": header + types,
-  "schemaVersion.ts": header + `export const SCHEMA_VERSION = ${JSON.stringify(schema.version)};\n`,
+  // The newest per-user configuration layout (UserConfig's newest_config_version, put beside the
+  // schema's version by scripts/generate_schemas.py), as Python's CONFIG_VERSION.
+  "schemaVersion.ts":
+    header +
+    `export const SCHEMA_VERSION = ${JSON.stringify(schema.version)};\n` +
+    `export const CONFIG_VERSION = ${JSON.stringify(schema.config_version)};\n`,
   "debrief.schema.json": JSON.stringify(schema, null, 2) + "\n",
 };
 

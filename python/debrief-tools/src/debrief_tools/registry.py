@@ -70,10 +70,6 @@ class Registry:
             )
         return None
 
-    def for_selection(self, kinds: list[str]) -> list[Tool]:
-        """Tools that apply to every selected item, and to this many of them (TL-08)."""
-        return [tool for tool in self.tools.values() if applies(tool.declaration, kinds)]
-
 
 def applies(declaration: models.ToolDeclaration, kinds: list[str]) -> bool:
     count = len(kinds)

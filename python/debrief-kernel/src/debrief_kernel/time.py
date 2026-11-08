@@ -69,7 +69,7 @@ def truncate_to_ms(instant: datetime) -> tuple[int, bool]:
 # --- How often a track's fixes are labelled, marked or arrowed (CAP-32) -------------
 # An interval is a whole number of seconds from 1 s to 24 h, as legacy Debrief's
 # frequency choices run from 1 second to 24 hours. TypeScript reads and names them the
-# same way (vscode/webview/frequencies.ts), held to schemas/vectors/fix-intervals.json.
+# same way (ts/kernel/src/frequencies.ts), held to schemas/vectors/fix-intervals.json.
 
 INTERVAL_MIN_S = 1
 INTERVAL_MAX_S = 86_400

@@ -11,7 +11,7 @@ of the residuals counted: every rooted cut with a residual, less those the analy
 out.
 
 Worked out for many cuts at once with debrief_kernel.geodesy_arrays, so a solution of
-2,000 cuts takes milliseconds. The bearing view's TypeScript twin (vscode/webview/tma.ts)
+2,000 cuts takes milliseconds. The bearing view's TypeScript twin (ts/kernel/src/tma.ts)
 does the same while a solution is dragged; both are held to
 schemas/vectors/tma-residuals.json.
 

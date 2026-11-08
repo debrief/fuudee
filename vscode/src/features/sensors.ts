@@ -7,9 +7,8 @@
  */
 import * as vscode from "vscode";
 import type { AmbiguityResolution, Length } from "@debrief/schemas";
-import { UNIT_LABELS } from "@debrief/kernel";
+import { UNIT_LABELS, cutChoices, cutNow, cutTitle, describeCut, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorsOf, type ArrayMode, type CutScope, type Keep, type ResolveContext } from "@debrief/kernel";
 import { describeDistance, readArrayOffset, arrayOffsetTitle } from "../../webview/trackedit.js";
-import { cutChoices, cutNow, cutTitle, describeCut, KEEP_CHOICES, placeOfCut, resolutionFor, type ArrayMode, scopeChoices, sensorsOf, type CutScope, type Keep, type ResolveContext } from "../../webview/sensors.js";
 import { settings as displaySettings } from "../format.js";
 import type { OpenedPlot } from "../catalogue.js";
 import type { Agent, ToolService } from "../service.js";

@@ -55,11 +55,9 @@
  * - Nothing here changes current time, the window or the selection. If the
  *   plot changes elsewhere during a drag, the drag is dropped and the map says so.
  */
-import { keptLegs, legIndices, legNear } from "./tma.js";
+import { keptLegs, legIndices, legNear, DEFAULT_SETTINGS, formatTime, densify, reckoningOf, type LonLat, type Reckoning } from "@debrief/kernel";
 import L from "leaflet";
-import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
 import type { DebriefFeatureCollection, WebviewMessage } from "@debrief/schemas";
-import { densify, type LonLat } from "./geodesic.js";
 import {
   changesNothing,
   defaultPivotIndex,
@@ -75,13 +73,11 @@ import {
   periodIndices,
   pivotReadout,
   pressKey,
-  reckoningOf,
   speedIn,
   startGesture,
   turned,
   type EndMode,
   type Gesture,
-  type Reckoning,
   type Screen,
   type Span,
   type Target,

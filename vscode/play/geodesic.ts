@@ -9,8 +9,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import geodesic from "geographiclib-geodesic";
-import { DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity } from "@debrief/kernel";
-import { densify, type LonLat } from "../webview/geodesic.js";
+import { DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, densify, type LonLat } from "@debrief/kernel";
 import { DATA_COLOURS } from "../webview/palette.js";
 
 const WGS84 = geodesic.Geodesic.WGS84;

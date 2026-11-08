@@ -279,7 +279,7 @@ class TrackPath:
 
     def course_at(self, time_ms: int) -> float | None:
         """The track's direction of travel at a time, degrees true, as the map's pointAt
-        gives it (vscode/webview/geodesic.ts): along the geodesic between the fixes either
+        gives it (ts/kernel/src/geodesic.ts): along the geodesic between the fixes either
         side, the course at that point of it; at a fix, the course of the leg leaving it
         (arriving, at the last fix); where the track did not move, the nearest leg before
         it that did. None outside the track's span, and for a track that never moved.

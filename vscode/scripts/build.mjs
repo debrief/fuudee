@@ -5,7 +5,10 @@ import path from "node:path";
 import { writeMessageValidator } from "./messagevalidator.mjs";
 
 const production = process.argv.includes("--production");
-const common = { bundle: true, sourcemap: !production, minify: production, logLevel: "warning" };
+// One geographiclib in each bundle, this folder's: @debrief/kernel (ts/kernel) is linked from outside
+// it with node_modules of its own, so without this a bundle holding both would carry two.
+const geographiclib = { "geographiclib-geodesic": path.resolve("node_modules/geographiclib-geodesic") };
+const common = { bundle: true, sourcemap: !production, minify: production, logLevel: "warning", alias: geographiclib };
 // The webview messages' validator, compiled now: each page checks what its host sends (CON-08) and
 // may not compile code at run time (its Content-Security-Policy has no 'unsafe-eval').
 const validator = writeMessageValidator(path.resolve("dist-gen"));
@@ -30,7 +33,7 @@ await build({
   jsx: "automatic",
   loader: { ".png": "dataurl", ".svg": "dataurl" },
   define: { "process.env.NODE_ENV": JSON.stringify(production ? "production" : "development") },
-  alias: { "debrief-webview-message-validator": validator.file },
+  alias: { ...geographiclib, "debrief-webview-message-validator": validator.file },
   nodePaths: validator.nodePaths,
 });
 

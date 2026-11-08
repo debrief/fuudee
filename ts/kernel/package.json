@@ -2,17 +2,18 @@
   "name": "@debrief/kernel",
   "version": "0.0.1",
   "private": true,
-  "description": "Debrief kernel for TypeScript: unit conversion and display formatting, held to the vectors shared with the Python kernel",
+  "description": "Debrief kernel for TypeScript: unit conversion, display formatting, geodesics, sensors, TMA, dead reckoning, intervals and collation, held to the vectors shared with Python",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run"
   },
   "dependencies": {
-    "@debrief/schemas": "file:../schemas"
+    "@debrief/schemas": "file:../schemas",
+    "geographiclib-geodesic": "2.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
