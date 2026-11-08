@@ -51,10 +51,13 @@ export function normalise(text) {
 /**
  * Two numbers the same but for the last bits: VS Code's service runs Python on the machine's maths
  * library and the playground on Pyodide's (WebAssembly), so a geodesic sum may round differently in
- * its sixteenth figure (a moved track's positions, say: some nanometres). One part in 10^12 is far
- * below anything Debrief shows or a command could mean.
+ * its sixteenth figure (a moved track's positions, say: some nanometres, about 2 parts in 10^15).
+ * A course or speed worked out from two such positions a few hundred metres apart differs more,
+ * the difference divided by the distance: about 2 parts in 10^10 for a sheared or stretched track's
+ * courses and speeds. One part in 10^9 holds both, and is far below anything Debrief shows (a speed
+ * to a tenth of a knot) or a command could mean.
  */
-const close = (x, y) => x === y || Math.abs(x - y) <= 1e-12 * Math.max(1, Math.abs(x), Math.abs(y));
+const close = (x, y) => x === y || Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(x), Math.abs(y));
 
 /** Where two projections differ: each path, with both values (cut short), at most limit of them. */
 export function differences(a, b, limit = 40) {

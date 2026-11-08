@@ -80,7 +80,7 @@ import { fillHistory } from "./historylist.js";
 import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choices, type FlowHost, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
 import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, registerHistory, type How } from "../webview/panels/flows/move.js";
-import { registerTrackEdits } from "../webview/panels/flows/tracks.js";
+import { registerTrackEdits, type EditGiven, type FixMoveGiven, type FrequenciesGiven, type JumpsGiven, type MarkGiven, type MergeGiven, type PlottingModeGiven, type PlottingModeOptions, type SmoothGiven, type SplitGiven, type TrackTarget } from "../webview/panels/flows/tracks.js";
 import { registerPresentation } from "../webview/panels/flows/presentation.js";
 import { registerAnnotations } from "../webview/panels/flows/annotations.js";
 import { registerTote } from "../webview/panels/flows/tote.js";
@@ -1028,9 +1028,18 @@ function frequencyForm(tracks: NonNullable<ReturnType<typeof trackOf>>[]): Promi
     dialog.showModal();
   });
 }
-async function setTrackFrequencies(): Promise<void> {
-  const ids = tracksSelected();
-  if (!ids.length) return toast("Select one or more tracks: Ctrl-click to add one.", "warning");
+/** Labels, symbols and arrows for the tracks given (agents, tests: their ids, or a Target) or selected: as given, nothing asked; else the form. */
+async function setTrackFrequencies(target?: string | string[] | Target, given?: FrequenciesGiven | readonly unknown[]): Promise<void> {
+  const named = typeof target === "string" ? [target] : Array.isArray(target) ? target : target?.ids;
+  const ids = named ? named.filter((k) => !!trackOf(k)) : tracksSelected();
+  if (!ids.length) return toast(named ? "Select one or more tracks to set how often they are labelled, marked and arrowed." : "Select one or more tracks: Ctrl-click to add one.", "warning");
+  if (given && typeof given === "object" && !Array.isArray(given)) {
+    if (!opened || !pythonReady) return;
+    const outcome = await pythonJson<{ error?: string }>("frequencies", opened.item.id, JSON.stringify({ base: opened.base, features: ids, ...given }));
+    if (outcome.error) toast(outcome.error, "warning");
+    await openPlot(opened.item.id, true);
+    return;
+  }
   const tracks = ids.map(trackOf).filter((t): t is NonNullable<ReturnType<typeof trackOf>> => !!t);
   const chosen = await frequencyForm(tracks);
   if (!chosen || !opened || !pythonReady) return;
@@ -1299,7 +1308,7 @@ function trackGiven(target: string | Target | undefined, verb: string): ReturnTy
   return undefined;
 }
 /** Move a track: as given (agents, tests), nothing asked; else its form. */
-async function moveTrack(target?: string | Target, given?: Record<string, unknown>): Promise<void> {
+async function moveTrack(target?: TrackTarget, given?: EditGiven): Promise<void> {
   const track = trackGiven(target, "move");
   if (!track) return;
   if (given && typeof given === "object") {
@@ -1317,9 +1326,16 @@ async function moveTrack(target?: string | Target, given?: Record<string, unknow
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 }
-async function rotateTrack(): Promise<void> {
-  const track = oneTrack("rotate");
+/** A track edit as given (agents, tests): one step, nothing asked; its problem said. */
+async function editGiven(track: { id: string }, edit: Record<string, unknown>, extra: Record<string, unknown> = {}): Promise<void> {
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit, ...extra });
+  if (problem) toast(problem, "warning");
+}
+async function rotateTrack(target?: TrackTarget, given?: EditGiven): Promise<void> {
+  const track = trackGiven(target, "rotate");
   if (!track) return;
+  // Without a pivot, about the fix nearest current time, as the service chooses it for VS Code.
+  if (given && typeof given === "object") return editGiven(track, { ...given, action: "rotate" }, time && !given.pivot ? { current_time: time.current } : {});
   const values = await trackForm(`Rotate ${track.properties.name}`, "Rotate", [
     extentField(track),
     {
@@ -1384,8 +1400,9 @@ const courseField = (track: NonNullable<ReturnType<typeof trackOf>>) =>
   madeGood(track, "course", "Course made good, true", (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })));
 const speedField = (track: NonNullable<ReturnType<typeof trackOf>>, positive: boolean) =>
   madeGood(track, "speed", "Speed made good", (t) => shown(readSpeed(t, undefined, positive), () => describeSpeed(readSpeed(t) as { value: number; unit: string })));
-async function shearTrack(): Promise<void> {
-  const track = oneTrack("shear");
+async function shearTrack(target?: TrackTarget, given?: EditGiven): Promise<void> {
+  const track = trackGiven(target, "shear");
+  if (track && given && typeof given === "object") return editGiven(track, { ...given, action: "shear" });
   const held = track && heldFields(track, "sheared");
   if (!track || !held) return;
   const values = await trackForm(`Shear ${track.properties.name}`, "Shear", [...held, courseField(track), speedField(track, false)]);
@@ -1395,8 +1412,9 @@ async function shearTrack(): Promise<void> {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 }
-async function stretchTrack(): Promise<void> {
-  const track = oneTrack("stretch");
+async function stretchTrack(target?: TrackTarget, given?: EditGiven): Promise<void> {
+  const track = trackGiven(target, "stretch");
+  if (track && given && typeof given === "object") return editGiven(track, { ...given, action: "stretch" });
   const held = track && heldFields(track, "stretched");
   if (!track || !held) return;
   const values = await trackForm(`Stretch ${track.properties.name}`, "Stretch", [...held, speedField(track, true)]);
@@ -1406,9 +1424,11 @@ async function stretchTrack(): Promise<void> {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 }
-async function plottingMode(): Promise<void> {
-  const track = oneTrack("plot over the ground or by dead reckoning");
+async function plottingMode(target?: TrackTarget, given?: PlottingModeGiven, options?: PlottingModeOptions): Promise<void> {
+  const track = trackGiven(target, "plot over the ground or by dead reckoning");
   if (!track) return;
+  // Given, nothing is asked: over the ground after a change made by dead reckoning is refused, saying why, unless options say to discard it.
+  if (given) return editGiven(track, { action: "set_plotting_mode", plotting_mode: given, ...(given === "otg" && options?.discard_dr_changes === true && { discard_dr_changes: true }) });
   const name = track.properties.name;
   const now = (track.properties.plotting_mode as PlottingMode | undefined) ?? "otg";
   const values = await trackForm(
@@ -1424,9 +1444,16 @@ async function plottingMode(): Promise<void> {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: values.mode } }, confirmLoss);
   if (problem) toast(problem, "warning");
 }
-async function splitTrack(): Promise<void> {
-  const track = oneTrack("split");
-  if (!track || !time) return;
+async function splitTrack(target?: TrackTarget, given?: SplitGiven): Promise<void> {
+  const track = trackGiven(target, "split");
+  if (!track) return;
+  if (given && typeof given === "object") {
+    const at = given.at ?? time?.current;
+    if (!at) return toast("Set current time first: the track is split there.", "warning");
+    const problem = await changeTrack({ kind: "split", feature: track.id, at, ...(given.names && { names: given.names }) });
+    return problem ? toast(problem, "warning") : undefined;
+  }
+  if (!time) return;
   const at = time.current;
   const name = track.properties.name;
   const named = (t: string) => (t.trim() ? { means: `named ${t.trim()}` } : { problem: "Give the part a name." });
@@ -1438,7 +1465,15 @@ async function splitTrack(): Promise<void> {
   const problem = await changeTrack({ kind: "split", feature: track.id, at, names: [values.first.trim(), values.second.trim()] });
   if (problem) toast(problem, "warning");
 }
-async function mergeTracks(): Promise<void> {
+async function mergeTracks(target?: string[] | Target, given?: MergeGiven | readonly unknown[]): Promise<void> {
+  // The ids given (agents, tests): nothing asked, the name as given or the earliest's; else the selection, and the form.
+  if (Array.isArray(target)) {
+    const tracks = target.filter((k) => !!trackOf(k));
+    if (tracks.length < 2) return toast("Select two or more tracks to merge.", "warning");
+    const name = given && !Array.isArray(given) ? (given as MergeGiven).name : undefined;
+    const problem = await changeTrack({ kind: "merge", features: tracks, ...(name && { name }) });
+    return problem ? toast(problem, "warning") : undefined;
+  }
   const ids = tracksSelected();
   if (ids.length < 2) return toast("Select two or more tracks to merge: Ctrl-click to add one.", "warning");
   // The name, offered as the earliest's (or the split track's, for its parts); and, before anything is lost, what would be.
@@ -1482,13 +1517,26 @@ const button = (text: string, primary = false) => Object.assign(document.createE
 
 // "Jumps…": the threshold, offered as the track's default; then the jumps found, ringed on the map and listed
 // beside it, all ticked; Remove takes out those still ticked, as one step. Nothing is ever removed unseen.
-async function findJumps(): Promise<void> {
-  const track = oneTrack("find jumps in");
+async function findJumps(target?: TrackTarget, given?: JumpsGiven): Promise<void> {
+  const track = trackGiven(target, "find its jumps");
   if (!track) return;
   const name = track.properties.name;
   type Found = { threshold: { value: number; unit: string }; median_speed: { value: number; unit: string } | null; jumps: Jump[] };
-  let found = await clean<Found>({ kind: "find_jumps", feature: track.id }, true);
+  let found = await clean<Found>({ kind: "find_jumps", feature: track.id, ...(given?.threshold && { threshold: given.threshold }) }, true);
   if (found.error) return toast(found.error, "warning");
+  // Given (agents, tests): the jumps found ringed on the map, nothing asked; the times given ("all" found) removed as one step.
+  if (given && typeof given === "object") {
+    const times = found.jumps.map((j) => j.time);
+    const dr = isDeadReckoned(track.properties);
+    const said = jumpsFound(dr ? `${name} (${DR_TAG})` : name, times.length, found.threshold, undefined, dr);
+    if (!times.length) return showFixesOnMap();
+    showFixesOnMap({ feature_id: track.id, fix_times: times, message: said });
+    if (!given.times) return;
+    const chosen = given.times === "all" ? times : given.times;
+    const outcome = await clean({ kind: "remove_jumps", feature: track.id, times: chosen, threshold: found.threshold });
+    showFixesOnMap();
+    return outcome.error ? toast(outcome.error, "warning") : undefined;
+  }
   const median = found.median_speed ? `Offered: three times ${name}'s median speed of ${formatQuantity(found.median_speed)}, at least 10 kn.` : "Offered: at least 10 kn.";
   const values = await trackForm(`Find jumps in ${name}`, "Find", [
     {
@@ -1554,10 +1602,20 @@ async function findJumps(): Promise<void> {
 
 // "Smooth…": what to smooth and over how many fixes; then the track as smoothing would leave it, dashed on
 // the map, with how far fixes would move; Apply makes it one step.
-async function smoothTrack(): Promise<void> {
-  const track = oneTrack("smooth");
+async function smoothTrack(target?: TrackTarget, given?: SmoothGiven): Promise<void> {
+  const track = trackGiven(target, "smooth");
   if (!track) return;
   const name = track.properties.name;
+  // Given (agents, tests): previewed, then applied as one step unless apply is false (the preview left on the map); nothing asked.
+  if (given && typeof given === "object") {
+    const change = { feature: track.id, window: given.window, ...(given.period && { period: given.period }) };
+    const preview = await clean<{ preview: { coordinates: number[][] }; moved: number; summary: string }>({ kind: "preview_smoothing", ...change }, true);
+    if (preview.error) return toast(preview.error, "warning");
+    if (!preview.moved) return;
+    if (given.apply === false) return showFixesOnMap({ feature_id: track.id, fix_times: [], preview: { type: "LineString", coordinates: preview.preview.coordinates }, message: smoothingNote(name, given.window, preview.summary) });
+    const outcome = await clean({ kind: "smooth", ...change });
+    return outcome.error ? toast(outcome.error, "warning") : undefined;
+  }
   const values = await trackForm(`Smooth ${name}`, "Preview", [
     extentField(),
     {
@@ -1604,6 +1662,24 @@ const colourName = (colour: string) => FIX_COLOURS.find((c) => c.colour === colo
 function listFixes(): void {
   const track = oneTrack("list the fixes of");
   if (track) void openFixes(track.id);
+}
+/** A fix's mark set as given (agents, tests): one step, nothing asked; without a change, the fix list at it; without a time, the list. */
+async function markFixGiven(target?: TrackTarget, at?: string, given?: MarkGiven): Promise<void> {
+  const track = trackGiven(target, "mark one of its fixes");
+  if (!track) return;
+  if (!at) return openFixes(track.id);
+  if (!given || typeof given !== "object") return openFixes(track.id, at);
+  const { colour_name, ...changes } = given;
+  const outcome = await clean({ kind: "mark", feature: track.id, time: at, changes, ...(colour_name && { colour_name }) });
+  if (outcome.error) toast(outcome.error, "warning");
+}
+/** A single fix moved as given ({ position } or { distance, bearing }): one step, nothing asked; without a change, its form; without a time, the list. */
+async function moveFixGiven(target?: TrackTarget, at?: string, given?: FixMoveGiven): Promise<void> {
+  const track = trackGiven(target, "move one of its fixes");
+  if (!track) return;
+  if (!at) return openFixes(track.id);
+  if (!given || typeof given !== "object") return moveFix(track.id, at);
+  return editGiven(track, { ...given, action: "move_fix", fix_time: at });
 }
 async function openFixes(trackId: string, time?: string): Promise<void> {
   const track = trackOf(trackId);
@@ -2619,20 +2695,21 @@ registerBearings(playHost, {
 registerOperations(playHost, { ...operationHost, rowsOf: (target) => (Array.isArray(target) ? (target as string[]) : (target as Target | undefined)?.ids) });
 
 // Track edits (webview/panels/flows/tracks.ts): run from a row's menu, its rows are selected first, and each asks with its own form.
+// Given what agents and tests give (flows/tracks.ts's TrackEditArgs), each asks nothing, as in VS Code.
 registerTrackEdits(playHost, {
-  frequencies: () => setTrackFrequencies(),
-  move: (target?: string | Target, given?: Record<string, unknown>) => moveTrack(target, given),
-  rotate: () => rotateTrack(),
-  shear: () => shearTrack(),
-  stretch: () => stretchTrack(),
-  split: () => splitTrack(),
-  merge: () => mergeTracks(),
-  removeJumps: () => findJumps(),
-  smooth: () => smoothTrack(),
-  // The fixes listed, to colour, label, comment on or move one.
-  markFix: () => listFixes(),
-  moveFix: () => listFixes(),
-  plottingMode: () => plottingMode(),
+  frequencies: (target, given) => setTrackFrequencies(target, given),
+  move: (target, given) => moveTrack(target, given),
+  rotate: (target, given) => rotateTrack(target, given),
+  shear: (target, given) => shearTrack(target, given),
+  stretch: (target, given) => stretchTrack(target, given),
+  split: (target, given) => splitTrack(target, given),
+  merge: (target, given) => mergeTracks(target, given),
+  removeJumps: (target, given) => findJumps(target, given),
+  smooth: (target, given) => smoothTrack(target, given),
+  // Without a fix's time, the fixes listed, to colour, label, comment on or move one.
+  markFix: (target, at, given) => markFixGiven(target, at, given),
+  moveFix: (target, at, given) => moveFixGiven(target, at, given),
+  plottingMode: (target, given, options) => plottingMode(target, given, options),
 });
 // Colour, hiding and the Outline toolbar's selection (webview/panels/flows/presentation.ts).
 registerPresentation(playHost, {
