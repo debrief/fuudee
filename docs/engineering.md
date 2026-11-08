@@ -80,7 +80,7 @@ Not touched: `KNOWN_METHODS`, group tuples, elif ladders, the module docstring. 
 ### Add a panel (review finding 7)
 
 1. A `WebviewHost` owner under `src/panels/`; its retention in `RETAIN_CONTEXT_WHEN_HIDDEN`; a `PoppableView` if it pops out.
-2. The page under `webview/`, its controller as a pure class (`*control.ts`) with a jsdom unit test, its DOM half thin.
+2. The page under `webview/`, its controller as a pure class (`*control.ts`) with a jsdom unit test under `test/webview/` (section 6), its DOM half thin.
 3. Its message kinds (below).
 4. The playground's panel in `play/`, through the same page and flows.
 5. Its play part, its tracer suite (section 6), its walkthrough step if any (`vscode/walkthroughs/tours.json`), its interaction model, its blog post (DEV-02).
@@ -162,8 +162,8 @@ Which layer owns what, so each new feature adds the right tests and not a longer
 
 | Layer | Runs in | Owns | Budget |
 | --- | --- | --- | --- |
-| Python unit and service tests | `pytest` | Domain logic, every method, every error path; the service `client` fixture for RPC | 1,971 tests in under 3 minutes; the service tests share a worker where they can |
-| Vitest unit | `vscode`, `ts/*` | Kernel and controller logic (`*control.ts` under jsdom), flows against the fake host, parity tests | Seconds; no wall-clock assertions unless behind an opt-in flag |
+| Python unit and service tests | `pytest` | Domain logic, every method, every error path; the service `client` fixture for RPC | 1,971 tests in under 3 minutes; the service tests share one worker for the run, each pointed at its own catalogue (`conftest.py`, held by `test_shared_worker.py`) |
+| Vitest unit | `vscode`, `ts/*` | Kernel and controller logic, flows against the fake host, parity tests (`test/unit`, Node); the webview's `*control.ts` classes (`test/webview`, jsdom) | Seconds; no wall-clock assertions unless behind `DEBRIEF_PERF` |
 | Tracer | `test/integration`, real VS Code | One Mocha suite per feature after `smoke`; each sets up its own serial; `DEBRIEF_IT_ONLY` to run one | Each test 5 minutes, the run 20, in two VS Code versions as a CI matrix |
 | Play | `test/play`, Chromium | Every demo under CSP with message validation, in six parts; sensors and TMA are part six | Each part 2 to 4 minutes |
 
@@ -174,6 +174,14 @@ Rules:
 - A new play step goes in the part that stays shortest; a new part is cut when one passes four minutes.
 - The 12 importer tests gated on `DEBRIEF_LEGACY` are a known gap until the legacy samples can be committed or synthesised.
 
+### The webview controls in jsdom
+
+`vitest.workspace.ts` runs two projects: `unit` (Node, `test/unit`) and `webview` (jsdom, `test/webview`). A control's test builds it on a `div`, as a host does, and drives it through its public methods and its own DOM events. `test/webview/setup.ts` gives jsdom what it lacks: a 2D canvas context that draws nothing and records each call (`drawn(canvas)`), a ResizeObserver the test fires (`resized(element)`), a PointerEvent, and element sizes (`sized(element, { width, height })`), as jsdom lays nothing out. What a control works out from its sizes (where the panes go, each axis) belongs in a pure module tested in Node, as `tmalayout.ts` is for the Bearings plot; the jsdom test holds the control's state, its words and when it lays itself out. Whether the drawing looks right stays with the playground and VS Code suites.
+
+### Performance budgets
+
+A test that times work asserts its budget only with `DEBRIEF_PERF=1` (review, 7 Nov 2026, finding 10): a budget on shared hardware fails with the machine's load, not the code. The work and its result are checked on every run. In vitest, `withinBudget(ms, budget, what)` from `test/unit/budget.ts` (coverage, timeline, sensors and TMA live residuals); in Python, `test_tote_latency.py` (NFR-04), skipped without the flag as it takes ten seconds. CI runs both with the flag in a step of their own that reports and never blocks, so a regression shows in the job's log without failing a pull request on a busy runner. The playground's drag and Tote budgets are unchanged: they run in a browser, and each asserts generously.
+
 ## 7. Open items and rules not yet enforced
 
 Kept here so they are seen at every phase exit, not rediscovered by the next review.
@@ -182,6 +190,7 @@ Kept here so they are seen at every phase exit, not rediscovered by the next rev
 - `check-panels.mjs` cross-checking panel ids, `data-demo` names and tours (fix plan 12).
 - Branch protection on `main` requiring the three jobs (fix plan 1): confirm in the repository settings; the review found none.
 - `DEBRIEF_LEGACY` importer tests never run in CI.
+- Webview controls with no jsdom test yet: `map.ts`, `trackmap.ts`, `mapedit.ts`, `sensormap.ts`, `timelinecontrol.ts`, `timecontrol.ts`; `TmaControl`'s form, keys and drag frames (the play suite's part six covers them). `TmaControl.drawPlot` is still one method for the drawing itself, its layout split out (`tmalayout.ts`).
 - The review image on Heroku is never built by CI; VS Code's version is pinned in three places.
 - No CODEOWNERS; guide owners are one person, provisional.
 

@@ -46,11 +46,13 @@ Then open `vscode/` in VS Code and press F5. Set **Debrief: Python** to the inte
 
 ```bash
 npm run typecheck
-npm test                 # unit tests, including reading a catalogue Python wrote
+npm test                 # unit tests (test/unit, in Node) and the webview controls (test/webview, in jsdom)
 npm run check:theme      # no hard-coded interface colours (DEV-10)
 npm run check:language   # no terms the language guide says to avoid (DEV-10)
 xvfb-run -a npm run test:integration   # the tracer in real VS Code; set DEBRIEF_SCREENSHOTS to keep screenshots
 ```
+
+The unit tests time some work and assert its budget only with `DEBRIEF_PERF=1` (`test/unit/budget.ts`): a budget on a shared machine fails with the machine's load. `DEBRIEF_PERF=1 npm test` holds them; CI runs them so in a step that reports and never blocks.
 
 The integration test:
 
