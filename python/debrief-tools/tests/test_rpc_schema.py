@@ -83,20 +83,17 @@ FOUR_FIXES = """\
 
 
 def test_a_track_split_in_two_answers_its_parts(
-    config_file: Path, catalogue: Catalogue, tmp_path: Path
+    config_file: Path, catalogue: Catalogue, worker: ToolWorker, tmp_path: Path
 ) -> None:
     """The one typed reply the service's other tests do not receive: their split is refused."""
     source = tmp_path / "four.rep"
     source.write_text(FOUR_FIXES)
     import_rep(catalogue, source, item_id="four")
-    service = ToolService(ToolWorker([], str(config_file), timeout_s=3), str(config_file))
-    try:
-        where = {"store": "exercise", "item": "four", "agent": {"kind": "person", "name": "a"}}
-        split = service.handle(
-            "debrief/split_track",
-            {**where, "feature": "track-nelson", "at": "1995-12-12T05:15:00.000Z"},
-        )
-    finally:
-        service.worker.close()
+    service = ToolService(worker, str(config_file))
+    where = {"store": "exercise", "item": "four", "agent": {"kind": "person", "name": "a"}}
+    split = service.handle(
+        "debrief/split_track",
+        {**where, "feature": "track-nelson", "at": "1995-12-12T05:15:00.000Z"},
+    )
     assert split["changed"] and len(split["features"]) == 2
     assert class_problems("PlotChangeReply", split) == []

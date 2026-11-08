@@ -11,6 +11,9 @@ import path from "node:path";
 const out = path.resolve(process.argv[2] ?? "dist/play");
 mkdirSync(out, { recursive: true });
 const common = { bundle: true, minify: true, sourcemap: false, logLevel: "warning", target: "es2022" };
+// One geographiclib in each bundle, this folder's: @debrief/kernel (ts/kernel) is linked from outside
+// it with node_modules of its own, so without this a bundle holding both would carry two.
+const geographiclib = { "geographiclib-geodesic": path.resolve("node_modules/geographiclib-geodesic") };
 // The webview messages' validator, compiled now: the page checks every message as VS Code does, and
 // so do the webviews in its frames (PAR-13).
 const validator = writeMessageValidator(path.resolve("dist-gen"));
@@ -32,7 +35,7 @@ await build({
   jsx: "automatic",
   loader: { ".png": "dataurl", ".svg": "dataurl" },
   define: { "process.env.NODE_ENV": '"production"' },
-  alias: { "debrief-webview-message-validator": validator.file },
+  alias: { ...geographiclib, "debrief-webview-message-validator": validator.file },
   nodePaths: validator.nodePaths,
 });
 await build({
@@ -41,7 +44,7 @@ await build({
   outdir: out,
   platform: "browser",
   format: "esm",
-  alias: { "debrief-webview-message-validator": validator.file },
+  alias: { ...geographiclib, "debrief-webview-message-validator": validator.file },
   nodePaths: validator.nodePaths,
   external: ["https://*"],
 });

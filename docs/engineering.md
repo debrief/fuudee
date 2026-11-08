@@ -28,9 +28,9 @@ PRN-04 says every boundary type is generated. The review found that rule honoure
 | Files: plots, STAC, history, provenance | `schemas/linkml/*.yaml` | `debrief_schemas.models` | `@debrief/schemas` | 414 fixtures in 11 kinds, both languages; the cross-language round trip |
 | Host-to-page messages | `messages.yaml`, one class per kind under a union on `kind` | same | same, as a discriminated union | `checkMessage` on every post; semantic fixtures in both languages |
 | Tool declarations and results | `tools.yaml` | same | same | the tool contract tests in `run.py` |
-| Shared state, formatting, config | `state.yaml`, `formatting.yaml`, `config.yaml` | same | same | the shared vectors |
+| Shared state, formatting, config | `state.yaml`, `formatting.yaml`, `config.yaml`; the newest config layout as `UserConfig`'s `newest_config_version` | same, and `CONFIG_VERSION` | same, and `CONFIG_VERSION` | the shared vectors |
 | JSON-RPC parameters and replies | `rpc.yaml`, a parameters class and a reply class per method or family, named by the method's registration (`request=`, `reply=`) | same | same; `RpcMethods` in `vscode/src/generated/rpc.ts`, printed from the registry, types `ToolService.call` per method | `test_rpc_schema.py`: every method but MCP's own names both; the service's tests check every request that succeeds, and its reply, against them (`conftest.py`) |
-| Kernel behaviour (units, geodesy, formatting, residuals) | `schemas/vectors/*.json` | `debrief_kernel` | `@debrief/kernel` | 17 vector files, both languages |
+| Kernel behaviour (units, formatting, positions, figure IDs, geodesy, sensors, TMA residuals and legs, dead reckoning, intervals, collation) | `schemas/vectors/*.json` | `debrief_kernel`, `debrief_stac` | `@debrief/kernel` (`ts/kernel`): the functions these vectors hold, each with its vector's test; pages and hosts import them from there (config paths are `@debrief/config`'s; narrative order, redaction and the service's methods are still held in `vscode/src`, section 7) | the vector files, both languages; `ts/kernel`'s tests run without the extension |
 
 ### Extension points
 
@@ -80,7 +80,7 @@ Not touched: `KNOWN_METHODS`, group tuples, elif ladders, the module docstring. 
 ### Add a panel (review finding 7)
 
 1. A `WebviewHost` owner under `src/panels/`; its retention in `RETAIN_CONTEXT_WHEN_HIDDEN`; a `PoppableView` if it pops out.
-2. The page under `webview/`, its controller as a pure class (`*control.ts`) with a jsdom unit test, its DOM half thin.
+2. The page under `webview/`, its controller as a pure class (`*control.ts`) with a jsdom unit test under `test/webview/` (section 6), its DOM half thin.
 3. Its message kinds (below).
 4. The playground's panel in `play/`, through the same page and flows: its row in `play/panels.mjs` (`PANELS`, titled as its VS Code view is named, and a group in `DEFAULT_GROUPS`), its `<section class="panel" id="panel-<name>">` in `play/index.html`, and its name in `play/host.ts`'s `OPTIONAL` and default `panels` list so a blog's demo can choose it.
 5. Its view in `package.json` (`contributes.views`), registered in `src/extension.ts`.
@@ -104,7 +104,7 @@ Not touched: `KNOWN_METHODS`, group tuples, elif ladders, the module docstring. 
 
 ### Add a schema module or vector
 
-A vector is a fact both languages must agree on. Add the JSON under `schemas/vectors/`, a test in each language that reads it, and nothing that hand-copies the values.
+A vector is a fact both languages must agree on. Add the JSON under `schemas/vectors/`, a test in each language that reads it, and nothing that hand-copies the values. The TypeScript that a vector holds lives in `ts/kernel/src`, its test in `ts/kernel/test`, never in `vscode/webview`: a page imports it from `@debrief/kernel`, so a future web host has it too and it is tested without the extension's setup. Keep the kernel free of the DOM and of VS Code; its words are held to the language guide and its colours to the theme check like a page's (`check-language.mjs` and `check-theme.mjs` read `ts/kernel/src`).
 
 ## 3. Policies
 
@@ -166,8 +166,8 @@ Which layer owns what, so each new feature adds the right tests and not a longer
 
 | Layer | Runs in | Owns | Budget |
 | --- | --- | --- | --- |
-| Python unit and service tests | `pytest` | Domain logic, every method, every error path; the service `client` fixture for RPC | 1,971 tests in under 3 minutes; the service tests share a worker where they can |
-| Vitest unit | `vscode`, `ts/*` | Kernel and controller logic (`*control.ts` under jsdom), flows against the fake host, parity tests | Seconds; no wall-clock assertions unless behind an opt-in flag |
+| Python unit and service tests | `pytest` | Domain logic, every method, every error path; the service `client` fixture for RPC | 1,971 tests in under 3 minutes; the service tests share one worker for the run, each pointed at its own catalogue (`conftest.py`, held by `test_shared_worker.py`) |
+| Vitest unit | `vscode`, `ts/*` | Kernel and controller logic, flows against the fake host, parity tests (`test/unit`, Node); the webview's `*control.ts` classes (`test/webview`, jsdom) | Seconds; no wall-clock assertions unless behind `DEBRIEF_PERF` |
 | Tracer | `test/integration`, real VS Code | One Mocha suite per feature after `smoke`; each sets up its own serial; `DEBRIEF_IT_ONLY` to run one | Each test 5 minutes, the run 20, in two VS Code versions as a CI matrix |
 | Play | `test/play`, Chromium | Every demo under CSP with message validation; each module's `plays`, shared out into CI's parts by cost (`shards.mjs`), each unit on a fresh page | Each part about 4 minutes (`BUDGET`) |
 
@@ -178,6 +178,14 @@ Rules:
 - A new play is a descriptor in its module's `plays`: `start` (`blank`, `ready` or `arranged`) for one on a page of its own, `after` for one that needs the page a play leaves; its `cost` the seconds it takes in CI (the run prints each play's). The parts, and how many, follow; a unit of plays is never split, so a play that does not need the page before it starts its own.
 - The 12 importer tests gated on `DEBRIEF_LEGACY` are a known gap until the legacy samples can be committed or synthesised.
 
+### The webview controls in jsdom
+
+`vitest.workspace.ts` runs two projects: `unit` (Node, `test/unit`) and `webview` (jsdom, `test/webview`). A control's test builds it on a `div`, as a host does, and drives it through its public methods and its own DOM events. `test/webview/setup.ts` gives jsdom what it lacks: a 2D canvas context that draws nothing and records each call (`drawn(canvas)`), a ResizeObserver the test fires (`resized(element)`), a PointerEvent, and element sizes (`sized(element, { width, height })`), as jsdom lays nothing out. What a control works out from its sizes (where the panes go, each axis) belongs in a pure module tested in Node, as `tmalayout.ts` is for the Bearings plot; the jsdom test holds the control's state, its words and when it lays itself out. Whether the drawing looks right stays with the playground and VS Code suites.
+
+### Performance budgets
+
+A test that times work asserts its budget only with `DEBRIEF_PERF=1` (review, 7 Nov 2026, finding 10): a budget on shared hardware fails with the machine's load, not the code. The work and its result are checked on every run. In vitest, `withinBudget(ms, budget, what)` from `vscode/test/unit/budget.ts` (coverage, timeline, sensors) and its copy in `ts/kernel/test/budget.ts` (TMA live residuals); in Python, `test_tote_latency.py` (NFR-04), skipped without the flag as it takes ten seconds. CI runs both with the flag in a step of their own that reports and never blocks, so a regression shows in the job's log without failing a pull request on a busy runner. The playground's drag and Tote budgets are unchanged: they run in a browser, and each asserts generously.
+
 ## 7. Open items and rules not yet enforced
 
 Kept here so they are seen at every phase exit, not rediscovered by the next review.
@@ -185,8 +193,11 @@ Kept here so they are seen at every phase exit, not rediscovered by the next rev
 - The service's `Params` models (`method_params.py`) are still hand-written beside the generated parameters classes (`rpc.yaml`): a test holds that each reads only what its class describes and needs what it requires, but the refusals' words live in the models. MCP's own methods (`initialize`, `ping`, `tools/list`, `tools/call`) are not described in `rpc.yaml`.
 - Branch protection on `main` requiring the three jobs (fix plan 1): confirm in the repository settings; the review found none.
 - `DEBRIEF_LEGACY` importer tests never run in CI.
+- Webview controls with no jsdom test yet: `map.ts`, `trackmap.ts`, `mapedit.ts`, `sensormap.ts`, `timelinecontrol.ts`, `timecontrol.ts`; `TmaControl`'s form, keys and drag frames (the play suite's part six covers them). `TmaControl.drawPlot` is still one method for the drawing itself, its layout split out (`tmalayout.ts`).
 - The review image on Heroku is never built by CI; VS Code's version is pinned in three places.
 - No CODEOWNERS; guide owners are one person, provisional.
+- Three vectors are still held by the extension host rather than `ts/kernel`: narrative order (`vscode/src/timeline.ts`, which leans on the host's `hidden.ts` and `format.ts`), redaction (`vscode/src/diagnostics.ts`) and the service's methods (`vscode/src/figures.ts`, the host's own guard). The track operations that are not dead reckoning (move, rotate, shear and stretch, as `debrief_stac.tracks`) stay in `vscode/webview/trackedit.ts`: no vector holds them yet.
+- Config and catalogues are read again on every service call (`service.py`); an mtime-keyed cache is not yet written.
 
 ## 8. Health check
 

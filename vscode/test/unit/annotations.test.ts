@@ -9,7 +9,7 @@ import geodesic from "geographiclib-geodesic";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
 import { draftOf, echoPositions, newDraft, readPositions, replacing, specOf, type AnnotationDraft } from "../../webview/annotationdraft.js";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature } from "../../webview/annotationlook.js";
-import { circleRing, ellipseRing } from "../../webview/geodesic.js";
+import { circleRing, ellipseRing } from "@debrief/kernel";
 import { DATA_COLOURS } from "../../webview/palette.js";
 import { checkMessage } from "../../src/messages.js";
 import { currentEntry, timelineEntries } from "../../src/timeline.js";

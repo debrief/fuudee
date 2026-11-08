@@ -7,9 +7,8 @@
  */
 import { describe, expect, it } from "vitest";
 import type { DebriefFeatureCollection, TmaCut, TmaResidualRow } from "@debrief/schemas";
-import { DEFAULT_SETTINGS } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, travel, legCourses, localCourse, coverageOf, keepsSolution, OWNSHIP_MOST, ownshipOf, tmaSolutionRows, type LonLat } from "@debrief/kernel";
 import { contrast, parseColour, type Rgb } from "../../webview/contrast.js";
-import { travel, type LonLat } from "../../webview/geodesic.js";
 import { TRACK_COLOURS } from "../../webview/palette.js";
 import {
   about,
@@ -34,11 +33,9 @@ import {
   fitRange,
   inside,
   isZoomed,
-  legCourses,
   controlsBeside,
   PLOT_MARGINS_PX,
   LEAST_SPAN_MS,
-  localCourse,
   describeOffScale,
   offScale,
   nearestPoint,
@@ -58,7 +55,6 @@ import {
   zoomTime,
   zoomValues,
 } from "../../webview/stackeddots.js";
-import { coverageOf, keepsSolution, OWNSHIP_MOST, ownshipOf, tmaSolutionRows } from "../../webview/tma.js";
 
 const row = (time: string, residual: number | undefined, more: Partial<TmaResidualRow> = {}): TmaResidualRow => ({
   id: `c-${time}`,

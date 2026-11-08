@@ -11,11 +11,8 @@
  * the bearing view is the way without a pointer.
  */
 import L from "leaflet";
-import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, formatTime, densify, travel, bearingText, placeOfCut, sensorsOf, describeTwoClicks, ontoLine, type LonLat, type CutFeature, type SensorEntry } from "@debrief/kernel";
 import type { DebriefFeatureCollection, TmaRequest, WebviewMessage } from "@debrief/schemas";
-import { densify, travel, type LonLat } from "./geodesic.js";
-import { bearingText, placeOfCut, sensorsOf, type CutFeature, type SensorEntry } from "./sensors.js";
-import { describeTwoClicks, ontoLine } from "./tma.js";
 
 const toLatLng = ([lon, lat]: LonLat) => L.latLng(lat, lon);
 /** How far a cut's line is drawn for the clicks: well past any first guess. */

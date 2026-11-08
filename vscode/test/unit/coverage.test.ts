@@ -1,29 +1,16 @@
 /**
- * Collation's logic in TypeScript (CAP-05, CAP-08, CAP-09): spans, platform names and
- * periods held to the vectors Python is held to; a track's coverage piece by piece for the
- * Timeline; where things lie along Coverage's bars; and the messages the view sends.
+ * Collation's logic in TypeScript (CAP-05, CAP-08, CAP-09): a track's coverage piece by piece
+ * for the Timeline; where things lie along Coverage's bars; and the messages the view sends.
+ * Spans, platform names and periods are held to Python's vectors in ts/kernel/test/coverage.test.ts.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CoverageReport, DebriefFeatureCollection, TrackSupply } from "@debrief/schemas";
-import { along, choices, coveragePieces, extentOf, linkWords, periods, platformKey, plotTitleOf, spans, untaken, type Span } from "../../webview/coveragelogic.js";
+import { along, choices, coveragePieces, extentOf, linkWords, periods, plotTitleOf, untaken, type Span } from "@debrief/kernel";
 import { coverageId, timelineEntries } from "../../src/timeline.js";
 import { checkMessage } from "../../src/messages.js";
+import { withinBudget } from "./budget.js";
 
-const repo = path.resolve(__dirname, "../../..");
-const vectors = JSON.parse(readFileSync(path.join(repo, "schemas/vectors/collation.json"), "utf8")) as {
-  spans: { name: string; times: string[]; spans: [string, string][] }[];
-  platform_keys: { name: string; key: string }[];
-  periods: { name: string; sources: [string, string][][]; periods: { start: string; end: string; sources: number[] }[] }[];
-};
 const iso = (ms: number) => new Date(ms).toISOString();
-
-describe("spans, as Python works them out (schemas/vectors/collation.json)", () => {
-  it.each(vectors.spans)("$name", (c) => {
-    expect(spans(c.times.map(Date.parse)).map(([a, b]) => [iso(a), iso(b)])).toEqual(c.spans);
-  });
-});
 
 describe("periods of gappy sources, swept along the time (NFR-01)", () => {
   // Fifty sources of a hundred bursts each, every source offset a little: 10,000 bounds.
@@ -52,7 +39,7 @@ describe("periods of gappy sources, swept along the time (NFR-01)", () => {
     const cut = periods(sources);
     const took = performance.now() - started;
     expect(cut.length).toBeGreaterThan(5_000);
-    expect(took).toBeLessThan(100);
+    withinBudget(took, 100, "coverage periods of every source");
   });
   it("finds a long track's pieces in one pass", () => {
     // 2,000 spans of 10 fixes, each from the next supplier: 20,000 fixes, each with its
@@ -73,18 +60,7 @@ describe("periods of gappy sources, swept along the time (NFR-01)", () => {
     expect(pieces).toHaveLength(2000);
     expect(pieces[1]).toMatchObject({ source: "Log", fixes: 10 });
     expect(pieces[0].source).toBeUndefined();
-    expect(took).toBeLessThan(60);
-  });
-});
-
-describe("platform names, as Python matches them", () => {
-  it.each(vectors.platform_keys)("$name", (c) => expect(platformKey(c.name)).toBe(c.key));
-});
-
-describe("periods, as Python cuts them", () => {
-  it.each(vectors.periods)("$name", (c) => {
-    const got = periods(c.sources.map((s) => s.map(([a, b]) => [Date.parse(a), Date.parse(b)] as [number, number])));
-    expect(got.map((p) => ({ start: iso(p.start), end: iso(p.end), sources: p.sources }))).toEqual(c.periods);
+    withinBudget(took, 60, "a long track's pieces");
   });
 });
 

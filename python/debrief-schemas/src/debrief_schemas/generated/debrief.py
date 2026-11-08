@@ -5876,7 +5876,9 @@ class ToteTrack(ConfiguredBaseModel):
 
 
 class UserConfig(ConfiguredBaseModel):
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'annotations': {'newest_config_version': {'tag': 'newest_config_version',
+                                                   'value': 4}},
+         'from_schema': 'https://debrief.info/schemas/debrief'})
 
     config_version: int = Field(default=..., description="""Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import; 4 once it holds tma_error_cut_off. An earlier Debrief cannot read a later layout.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
     stores: list[KnownStore] = Field(default=..., description="""Known stores, in the order the analyst sees them (SUB-17).""", json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig', 'StoresReply']} })

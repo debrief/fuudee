@@ -18,7 +18,7 @@
 import type { DebriefFeatureCollection, TimelineEntry, ToteTrack } from "@debrief/schemas";
 import { isFeature, isHidden, viewOf } from "./hidden.js";
 import { count } from "./format.js";
-import { coveragePieces, plotTitleOf } from "../webview/coveragelogic.js";
+import { coveragePieces, plotTitleOf } from "@debrief/kernel";
 
 /** The id of the Timeline's entry for a comment on a track's fix. */
 export const fixCommentId = (trackId: string, time: string) => `fix:${trackId}:${time}`;

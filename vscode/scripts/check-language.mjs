@@ -26,8 +26,9 @@ for (const part of ["viewsContainers", "views", "viewsWelcome", "walkthroughs", 
 }
 // The walkthroughs' one source, the playground's words included (CAP-25).
 walk(JSON.parse(readFileSync("walkthroughs/tours.json", "utf8")).tours, "walkthroughs/tours.json");
-// The extension and webviews; of the playground, which plays the part of VS Code, its walkthroughs panel.
-const sources = [...["src", "webview"].flatMap((folder) => readdirSync(folder, { recursive: true }).map((name) => path.join(folder, String(name)))), "play/tours.ts"];
+// The extension, its webviews and the TypeScript kernel they say things with (ts/kernel); of the
+// playground, which plays the part of VS Code, its walkthroughs panel.
+const sources = [...["src", "webview", "../ts/kernel/src"].flatMap((folder) => readdirSync(folder, { recursive: true }).map((name) => path.join(folder, String(name)))), "play/tours.ts"];
 for (const file of sources) {
   if (!/\.(ts|tsx)$/.test(file)) continue;
   readFileSync(file, "utf8").split("\n").forEach((line, index) => {

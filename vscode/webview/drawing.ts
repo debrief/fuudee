@@ -10,10 +10,9 @@
  * it as one change, one step. Ranges and bearings are along geodesics (SUB-03)
  * and shown through the kernel's formatting, in the analyst's units (SUB-04).
  */
-import { convert, DEFAULT_SETTINGS, fixed, formatBearing, formatPosition, formatQuantity, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, fixed, formatBearing, formatPosition, formatQuantity, UNIT_LABELS, geodesicArea, rangeBearing, travel, type FormatSettings, type LonLat } from "@debrief/kernel";
 import type { AnnotationSpec } from "@debrief/schemas";
 import type { Shape } from "./annotationlook.js";
-import { geodesicArea, rangeBearing, travel, type LonLat } from "./geodesic.js";
 
 /** The kinds of annotation that can be drawn: every kind but a note, which has no position. */
 export type Tool = Exclude<Shape, "note">;

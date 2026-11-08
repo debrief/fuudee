@@ -5,6 +5,7 @@ import types
 import pytest
 
 from debrief_tools import Registry, tool
+from debrief_tools.entries import offered_tools
 from debrief_tools.registry import applies
 
 CORE = {"core.track_summary", "core.closest_approach", "core.range_rings", "core.add_note"}
@@ -87,8 +88,8 @@ def test_duplicate_tool_name_keeps_the_first() -> None:
     ],
 )
 def test_offered_tools_are_the_intersection_for_the_selection(kinds, expected) -> None:
-    offered = {t.name for t in Registry.discover().for_selection(kinds)}
-    assert offered & CORE == expected
+    declarations = {name: t.declaration for name, t in Registry.discover().tools.items()}
+    assert set(offered_tools(declarations, kinds)) & CORE == expected
 
 
 def test_applies_honours_counts() -> None:

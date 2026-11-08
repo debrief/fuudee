@@ -4,14 +4,11 @@ base, so neither re-filters or re-sequences them."""
 
 import importlib.util
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-from debrief_sample.walkthrough import copy_for_tour
-from debrief_stac import Base, Catalogue, Conflict
+from debrief_stac import Base, Conflict
 from debrief_tools import Registry
 from debrief_tools.entries import move, offered_tools, unavailable_tools
 
@@ -26,25 +23,23 @@ def _play():
 
 
 @pytest.fixture
-def plot(tmp_path):
-    """A catalogue holding a copy of serial 1, as a walkthrough makes it."""
-    catalogue = Catalogue.create(tmp_path / "cat", "c", "C", "Test")
-    subprocess.run(
-        [sys.executable, "-m", "debrief_sample", "build", str(tmp_path / "sample")],
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
-    item = copy_for_tour(catalogue, tmp_path / "sample", "explore")
-    return catalogue, item
+def plot(catalogue):
+    """The small imported plot every service test uses (conftest): an item with a history."""
+    return catalogue, "serial"
 
 
 def test_offered_tools_are_the_registrys_rule_in_declared_order():
     registry = Registry.discover(["debrief_tools.core"])
     declarations = {n: t.declaration for n, t in registry.tools.items()}
+    # Declared: track_summary, closest_approach, range_rings (one track), add_note (any).
+    assert list(declarations)[:3] == [
+        "core.track_summary",
+        "core.closest_approach",
+        "core.range_rings",
+    ]
     offered = offered_tools(declarations, ["track", "track"])
-    assert offered == [t.name for t in registry.for_selection(["track", "track"])]
-    assert "core.closest_approach" in offered
-    assert offered_tools(declarations, []) == [t.name for t in registry.for_selection([])]
+    assert offered == ["core.track_summary", "core.closest_approach", "core.add_note"]
+    assert offered_tools(declarations, []) == ["core.add_note"]
 
 
 def test_unavailable_tools_say_library_tool_and_reason():

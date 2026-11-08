@@ -41,8 +41,8 @@ import {
   thinningNote,
   trackDetails,
   withForced,
-} from "../../webview/frequencies.js";
-import { pointAt, positionAt, type LonLat } from "../../webview/geodesic.js";
+} from "../src/index.js";
+import { pointAt, positionAt, type LonLat } from "../src/index.js";
 
 const repo = path.resolve(__dirname, "../../..");
 const vectors = JSON.parse(readFileSync(path.join(repo, "schemas", "vectors", "fix-intervals.json"), "utf8")) as {
