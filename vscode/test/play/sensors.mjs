@@ -2,7 +2,7 @@
 // sensors drawn as cuts from BLUE ONE, only in the time window, the cut current time is at
 // emphasised; each sensor in the Outline under its track. A plain click on a cut's line
 // selects it and shows its choices, changing nothing; a choice keeps a bearing, one step,
-// undone by Undo; Alt-click keeps the line clicked; a double-click's second click does
+// undone by Undo; a resolved cut's Make ambiguous again draws both again, one step; Alt-click keeps the line clicked; a double-click's second click does
 // nothing. A towed array's offset astern set from its menu, one step. A sensor's menu from the
 // keyboard keeps port for the cuts in the window, one step named for what it did; Both
 // again makes them ambiguous again. A cut's menu by right-click; a sensor coloured and
@@ -130,6 +130,27 @@ export async function playSensors(page, shot) {
   assert.match(await latest(), /^(Port|Starboard) bearing kept on (Towed array|Bow sonar) cut at \d\d:\d\d:\d\dZ$/);
   await page.waitForFunction((l) => document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.lines < l, lines);
   assert.equal(await drawn("lines"), lines - 1, "the other bearing no longer drawn");
+  // The resolved cut's choices: the bearing not kept, or Make ambiguous again: one step,
+  // both bearings drawn again, undone by Undo (#102: the map's button once did nothing).
+  const keptStep = await latest();
+  const kept = (await probes()).find((p) => p.id === ambiguous.id);
+  assert.ok(kept && !kept.ambiguous, "the resolved cut's kept line to click");
+  await page.mouse.click(box.x + kept.x, box.y + kept.y);
+  await popover.waitFor({ state: "visible" });
+  assert.equal(await popover.getAttribute("data-cut"), ambiguous.id, "the resolved cut's choices");
+  assert.match((await popover.locator("button").allInnerTexts()).join("|"), /^Keep \d{3}\.\d° \((port|starboard)\)\|Make ambiguous again\|More…$/);
+  n = await steps();
+  await popover.getByRole("button", { name: "Make ambiguous again", exact: true }).click();
+  await stepAdded(n);
+  assert.match(await latest(), /^(Towed array|Bow sonar) cut at \d\d:\d\d:\d\dZ made ambiguous again$/);
+  await page.waitForFunction((l) => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.lines) === l, lines);
+  const twoAgain = (await probes()).filter((p) => p.id === ambiguous.id);
+  assert.ok(twoAgain.length && twoAgain.every((p) => p.ambiguous), "the cut is ambiguous again, its resolution cleared");
+  // Undo: resolved again, as the step before left it.
+  await undo();
+  await page.waitForFunction((l) => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.lines) === l - 1, lines);
+  assert.equal(await page.locator("#history li:not(.undone)").first().locator(".name").textContent(), keptStep);
+  assert.equal((await probes()).find((p) => p.id === ambiguous.id)?.ambiguous, false, "Undo restores the resolution");
   // Undo: ambiguous again, both lines drawn.
   await undo();
   await page.waitForFunction((l) => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.lines) === l, lines);
