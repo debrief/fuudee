@@ -367,6 +367,15 @@ def _schema_errors(
     return [f"{'/'.join(map(str, path)) or '<root>'}: {message}" for path, message in found]
 
 
+def class_problems(name: str, value: Any) -> list[str]:
+    """JSON Schema problems with a value of one of the schema's classes, by its name, as
+    'path: message': structure only (layer 2). For the types that are not documents, such
+    as a tool service method's parameters and reply (rpc.yaml)."""
+    if name not in _json_schema()["$defs"]:
+        raise KeyError(f"the schema has no class {name}")
+    return _schema_errors(name, value)
+
+
 # --- Layer 1: schema version ---------------------------------------------------
 
 

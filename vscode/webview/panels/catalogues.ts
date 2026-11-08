@@ -52,7 +52,7 @@ export interface CollationMarks {
   /** The open plot's store and item. */
   open?: { store: string; item: string };
   coverage?: CoverageReport;
-  flags: (ReviewFlag & { store?: string })[];
+  flags: (ReviewFlag & { store?: string | null })[];
 }
 
 /** What the Catalogues are built from. */

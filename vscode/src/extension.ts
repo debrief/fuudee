@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, LineStringGeometry, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, LineStringGeometry, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, ReviewFlagListed, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, formatTime, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { legExtent } from "../webview/tma.js";
@@ -383,7 +383,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         const opened = session.current;
         if (!service || !opened) return undefined;
         const answer = await service.sensorCuts(opened.store.id, opened.item.id, sensorId);
-        return answer.sensors[0]?.cut_list;
+        return answer.sensors[0]?.cut_list ?? undefined;
       },
       residuals: async (solutionId) => {
         const opened = session.current;
@@ -929,7 +929,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           return { problem: (error as Error).message };
         }
         const problem = await reloadPlot(true);
-        return { problem, feature: answer.feature };
+        return { problem, feature: answer.feature ?? undefined };
       }),
     );
 
@@ -964,7 +964,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           return { problem: (error as Error).message };
         }
         const problem = await reloadPlot(true);
-        return { problem, feature: answer.feature, entries: answer.entries, omitted: answer.omitted };
+        return { problem, feature: answer.feature ?? undefined, entries: answer.entries, omitted: answer.omitted };
       }),
     );
 
@@ -1009,7 +1009,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           return { problem: (error as Error).message };
         }
         const problem = await reloadPlot(true);
-        return { problem, feature: answer.feature, features: answer.features, ...(answer.notes?.length && { notes: answer.notes }) };
+        return { problem, feature: answer.feature ?? undefined, features: answer.features ?? undefined, ...(answer.notes?.length && { notes: answer.notes }) };
       }),
     );
 
@@ -1020,7 +1020,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * undone by Ctrl+Z like any other. A change made elsewhere since the
    * plot was opened is never overwritten (SUB-28).
    */
-  const sense = <T extends { notes?: string[] }>(save: (opened: OpenedPlot, allow: boolean) => Promise<T>) =>
+  const sense = <T extends { notes?: string[] | null }>(save: (opened: OpenedPlot, allow: boolean) => Promise<T>) =>
     serially(() =>
       ourChange(async (): Promise<{ problem?: string; answer?: T }> => {
         const opened = session.current;
@@ -1216,7 +1216,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return;
     }
     let coverage: CoverageReport | undefined;
-    let flags: (ReviewFlag & { store?: string })[] = [];
+    let flags: ReviewFlagListed[] = [];
     try {
       [coverage, flags] = await Promise.all([
         opened ? service.coverage(opened.store.id, opened.item.id).then((r) => r.coverage) : Promise.resolve(undefined),
@@ -1259,7 +1259,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    */
   function showView(opened: OpenedPlot, answer: OpenedView, ours = false): void {
     opened.viewHash = answer.view_hash;
-    setViewOf(opened.plot, answer.view);
+    setViewOf(opened.plot, answer.view ?? null);
     if (ours) session.savedWindow = timeWindowOf(opened.plot) ?? session.period();
     else session.windowChanged(timeWindowOf(opened.plot), "plot-view");
     // The saved window and how context tracks are drawn: the time controller and the map follow.
@@ -1313,9 +1313,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (service) {
       try {
         const answer = await service.open(store.id, itemId, agent);
-        ({ base, recovered, latest } = answer);
+        ({ base, latest } = answer);
+        // false, not a list, only when opened read-only (rpc.yaml's OpenReply), which this is not.
+        recovered = Array.isArray(answer.recovered) ? answer.recovered : [];
         viewHash = answer.view_hash;
-        shown = answer.plot; // a retired presentation.json applied in memory (a read-only store)
+        shown = answer.plot ?? undefined; // a retired presentation.json applied in memory (a read-only store)
       } catch (error) {
         // The plot's id only as a hash, and no message: both can name things (NFR-14).
         log(`open_failed item=${hashed(itemId)} code=${(error as ServiceError).code ?? "-"}`);
@@ -1986,15 +1988,15 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (done.problem) return { problem: done.problem };
       const feature = done.answer?.feature;
       if (feature) session.select([feature], "command");
-      return { feature, notes: done.answer?.notes, residuals: done.answer?.residuals };
+      return { feature, notes: done.answer?.notes ?? undefined, residuals: done.answer?.residuals };
     },
     splitLeg: async (solution, at, join) => {
       const done = await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, solution, at, join, allow));
-      return { problem: done.problem, notes: done.answer?.notes };
+      return { problem: done.problem, notes: done.answer?.notes ?? undefined };
     },
     exclude: async (solution, cutIds, excluded) => {
       const done = await sense((o, allow) => service!.tmaExclude(o.store.id, o.item.id, o.base!, agent, solution, cutIds, excluded, allow));
-      return { problem: done.problem, changed: done.answer?.changed, notes: done.answer?.notes };
+      return { problem: done.problem, changed: done.answer?.changed, notes: done.answer?.notes ?? undefined };
     },
   });
   // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ------------
@@ -2014,7 +2016,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return keysOf(all.includes(node) ? all : [node]);
   };
   /** A change's answer as the shared flows take it. */
-  const doneOf = async (doing: Promise<{ problem?: string; answer?: { notes?: string[]; changed?: boolean } }>) => {
+  const doneOf = async (doing: Promise<{ problem?: string; answer?: { notes?: string[] | null; changed?: boolean } }>) => {
     const done = await doing;
     return { ...(done.problem && { problem: done.problem }), ...(done.answer?.notes && { notes: done.answer.notes }), ...(done.answer?.changed !== undefined && { changed: done.answer.changed }) };
   };

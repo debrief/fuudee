@@ -10,13 +10,45 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, LineStringGeometry, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
-import type { ListedCut } from "../webview/tma.js";
+import type {
+  AddPlotFileReply,
+  AgentRef,
+  AmbiguityResolution,
+  AnnotationSpec,
+  DebriefFeatureCollection,
+  ExportImageParams,
+  StampedImage,
+  ExportedImage,
+  FixMarkChanges,
+  ImportReply,
+  ItemAsked,
+  ItemRevision,
+  NarrativeChoices,
+  NarrativeSpec,
+  OpenReply,
+  PlotBase,
+  PlotReply,
+  PlotView,
+  SharedState,
+  SourceTrackRef,
+  Speed,
+  TimeRange,
+  TmaRequest,
+  ToolDeclaration,
+  ToolResult,
+  ToteView,
+  TrackEdit,
+} from "@debrief/schemas";
 import { guardRequest, type ShownReadOnly } from "./figures.js";
 import type { ToolOutcome } from "./diagnostics.js";
-import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
-import type { SensorPreview } from "./sensorimport.js";
+import type { RpcMethod, RpcParams, RpcReply } from "./generated/rpc.js";
 
+// Every type that crosses to the service is generated from schemas/linkml/rpc.yaml (PRN-04);
+// these names are kept for the extension's callers.
+export type { ExportedImage, HostRequest, StampedImage, TracedImage } from "@debrief/schemas";
+export type { RpcMethod, RpcParams, RpcReply };
+
+/** A library, or one of its tools, found but not offered, and why (tools/list's _meta, MCP's own). */
 export interface Unavailable {
   library: string;
   tool: string | null;
@@ -28,6 +60,7 @@ export interface ToolListing {
   unavailable: Unavailable[];
 }
 
+/** What a tools/call run said (MCP's own result, read here). */
 export interface CallOutcome {
   ok: boolean;
   /** How the run ended, in the words both logs use. */
@@ -44,67 +77,16 @@ export interface CallOutcome {
 }
 
 /** Where a plot's history stands: pass it back with the next change (SUB-28). */
-export interface Base {
-  current: number;
-  plot_hash: string;
-}
-
-export interface HistoryStep {
-  seq: number;
-  status: "applied" | "undone" | "abandoned";
-  kind: string;
-  tool: string | null;
-  agent: string;
-  at: string;
-  records: number;
-  /** The first record's notes: they name an edit made without a tool. */
-  notes?: string[];
-  /** The step it was made after: what undoing it goes back to. */
-  after?: number;
-  /**
-   * It changes nothing on the plot, only its records, as the step recording that a
-   * plot file was added does: Ctrl+Z takes it with the step before it.
-   */
-  records_only?: boolean;
-}
-
-export interface Opened {
-  base: Base;
-  /** How many steps the plot's history holds. */
-  latest?: number;
-  /** What opening had to repair after a crash, for the analyst (NFR-10). */
-  recovered: string[];
-}
-
+export type Base = PlotBase;
+/** What every method on one plot answers: what opening repaired, the base and the latest step. */
+export type Opened = PlotReply;
 /** What opening a plot says besides: its view (the island) and, rarely, the plot itself. */
-export interface OpenedView extends Opened {
-  /** The plot's view, kept in the plot file outside its history (SUB-22), and its hash. */
-  view: PlotView | null;
-  view_hash: string;
-  /** A retired presentation.json was made one recorded step. */
-  migrated?: boolean;
-  /** The plot with a retired presentation.json applied in memory, where it could not be migrated. */
-  plot?: DebriefFeatureCollection;
-}
-
+export type OpenedView = OpenReply;
 /** What adding a plot file received from a colleague says. */
-export interface AddedPlotFile {
-  item: string;
-  title: string;
-  /** How many steps of history came with it, the step recording its arrival included. */
-  steps: number;
-}
-
-export interface ImportReport {
-  item: string;
-  tracks: string[];
-  fixes: number;
-  annotations?: number;
-  narrative_entries?: number;
-  omitted: string[];
-  /** How each track is plotted, and how to change a remembered choice. */
-  notes?: string[];
-}
+export type AddedPlotFile = AddPlotFileReply;
+export type ImportReport = ImportReply;
+/** Who asks: recorded in provenance by every change (SUB-24). */
+export type Agent = AgentRef;
 
 /** A change to the plot's annotations, made by hand or by an agent (CAP-03). */
 export type AnnotationChange =
@@ -116,7 +98,7 @@ export type AnnotationChange =
 /** A change to the plot's narrative, made by hand or by an agent (CAP-20). */
 export type NarrativeChange =
   | { kind: "add"; entry: NarrativeSpec }
-  | { kind: "edit"; feature: string; entry: { [K in keyof NarrativeSpec]?: NarrativeSpec[K] | null } }
+  | { kind: "edit"; feature: string; entry: NarrativeSpec }
   | { kind: "delete"; features: string[] }
   | { kind: "import"; path: string; choices?: NarrativeChoices };
 
@@ -128,36 +110,15 @@ export type TrackChange =
 
 /** A collation step (CAP-09, CAP-11), by hand or by an agent: each one step naming the items. */
 export type CollationChange =
-  | { kind: "take"; source: { catalogue: string; item: string; revision?: string } }
+  | { kind: "take"; source: ItemAsked }
   | { kind: "prefer"; feature: string; period: TimeRange; source: SourceTrackRef }
   | { kind: "link"; feature: string; source: SourceTrackRef; linked: boolean };
 
 /** A track cleaned, or a fix marked, by hand or by an agent (CAP-01, EXT-14): each one step. */
 export type CleanChange =
-  | { kind: "remove_jumps"; feature: string; times: string[]; threshold?: { value: number; unit: string } }
-  | { kind: "smooth"; feature: string; window: number; period?: { start: string; end: string } }
-  | { kind: "mark"; feature: string; time: string; changes: { colour?: string | null; label?: string | null; comment?: string | null }; colour_name?: string };
-
-/** What smoothing did, or would do: how many fixes moved, the most any moved (metres) and when, and the words for it. */
-export interface SmoothingSummary {
-  moved: number;
-  largest: { value: number; unit: string };
-  largest_time: string | null;
-  summary: string;
-}
-
-/** What finding a track's jumps says: the threshold used, the track's median speed, and the jumps. */
-export interface JumpsFound {
-  feature: string;
-  threshold: { value: number; unit: string };
-  median_speed: { value: number; unit: string } | null;
-  jumps: { time: string; position: number[]; speed: { value: number; unit: string } | null; since: string; logged?: boolean }[];
-}
-
-export interface Agent {
-  kind: "person" | "software_agent";
-  name: string;
-}
+  | { kind: "remove_jumps"; feature: string; times: string[]; threshold?: Speed }
+  | { kind: "smooth"; feature: string; window: number; period?: TimeRange }
+  | { kind: "mark"; feature: string; time: string; changes: FixMarkChanges; colour_name?: string };
 
 export class ServiceError extends Error {
   constructor(
@@ -335,6 +296,14 @@ export class ToolService {
     });
   }
 
+  /**
+   * One of the service's own methods, typed by the schema: its parameters and its reply are the
+   * classes the registry names for it (rpc.yaml, vscode/src/generated/rpc.ts).
+   */
+  call<M extends RpcMethod>(method: M, params: RpcParams<M>): Promise<RpcReply<M>> {
+    return this.request(method, params as Record<string, unknown>);
+  }
+
   /** For tests: a request as an agent sends it, through the same guard. */
   raw<T>(method: string, params: Record<string, unknown>): Promise<T> {
     return this.request(method, params);
@@ -362,7 +331,7 @@ export class ToolService {
   }
 
   async toolsForSelection(kinds: string[]): Promise<string[]> {
-    return (await this.request<{ tools: string[] }>("debrief/tools_for_selection", { kinds })).tools;
+    return (await this.call("debrief/tools_for_selection", { kinds })).tools;
   }
 
   async callTool(
@@ -412,26 +381,22 @@ export class ToolService {
    * write to the plot.
    */
   open(store: string, item: string, agent: Agent, readOnly = false): Promise<OpenedView> {
-    return this.request("debrief/open", { store, item, agent, ...(readOnly && { read_only: true }) });
+    return this.call("debrief/open", { store, item, agent, ...(readOnly && { read_only: true }) });
   }
 
-  history(store: string, item: string): Promise<Opened & { steps: HistoryStep[] }> {
-    return this.request("debrief/history", { store, item });
+  history(store: string, item: string): Promise<RpcReply<"debrief/history">> {
+    return this.call("debrief/history", { store, item });
   }
 
   /** Undo, redo, or go to a step. Fails with CONFLICT if the plot changed since base. */
   move(how: "undo" | "redo" | "goto", store: string, item: string, base: Base, step?: number, allowNewerSchema = false): Promise<Opened> {
-    return this.request(`debrief/${how}`, {
-      store,
-      item,
-      base,
-      ...(step !== undefined && { step }),
-      ...(allowNewerSchema && { allow_newer_schema: true }),
-    });
+    const params = { store, item, base, ...(allowNewerSchema && { allow_newer_schema: true }) };
+    if (how === "goto") return this.call("debrief/goto", { ...params, step: step as number });
+    return this.call(`debrief/${how}`, params);
   }
 
-  createCatalogue(location: string, title: string): Promise<{ store: string }> {
-    return this.request("debrief/create_catalogue", { location, title });
+  async createCatalogue(location: string, title: string): Promise<{ store: string }> {
+    return this.call("debrief/create_catalogue", { location, title });
   }
 
   /**
@@ -446,16 +411,9 @@ export class ToolService {
     features: string[],
     change: { colour: string; colour_name?: string } | { hidden: boolean },
     allowNewerSchema = false,
-  ): Promise<Opened & { changed: boolean }> {
-    return this.request("colour" in change ? "debrief/set_colour" : "debrief/set_hidden", {
-      store,
-      item,
-      base,
-      agent,
-      features,
-      ...change,
-      ...(allowNewerSchema && { allow_newer_schema: true }),
-    });
+  ): Promise<RpcReply<"debrief/set_colour">> {
+    const params = { store, item, base, agent, features, ...(allowNewerSchema && { allow_newer_schema: true }) };
+    return "colour" in change ? this.call("debrief/set_colour", { ...params, ...change }) : this.call("debrief/set_hidden", { ...params, ...change });
   }
 
   /**
@@ -470,10 +428,10 @@ export class ToolService {
     base: Base,
     agent: Agent,
     features: string[],
-    changes: Record<string, unknown>,
+    changes: Pick<RpcParams<"debrief/set_track_frequencies">, "label_interval" | "symbol_interval" | "arrow_interval">,
     allowNewerSchema = false,
-  ): Promise<Opened & { changed: boolean }> {
-    return this.request("debrief/set_track_frequencies", { store, item, base, agent, features, ...changes, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  ): Promise<RpcReply<"debrief/set_track_frequencies">> {
+    return this.call("debrief/set_track_frequencies", { store, item, base, agent, features, ...changes, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /**
@@ -488,16 +446,12 @@ export class ToolService {
     agent: Agent,
     change: NarrativeChange,
     allowNewerSchema = false,
-  ): Promise<Opened & { changed: boolean; feature?: string; entries?: number; sources?: string[]; omitted?: string[]; notes?: string[] }> {
-    const [method, params] =
-      change.kind === "add"
-        ? ["debrief/add_narrative", { entry: change.entry }]
-        : change.kind === "edit"
-          ? ["debrief/edit_narrative", { feature: change.feature, entry: change.entry }]
-          : change.kind === "delete"
-            ? ["debrief/delete_narrative", { features: change.features }]
-            : ["debrief/import_narrative", { path: change.path, ...change.choices }];
-    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  ): Promise<RpcReply<"debrief/add_narrative"> & Partial<RpcReply<"debrief/import_narrative">>> {
+    const params = { store, item, base, agent, ...(allowNewerSchema && { allow_newer_schema: true }) };
+    if (change.kind === "add") return this.call("debrief/add_narrative", { ...params, entry: change.entry });
+    if (change.kind === "edit") return this.call("debrief/edit_narrative", { ...params, feature: change.feature, entry: change.entry });
+    if (change.kind === "delete") return this.call("debrief/delete_narrative", { ...params, features: change.features });
+    return this.call("debrief/import_narrative", { ...params, path: change.path, ...change.choices });
   }
 
   /**
@@ -512,16 +466,12 @@ export class ToolService {
     agent: Agent,
     change: AnnotationChange,
     allowNewerSchema = false,
-  ): Promise<Opened & { changed: boolean; feature?: string }> {
-    const [method, params] =
-      change.kind === "add"
-        ? ["debrief/add_annotation", { annotation: change.annotation }]
-        : change.kind === "edit"
-          ? ["debrief/edit_annotation", { feature: change.feature, annotation: change.annotation }]
-          : change.kind === "delete"
-            ? ["debrief/delete_annotations", { features: change.features }]
-            : ["debrief/set_north_arrow", { shown: change.shown }];
-    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  ): Promise<RpcReply<"debrief/add_annotation">> {
+    const params = { store, item, base, agent, ...(allowNewerSchema && { allow_newer_schema: true }) };
+    if (change.kind === "add") return this.call("debrief/add_annotation", { ...params, annotation: { ...change.annotation } });
+    if (change.kind === "edit") return this.call("debrief/edit_annotation", { ...params, feature: change.feature, annotation: { ...change.annotation } });
+    if (change.kind === "delete") return this.call("debrief/delete_annotations", { ...params, features: change.features });
+    return this.call("debrief/set_north_arrow", { ...params, shown: change.shown });
   }
 
   /**
@@ -536,14 +486,13 @@ export class ToolService {
     agent: Agent,
     change: TrackChange,
     allowNewerSchema = false,
-  ): Promise<Opened & { changed: boolean; feature?: string; features?: string[]; notes?: string[] }> {
-    const [method, params] =
-      change.kind === "edit"
-        ? ["debrief/edit_track", { feature: change.feature, edit: change.edit, ...(change.current_time && { current_time: change.current_time }) }]
-        : change.kind === "split"
-          ? ["debrief/split_track", { feature: change.feature, at: change.at, ...(change.names && { names: change.names }) }]
-          : ["debrief/merge_tracks", { features: change.features, ...(change.name && { name: change.name }) }];
-    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  ): Promise<RpcReply<"debrief/edit_track">> {
+    const params = { store, item, base, agent, ...(allowNewerSchema && { allow_newer_schema: true }) };
+    if (change.kind === "edit") {
+      return this.call("debrief/edit_track", { ...params, feature: change.feature, edit: change.edit, ...(change.current_time && { current_time: change.current_time }) });
+    }
+    if (change.kind === "split") return this.call("debrief/split_track", { ...params, feature: change.feature, at: change.at, ...(change.names && { names: change.names }) });
+    return this.call("debrief/merge_tracks", { ...params, features: change.features, ...(change.name && { name: change.name }) });
   }
 
   /**
@@ -552,8 +501,8 @@ export class ToolService {
    * named like "Port kept: 42 Towed array cuts 09:00:00Z–09:59:30Z".
    * Fails with CONFLICT if the plot changed since base.
    */
-  resolveAmbiguity(store: string, item: string, base: Base, agent: Agent, resolution: AmbiguityResolution, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
-    return this.request("debrief/resolve_ambiguity", { store, item, base, agent, ...resolution, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  resolveAmbiguity(store: string, item: string, base: Base, agent: Agent, resolution: AmbiguityResolution, allowNewerSchema = false): Promise<RpcReply<"debrief/resolve_ambiguity">> {
+    return this.call("debrief/resolve_ambiguity", { store, item, base, agent, ...resolution, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /**
@@ -562,28 +511,28 @@ export class ToolService {
    * cuts are then drawn, and their sides told, from the array. One recorded, undoable step,
    * named like "Towed array: 300 yd astern, worm in the hole"; changed false if so already.
    */
-  setArrayOffset(store: string, item: string, base: Base, agent: Agent, asked: { sensor_ids: string[]; offset: { value: number; unit: string } | null; mode?: "worm_in_hole" | "plain" }, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
-    return this.request("debrief/set_array_offset", { store, item, base, agent, ...asked, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  setArrayOffset(store: string, item: string, base: Base, agent: Agent, asked: Pick<RpcParams<"debrief/set_array_offset">, "sensor_ids" | "offset" | "mode">, allowNewerSchema = false): Promise<RpcReply<"debrief/set_array_offset">> {
+    return this.call("debrief/set_array_offset", { store, item, base, agent, ...asked, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** A sensor's cuts within a period (all of them, without), each with its bearings, side and where it was taken from (debrief/sensors): the bearing view's list. Changes nothing. */
-  sensorCuts(store: string, item: string, sensorId: string, period?: { start: string; end: string }): Promise<{ sensors: { id: string; cut_list?: ListedCut[] }[] }> {
-    return this.request("debrief/sensors", { store, item, sensor_ids: [sensorId], cuts: true, ...(period && { period }) });
+  sensorCuts(store: string, item: string, sensorId: string, period?: TimeRange): Promise<RpcReply<"debrief/sensors">> {
+    return this.call("debrief/sensors", { store, item, sensor_ids: [sensorId], cuts: true, ...(period && { period }) });
   }
 
   /** A TMA solution of a contact, rooted in a period of cuts, from a first guess (CAP-21): one recorded, undoable step. Returns its id and residuals. */
-  tmaCreate(store: string, item: string, base: Base, agent: Agent, request: TmaRequest, allowNewerSchema = false): Promise<Opened & { changed: boolean; feature: string; notes?: string[]; residuals: TmaResiduals }> {
-    return this.request("debrief/tma_create", { store, item, base, agent, request, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  tmaCreate(store: string, item: string, base: Base, agent: Agent, request: TmaRequest, allowNewerSchema = false): Promise<RpcReply<"debrief/tma_create">> {
+    return this.call("debrief/tma_create", { store, item, base, agent, request, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** A TMA solution's bearing residuals and RMS error (CAP-21). Changes nothing. */
-  tmaResiduals(store: string, item: string, feature: string): Promise<{ residuals: TmaResiduals }> {
-    return this.request("debrief/tma_residuals", { store, item, feature });
+  tmaResiduals(store: string, item: string, feature: string): Promise<RpcReply<"debrief/tma_residuals">> {
+    return this.call("debrief/tma_residuals", { store, item, feature });
   }
 
   /** Rooted cuts left out of a solution's RMS error, or counted again: one step; changed false if none would change. */
-  tmaExclude(store: string, item: string, base: Base, agent: Agent, feature: string, cutIds: string[], excluded: boolean, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
-    return this.request("debrief/tma_exclude_cut", { store, item, base, agent, feature, cut_ids: cutIds, excluded, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  tmaExclude(store: string, item: string, base: Base, agent: Agent, feature: string, cutIds: string[], excluded: boolean, allowNewerSchema = false): Promise<RpcReply<"debrief/tma_exclude_cut">> {
+    return this.call("debrief/tma_exclude_cut", { store, item, base, agent, feature, cut_ids: cutIds, excluded, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /**
@@ -591,45 +540,38 @@ export class ToolService {
    * before or after its fix at that time (product owner, 27 Oct 2026, the Outline's Split
    * before and Split after): one step.
    */
-  tmaSplitLeg(store: string, item: string, base: Base, agent: Agent, feature: string, at: string, join = false, allowNewerSchema = false, side?: "before" | "after"): Promise<Opened & { changed: boolean; notes?: string[] }> {
-    return this.request("debrief/tma_split_leg", { store, item, base, agent, feature, at, ...(join && { join }), ...(side && { side }), ...(allowNewerSchema && { allow_newer_schema: true }) });
+  tmaSplitLeg(store: string, item: string, base: Base, agent: Agent, feature: string, at: string, join = false, allowNewerSchema = false, side?: "before" | "after"): Promise<RpcReply<"debrief/tma_split_leg">> {
+    return this.call("debrief/tma_split_leg", { store, item, base, agent, feature, at, ...(join && { join }), ...(side && { side }), ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** Cuts deleted from the plot (product owner, 27 Oct 2026): one step; the solutions rooted in them drop them, which the notes say. */
-  deleteCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
-    return this.request("debrief/delete_cuts", { store, item, base, agent, cut_ids: cutIds, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  deleteCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], allowNewerSchema = false): Promise<RpcReply<"debrief/delete_cuts">> {
+    return this.call("debrief/delete_cuts", { store, item, base, agent, cut_ids: cutIds, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** Cuts hidden on the map or shown again (product owner, 27 Oct 2026): one step; the notes say which solutions' residuals they leave or join again. */
-  hideCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], hidden: boolean, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
-    return this.request("debrief/set_hidden", { store, item, base, agent, features: cutIds, hidden, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  hideCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], hidden: boolean, allowNewerSchema = false): Promise<RpcReply<"debrief/set_hidden">> {
+    return this.call("debrief/set_hidden", { store, item, base, agent, features: cutIds, hidden, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** What a .dsf or REP file's sensor lines hold, before they are read into the plot: which track would carry each sensor (CAP-22). Changes nothing. */
-  previewSensor(path: string, plot: { store: string; item: string }): Promise<SensorPreview> {
-    return this.request("debrief/preview_sensor", { path, ...plot });
+  previewSensor(path: string, plot: { store: string; item: string }): Promise<RpcReply<"debrief/preview_sensor">> {
+    return this.call("debrief/preview_sensor", { path, ...plot });
   }
 
   /** Read a .dsf or REP file's sensor lines into the plot as one step; hosts names the track for a track name the plot has not. */
-  importSensor(store: string, item: string, base: Base, agent: Agent, path: string, hosts: Record<string, string | null>, again = false, allowNewerSchema = false): Promise<Opened & { changed: boolean; sensors: string[]; cuts: number; omitted: string[]; notes: string[] }> {
-    return this.request("debrief/import_sensor", { store, item, base, agent, path, hosts, ...(again && { again }), ...(allowNewerSchema && { allow_newer_schema: true }) });
+  importSensor(store: string, item: string, base: Base, agent: Agent, path: string, hosts: Record<string, string | null>, again = false, allowNewerSchema = false): Promise<RpcReply<"debrief/import_sensor">> {
+    return this.call("debrief/import_sensor", { store, item, base, agent, path, hosts, ...(again && { again }), ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** A track's jumps, to show the analyst before any is removed: changes nothing (CAP-01). threshold left out: three times its median speed, at least 10 kn. */
-  findJumps(store: string, item: string, base: Base, feature: string, threshold?: { value: number; unit: string }, period?: { start: string; end: string }): Promise<Opened & JumpsFound> {
-    return this.request("debrief/find_jumps", { store, item, base, feature, ...(threshold && { threshold }), ...(period && { period }) });
+  findJumps(store: string, item: string, base: Base, feature: string, threshold?: Speed, period?: TimeRange): Promise<RpcReply<"debrief/find_jumps">> {
+    return this.call("debrief/find_jumps", { store, item, base, feature, ...(threshold && { threshold }), ...(period && { period }) });
   }
 
   /** The track as smoothing would leave it, and how far fixes would move: changes nothing (CAP-01). */
-  previewSmoothing(
-    store: string,
-    item: string,
-    base: Base,
-    feature: string,
-    window: number,
-    period?: { start: string; end: string },
-  ): Promise<Opened & SmoothingSummary & { preview: LineStringGeometry }> {
-    return this.request("debrief/preview_smoothing", { store, item, base, feature, window, ...(period && { period }) });
+  previewSmoothing(store: string, item: string, base: Base, feature: string, window: number, period?: TimeRange): Promise<RpcReply<"debrief/preview_smoothing">> {
+    return this.call("debrief/preview_smoothing", { store, item, base, feature, window, ...(period && { period }) });
   }
 
   /**
@@ -637,15 +579,17 @@ export class ToolService {
    * fix: each a recorded, undoable step ("BLUE ONE: 3 jumps removed"). Fails with CONFLICT
    * if the plot changed since base.
    */
-  cleanTrack(store: string, item: string, base: Base, agent: Agent, change: CleanChange, allowNewerSchema = false): Promise<Opened & { changed: boolean; feature?: string } & Partial<SmoothingSummary>> {
-    const { kind, ...params } = change;
-    const method = { remove_jumps: "debrief/remove_jumps", smooth: "debrief/smooth_track", mark: "debrief/mark_fix" }[kind];
-    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  cleanTrack(store: string, item: string, base: Base, agent: Agent, change: CleanChange, allowNewerSchema = false): Promise<RpcReply<"debrief/smooth_track">> {
+    const params = { store, item, base, agent, ...(allowNewerSchema && { allow_newer_schema: true }) };
+    const { kind, ...asked } = change;
+    if (kind === "remove_jumps") return this.call("debrief/remove_jumps", { ...params, ...(asked as Omit<Extract<CleanChange, { kind: "remove_jumps" }>, "kind">) });
+    if (kind === "smooth") return this.call("debrief/smooth_track", { ...params, ...(asked as Omit<Extract<CleanChange, { kind: "smooth" }>, "kind">) });
+    return this.call("debrief/mark_fix", { ...params, ...(asked as Omit<Extract<CleanChange, { kind: "mark" }>, "kind">) });
   }
 
   /** Change the plot's view (its island): never recorded or undone. Fails with CONFLICT if it changed since hash was read. */
-  setView(store: string, item: string, view: PlotView | null, hash: string, agent: Agent, allowNewerSchema = false): Promise<OpenedView> {
-    return this.request("debrief/set_view", { store, item, view, hash, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  setView(store: string, item: string, view: PlotView | null, hash: string, agent: Agent, allowNewerSchema = false): Promise<RpcReply<"debrief/set_view">> {
+    return this.call("debrief/set_view", { store, item, view, hash, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /**
@@ -653,13 +597,13 @@ export class ToolService {
    * each track's own, worked out in Python. tote says which tracks; left out, the
    * plot's island says. Reads only, so it never conflicts; asked again at each time.
    */
-  tote(store: string, item: string, time: string, tote?: ToteView, revision?: string): Promise<ToteResult> {
-    return this.request("debrief/tote", { store, item, time, ...(tote && { tote }), ...(revision && { revision }) });
+  tote(store: string, item: string, time: string, tote?: ToteView, revision?: string): Promise<RpcReply<"debrief/tote">> {
+    return this.call("debrief/tote", { store, item, time, ...(tote && { tote }), ...(revision && { revision }) });
   }
 
   /** The measure groups the Tote can show (CAP-07): core, for now. */
-  measureGroups(): Promise<{ groups: MeasureGroup[]; measures: MeasureDefinition[] }> {
-    return this.request("debrief/measure_groups");
+  measureGroups(): Promise<RpcReply<"debrief/measure_groups">> {
+    return this.call("debrief/measure_groups", {});
   }
 
   /**
@@ -667,13 +611,12 @@ export class ToolService {
    * undo, redo and provenance come with it. Refused if its history's checksums fail.
    */
   addPlotFile(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<AddedPlotFile> {
-    return this.request("debrief/add_plot_file", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
+    return this.call("debrief/add_plot_file", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
-  /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
   /** Import a REP or .dpf file; for a REP file, modes says how each track is plotted (otg or dr), and remembered how to change a remembered choice. */
-  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false, options: { modes?: string | Record<string, string>; remembered?: string; track_name?: string } = {}): Promise<ImportReport> {
-    return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }), ...options });
+  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false, options: Pick<RpcParams<"debrief/import">, "modes" | "remembered" | "track_name"> = {}): Promise<ImportReport> {
+    return this.call("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }), ...options });
   }
 
   /**
@@ -681,13 +624,13 @@ export class ToolService {
    * be asked what legacy Debrief asked; given a plot, its period and tracks are taken into
    * account (debrief/preview_narrative). Changes nothing.
    */
-  previewNarrative(path: string, plot?: { store: string; item: string }): Promise<NarrativePreview> {
-    return this.request("debrief/preview_narrative", { path, ...plot });
+  previewNarrative(path: string, plot?: { store: string; item: string }): Promise<RpcReply<"debrief/preview_narrative">> {
+    return this.call("debrief/preview_narrative", { path, ...plot });
   }
 
   /** The tracks a REP file would import, to ask how each is plotted. */
-  repTracks(path: string): Promise<{ tracks: string[] }> {
-    return this.request("debrief/rep_tracks", { path });
+  repTracks(path: string): Promise<RpcReply<"debrief/rep_tracks">> {
+    return this.call("debrief/rep_tracks", { path });
   }
 
   /**
@@ -695,8 +638,8 @@ export class ToolService {
    * data for each, the items marked as new data for it, and whether it may need review.
    * Reads only.
    */
-  coverage(store: string, item: string): Promise<Opened & { coverage: CoverageReport }> {
-    return this.request("debrief/coverage", { store, item });
+  coverage(store: string, item: string): Promise<RpcReply<"debrief/coverage">> {
+    return this.call("debrief/coverage", { store, item });
   }
 
   /**
@@ -704,26 +647,27 @@ export class ToolService {
    * a period of a track, or link or unlink a track in another item as a platform; each a
    * recorded, undoable step. Fails with CONFLICT if the plot changed since base.
    */
-  collate(store: string, item: string, base: Base, agent: Agent, change: CollationChange, allowNewerSchema = false): Promise<Opened & { changed: boolean; message?: string }> {
-    const { kind, ...params } = change;
-    const method = { take: "debrief/take_new_data", prefer: "debrief/set_source_preference", link: "debrief/link_tracks" }[kind];
-    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  collate(store: string, item: string, base: Base, agent: Agent, change: CollationChange, allowNewerSchema = false): Promise<RpcReply<"debrief/take_new_data">> {
+    const params = { store, item, base, agent, ...(allowNewerSchema && { allow_newer_schema: true }) };
+    if (change.kind === "take") return this.call("debrief/take_new_data", { ...params, source: change.source });
+    if (change.kind === "prefer") return this.call("debrief/set_source_preference", { ...params, feature: change.feature, period: change.period, source: change.source });
+    return this.call("debrief/link_tracks", { ...params, feature: change.feature, source: change.source, linked: change.linked });
   }
 
   /** Set an item's new data aside, or clear the plot's review flag (CAP-10, CAP-12): the plot's island, never a step. */
-  collationView(store: string, item: string, agent: Agent, change: { kind: "dismiss"; source: ItemRevision } | { kind: "reviewed" }): Promise<OpenedView & { changed: boolean }> {
-    if (change.kind === "dismiss") return this.request("debrief/dismiss_new_data", { store, item, agent, source: change.source });
-    return this.request("debrief/clear_review_flag", { store, item, agent });
+  collationView(store: string, item: string, agent: Agent, change: { kind: "dismiss"; source: ItemRevision } | { kind: "reviewed" }): Promise<RpcReply<"debrief/dismiss_new_data">> {
+    if (change.kind === "dismiss") return this.call("debrief/dismiss_new_data", { store, item, agent, source: change.source });
+    return this.call("debrief/clear_review_flag", { store, item, agent });
   }
 
   /** Every plot in the analyst's catalogues that may need review (CAP-12), with the store each is in. */
-  reviewFlags(): Promise<{ flags: (ReviewFlag & { store?: string })[] }> {
-    return this.request("debrief/review_flags");
+  reviewFlags(): Promise<RpcReply<"debrief/review_flags">> {
+    return this.call("debrief/review_flags", {});
   }
 
   /** A fresh image ID for an export of the plot (SUB-25): at its current revision, or the earlier one shown. Reads only. */
-  figureId(store: string, item: string, revision?: string): Promise<{ id: string; short: string; revision: string }> {
-    return this.request("debrief/figure_id", { store, item, ...(revision && { revision }) });
+  figureId(store: string, item: string, revision?: string): Promise<RpcReply<"debrief/figure_id">> {
+    return this.call("debrief/figure_id", { store, item, ...(revision && { revision }) });
   }
 
   /**
@@ -735,9 +679,10 @@ export class ToolService {
     store: string,
     item: string,
     agent: Agent,
-    request: { id: string; image: string; file: string; format: string; footer: boolean; preset: string; theme: string; width: number; height: number; viewport?: Viewport; time?: TimeState; tote?: ToteView },
+    request: Required<Pick<ExportImageParams, "id" | "image" | "file" | "format" | "footer" | "preset" | "theme" | "width" | "height">> & Pick<ExportImageParams, "viewport" | "time" | "tote">,
   ): Promise<StampedImage> {
-    return this.request("debrief/export_image", { store, item, agent, ...request });
+    // The host sends its image, so the reply is the image stamped, never an agent's export.
+    return this.call("debrief/export_image", { store, item, agent, ...request }) as Promise<StampedImage>;
   }
 
   /**
@@ -745,70 +690,24 @@ export class ToolService {
    * (SUB-25). Waits up to wait seconds for one; polling is what tells the service a map
    * is open.
    */
-  hostPoll(wait = 20): Promise<{ requests: HostRequest[] }> {
-    return this.request("debrief/host_poll", { wait_s: wait });
+  hostPoll(wait = 20): Promise<RpcReply<"debrief/host_poll">> {
+    return this.call("debrief/host_poll", { wait_s: wait });
   }
 
   /** The extension's answer to one of the service's requests: the export done, or why not. */
   hostAnswer(id: string, answer: { result: ExportedImage } | { problem: string }): Promise<unknown> {
-    return this.request("debrief/host_answer", { id, ...answer });
+    return this.call("debrief/host_answer", { id, ...answer });
   }
 
   /** The plots an image came from: by a file's metadata, or an ID typed from its footer. Reads only. */
-  findImageSource(where: { file: string } | { id: string }): Promise<{ images: TracedImage[]; problem?: string; skipped?: { where: string; why: string }[] }> {
-    return this.request("debrief/find_image_source", where);
+  findImageSource(where: { file: string } | { id: string }): Promise<RpcReply<"debrief/find_image_source">> {
+    return this.call("debrief/find_image_source", where);
   }
 
   /** The plot as it was at a revision, rebuilt by replay and checked, to show read-only; with the export log entry for the image id names. */
-  openRevision(store: string, item: string, revision: string, id?: string): Promise<{ plot: DebriefFeatureCollection; step: number; current: number; latest: number; revision: string; export?: ImageExport }> {
-    return this.request("debrief/open_revision", { store, item, revision, ...(id && { id }) });
+  openRevision(store: string, item: string, revision: string, id?: string): Promise<RpcReply<"debrief/open_revision">> {
+    return this.call("debrief/open_revision", { store, item, revision, ...(id && { id }) });
   }
-}
-
-/** The image stamped with its ID and the export recorded, given back to write. */
-export interface StampedImage {
-  id: string;
-  short: string;
-  revision: string;
-  /** A PNG as base 64, or an SVG's text. */
-  image: string;
-  recorded: boolean;
-  /** Where the export is recorded: the plot's export log, the analyst's own, or neither. */
-  logged?: "plot" | "user" | null;
-  note?: string;
-}
-
-/** An agent's export, asked of the open map by the service (debrief/host_poll). */
-export interface HostRequest {
-  id: string;
-  kind: "export_image";
-  store: string;
-  item: string;
-  file: string;
-  format: "png" | "svg";
-  preset?: string;
-  theme?: string;
-  footer?: boolean;
-  overwrite?: boolean;
-  agent: Agent;
-}
-
-/** What exporting an image said: where it went, its ID, and whether the plot's export log has it. */
-export interface ExportedImage {
-  file: string;
-  id: string;
-  short: string;
-  revision: string;
-  recorded: boolean;
-  note?: string;
-}
-
-/** An image ID read from a file (or typed), and the plots it names. */
-export interface TracedImage {
-  id: string;
-  short: string;
-  where: string;
-  sources: FigureSource[];
 }
 
 /** The error for a change asked of a plot shown read-only: refused in the extension, never sent. */

@@ -1,4 +1,4 @@
-"""python -m debrief_tools serve [--port N] [--library MODULE ...] | list | methods"""
+"""python -m debrief_tools serve [--port N] [--library MODULE ...] | list | methods | rpc-types"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import logging
 
 from debrief_schemas import DocumentKind, dump_document
 from debrief_tools import diagnostics
-from debrief_tools.methods import table
+from debrief_tools.methods import rpc_types, table
 from debrief_tools.registry import Registry
 from debrief_tools.service import METHODS, serve
 
@@ -21,6 +21,8 @@ def main() -> None:
         command.add_argument("--library", action="append", default=[], help="extra tool module")
     # The README's method table, printed from the service's registry.
     commands.add_parser("methods")
+    # The extension's types for each method (vscode/src/generated/rpc.ts), from the registry.
+    commands.add_parser("rpc-types")
     commands.choices["serve"].add_argument("--port", type=int, default=0)
     commands.choices["serve"].add_argument(
         "--timeout", type=float, default=120.0, help="seconds before a tool call is stopped"
@@ -32,6 +34,9 @@ def main() -> None:
         return
     if args.command == "methods":
         print(table(METHODS), end="")
+        return
+    if args.command == "rpc-types":
+        print(rpc_types(METHODS), end="")
         return
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     registry = Registry.discover(args.library)

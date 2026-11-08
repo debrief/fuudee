@@ -15,7 +15,7 @@
  *   quickly as tens), the period chosen, and the next or previous ambiguous cut.
  */
 import { convert, DEFAULT_SETTINGS, fixed, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
-import type { DebriefFeatureCollection, TimeRange, TmaCut, TmaFocus, TmaOwnship, TmaRequest, TmaResidualRow, TmaResiduals, TmaSensorRow, TmaSolutionRow } from "@debrief/schemas";
+import type { DebriefFeatureCollection, SensorCutRow, TimeRange, TmaCut, TmaFocus, TmaOwnship, TmaRequest, TmaResidualRow, TmaResiduals, TmaSensorRow, TmaSolutionRow } from "@debrief/schemas";
 import geodesic from "geographiclib-geodesic";
 import { pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
 import { bearingText, degrees, sensorsOf, type Kept } from "./sensors.js";
@@ -613,19 +613,8 @@ export function keepsSolution(plot: DebriefFeatureCollection, selection: string[
   });
 }
 
-/** A cut as debrief/sensors lists it (its cuts: true answer). */
-export interface ListedCut {
-  id: string;
-  time: string;
-  bearing: number;
-  ambiguous_bearing?: number;
-  resolved?: string | null;
-  side?: "port" | "starboard";
-  origin?: LonLat | null;
-  origin_derived?: boolean;
-  label?: string;
-  hidden?: boolean;
-}
+/** A cut as debrief/sensors lists it (its cuts: true answer), generated from rpc.yaml. */
+export type ListedCut = SensorCutRow;
 
 /**
  * The coverage the Bearing pane plots beside a solution's cuts: those not rooted in it, and never
@@ -646,7 +635,7 @@ export function cutRowsOf(sensor: TmaSensorRow, listed: ListedCut[], colours: Ma
       ...(colour && { colour }),
       time: c.time,
       bearing: c.bearing,
-      ...(c.ambiguous_bearing !== undefined && { ambiguous_bearing: c.ambiguous_bearing }),
+      ...(c.ambiguous_bearing != null && { ambiguous_bearing: c.ambiguous_bearing }),
       ...(c.resolved && { resolved: c.resolved as Kept }),
       ...(c.side && { side: c.side }),
       ...(c.origin && { origin: c.origin }),

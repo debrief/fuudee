@@ -10,6 +10,12 @@ method in it but the protocol's own, each with its input schema (Method.listing)
 its tool name (debrief/set_hidden is debrief.set_hidden: tool_name), which tools/call
 then runs.
 
+Each method names the schema's classes for what it takes and what it answers (request and
+reply, generated from schemas/linkml/rpc.yaml: PRN-04, review finding 3): the service's
+tests check every request that succeeds and every reply against them, and the extension's
+types for each method are printed from them (rpc_types). A method the schema does not
+describe (MCP's own) names neither.
+
 A Params model refuses what a method cannot take with the words the service has always
 used: each field names its refusal (Refusal), and the first field found wrong says it.
 """
@@ -23,6 +29,7 @@ from typing import Any, ClassVar, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, PlainValidator, ValidationError
 
+from debrief_schemas import class_problems
 from debrief_tools.rpc import INVALID_PARAMS, RpcError
 
 # What a tool's name may be (MCP's guidance, and the Claude API's): letters, digits,
@@ -119,6 +126,29 @@ class Method:
     # tools/call) and the host's bridge to an open map (host_poll, host_answer). Not
     # offered in tools/list, so not run through tools/call.
     protocol: bool = False
+    # The schema's classes for its parameters and its reply (rpc.yaml); a reply that
+    # takes one of several shapes names each. None for MCP's own methods.
+    request: type[BaseModel] | None = None
+    reply: type[BaseModel] | tuple[type[BaseModel], ...] | None = None
+
+    @property
+    def replies(self) -> tuple[type[BaseModel], ...]:
+        """The reply's classes: one, or each shape it may take."""
+        if self.reply is None:
+            return ()
+        return self.reply if isinstance(self.reply, tuple) else (self.reply,)
+
+    def problems(self, params: dict[str, Any], reply: Any) -> list[str]:
+        """How a request that succeeded, and its reply, differ from the method's classes in
+        the schema (JSON Schema, as TypeScript reads them): none if they match. A reply of
+        several shapes matches if one of them does."""
+        if self.request is None:
+            return []
+        found = [f"params {p}" for p in class_problems(self.request.__name__, params)]
+        shapes = {r.__name__: class_problems(r.__name__, reply) for r in self.replies}
+        if all(shapes.values()):
+            found += [f"reply as {name} {p}" for name, said in shapes.items() for p in said]
+        return found
 
     def read(self, params: dict[str, Any]) -> Params | None:
         """The method's parameters, checked; None for a method that takes none of its own."""
@@ -195,6 +225,8 @@ class Methods(Mapping[str, Method]):
             raise ValueError(f"{method.name} is registered twice")
         if method.writes and not method.history:
             raise ValueError(f"{method.name} changes a plot outside its history")
+        if (method.request is None) != (method.reply is None):
+            raise ValueError(f"{method.name} names a request class or a reply class, not both")
         if not method.protocol:
             if not TOOL_NAME.match(method.tool_name):
                 raise ValueError(f"{method.tool_name} is not a tool's name")
@@ -208,12 +240,15 @@ class Methods(Mapping[str, Method]):
         name: str,
         does: str,
         params: type[Params] | None = None,
+        *,
+        request: type[BaseModel] | None = None,
+        reply: type[BaseModel] | tuple[type[BaseModel], ...] | None = None,
         **flags: bool,
     ) -> Callable[[Handler], Handler]:
         """A decorator: the function it decorates is the method's handler."""
 
         def register(handler: Handler) -> Handler:
-            self.add(Method(name, does, handler, params, **flags))
+            self.add(Method(name, does, handler, params, request=request, reply=reply, **flags))
             return handler
 
         return register
@@ -255,3 +290,45 @@ def table(methods: Methods) -> str:
         tool = "" if method.protocol else f"`{method.tool_name}`"
         rows.append(f"| `{method.name}` | {writes} | {agent} | {tool} | {method.does} |")
     return "\n".join(rows) + "\n"
+
+
+RPC_TYPES = "vscode/src/generated/rpc.ts"
+
+
+def rpc_types(methods: Methods) -> str:
+    """The extension's types for each method, printed from the registry (vscode/src/
+    generated/rpc.ts): RpcMethods maps each method the schema describes to its parameters
+    and its reply, the classes generated from rpc.yaml into @debrief/schemas. A test holds
+    the file to this; python -m debrief_tools rpc-types writes it."""
+    typed = [m for m in methods.values() if m.request is not None]
+    names = sorted(
+        {m.request.__name__ for m in typed if m.request}
+        | {r.__name__ for m in typed for r in m.replies}
+    )
+    lines = [
+        "// Generated from the tool service's registry (debrief_tools.service.METHODS) by",
+        "// python -m debrief_tools rpc-types. Do not edit: change the method's request or reply",
+        "// class there, or the class in schemas/linkml/rpc.yaml.",
+        "import type {",
+        *(f"  {name}," for name in names),
+        '} from "@debrief/schemas";',
+        "",
+        "/** Each method the tool service answers that the schema describes (rpc.yaml):",
+        " * what it takes and what it answers. */",
+        "export interface RpcMethods {",
+    ]
+    for method in typed:
+        assert method.request is not None
+        reply = " | ".join(r.__name__ for r in method.replies)
+        lines.append(f'  "{method.name}": {{ params: {method.request.__name__}; reply: {reply} }};')
+    lines += [
+        "}",
+        "",
+        "/** A method the schema describes. */",
+        "export type RpcMethod = keyof RpcMethods;",
+        "/** What the method takes. */",
+        'export type RpcParams<M extends RpcMethod> = RpcMethods[M]["params"];',
+        "/** What the method answers. */",
+        'export type RpcReply<M extends RpcMethod> = RpcMethods[M]["reply"];',
+    ]
+    return "\n".join(lines) + "\n"

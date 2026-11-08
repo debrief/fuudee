@@ -10,7 +10,7 @@
  * renders them as tree items (PAR-03). It adds, drops, reorders and rewords nothing.
  */
 import * as vscode from "vscode";
-import type { HistoryStep } from "../service.js";
+import type { ListedStep } from "@debrief/schemas";
 import { HistoryModel, type HistoryRow } from "../../webview/panels/history.js";
 import { historyRows, type Row } from "./historyrows.js";
 
@@ -28,7 +28,7 @@ export function treeItemOf(row: HistoryRow): vscode.TreeItem {
 export class HistoryProvider implements vscode.TreeDataProvider<HistoryRow> {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changed.event;
-  steps: HistoryStep[] = [];
+  steps: ListedStep[] = [];
   current = 0;
   problem?: string;
   open = false;
@@ -37,7 +37,7 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryRow> {
 
   constructor(private readonly toolTitle: (name: string) => string | undefined) {}
 
-  update(steps: HistoryStep[], current: number, open = true, problem?: string, shown?: number): void {
+  update(steps: ListedStep[], current: number, open = true, problem?: string, shown?: number): void {
     Object.assign(this, { steps, current, open, problem, shown });
     this.changed.fire();
   }

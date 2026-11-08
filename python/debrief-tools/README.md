@@ -12,7 +12,7 @@ Debrief's tool framework and service (section 6 of the SRD), and the core tools.
 | `run` | Reads the plot and runs the tool on a copy. It validates the result and refuses any output the tool didn't declare. It applies the result, records provenance and saves atomically, refusing to overwrite a change saved while the tool ran (SUB-18, SUB-19, NFR-11). |
 | `worker` | Runs tool code in a separate process. A hung tool is stopped (after 120 s by default), and one that exits or crashes takes only the worker with it (TL-02, TL-03). |
 | `service` | MCP over HTTP: per user, loopback only, with a per-session token (TL-01, SEC-06 to SEC-08). Its JSON-RPC methods are registered once, in `METHODS`. |
-| `methods`, `method_params` | A method's declaration (`Method`: its parameters, whether it changes the plot, needs `agent` or runs on one plot, and its handler) and the registry; the parameters of each `debrief/` method, as Pydantic models whose refusals keep the service's words |
+| `methods`, `method_params` | A method's declaration (`Method`: its parameters, whether it changes the plot, needs `agent` or runs on one plot, its handler, and its parameters and reply classes in the schema, `rpc.yaml`) and the registry; the parameters of each `debrief/` method, as Pydantic models whose refusals keep the service's words. `python -m debrief_tools rpc-types` prints the extension's types for each method (`vscode/src/generated/rpc.ts`) |
 | `testing` | `sample_plot()` and `try_tool()`, so a tool's tests see exactly what Debrief would |
 | `core` | Track summary, closest approach, range rings, add note |
 

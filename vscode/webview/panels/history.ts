@@ -12,7 +12,7 @@
  * With no plot open, or when the history cannot be read, one row saying so.
  */
 import { describePeriod } from "../../src/format.js";
-import type { HistoryStep } from "../../src/service.js";
+import type { ListedStep } from "@debrief/schemas";
 import { historyRows, undoRedo } from "../../src/views/historyrows.js";
 import { describeStep } from "../../src/wording.js";
 import { rowActions } from "./actions.js";
@@ -28,7 +28,7 @@ export const NEXT_TO_UNDO = "next to undo";
 export interface HistoryInput {
   /** Whether a plot is open. */
   open: boolean;
-  steps: readonly HistoryStep[];
+  steps: readonly ListedStep[];
   /** The step current. */
   current: number;
   /** The step shown read-only, when an earlier revision is shown (an image traced to its plot). */
@@ -39,7 +39,7 @@ export interface HistoryInput {
   toolTitle: (name: string) => string | undefined;
 }
 
-const ICONS: Record<HistoryStep["status"], string> = {
+const ICONS: Record<ListedStep["status"], string> = {
   applied: "pass-filled",
   undone: "discard",
   abandoned: "circle-slash",
@@ -59,7 +59,7 @@ export interface HistoryRow {
   muted: boolean;
   /** The step's number and status, for a step. */
   seq?: number;
-  status?: HistoryStep["status"];
+  status?: ListedStep["status"];
   current: boolean;
   nextToUndo: boolean;
   /** Whether it is the step of the revision shown read-only. */

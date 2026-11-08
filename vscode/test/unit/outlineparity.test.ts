@@ -452,11 +452,11 @@ const { operationsFor } = await import("../../webview/panels/flows/operation.js"
 const { featureIdsOfPicks, pickOf } = await import("../../webview/outlinemodel.js");
 const { titleMenu } = await import("../../webview/panels/actions.js");
 type ToolDeclaration = import("@debrief/schemas").ToolDeclaration;
-type HistoryStep = import("../../src/service.js").HistoryStep;
+type ListedStep = import("@debrief/schemas").ListedStep;
 type OutlinePick = import("../../webview/outlinemodel.js").OutlinePick;
 
 /** Python's: the tools (as the playground and the service list them), which are offered for each selection asked, and each sample's history (debrief_tools.entries, PAR-15). */
-function fromPython(kinds: string[][]): { tools: ToolDeclaration[]; offered: string[][]; history: Record<string, HistoryStep[]> } {
+function fromPython(kinds: string[][]): { tools: ToolDeclaration[]; offered: string[][]; history: Record<string, ListedStep[]> } {
   const script = `
 import json, sys
 from pathlib import Path
@@ -672,7 +672,7 @@ describe("the Tools in both front ends (PAR-16)", { timeout: 60_000 }, () => {
 });
 
 /** Appendix C's states that apply to History, for a sample's history. */
-function historyStatesOf(steps: HistoryStep[]): Record<string, { open: boolean; steps: HistoryStep[]; current: number; shown?: number; problem?: string }> {
+function historyStatesOf(steps: ListedStep[]): Record<string, { open: boolean; steps: ListedStep[]; current: number; shown?: number; problem?: string }> {
   const latest = steps[steps.length - 1]?.seq ?? 0;
   // The last two steps undone: Ctrl+Z's next and Redo's both to show.
   const undone = steps.map((s, i) => (i >= steps.length - 2 && i > 0 ? { ...s, status: "undone" as const } : s));

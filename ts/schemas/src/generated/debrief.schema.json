@@ -1,5 +1,150 @@
 {
   "$defs": {
+    "AddAnnotationParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "annotation": {
+          "$ref": "#/$defs/AnnotationAsked"
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "annotation",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "AddAnnotationParams",
+      "type": "object"
+    },
+    "AddNarrativeParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "entry": {
+          "$ref": "#/$defs/NarrativeSpec"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "AddNarrativeParams",
+      "type": "object"
+    },
+    "AddPlotFileParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "allow_newer_schema": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "store": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "path",
+        "agent"
+      ],
+      "title": "AddPlotFileParams",
+      "type": "object"
+    },
+    "AddPlotFileReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "item": {
+          "type": "string"
+        },
+        "steps": {
+          "description": "How many steps came with it, the step recording its arrival included.",
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "item",
+        "title",
+        "steps"
+      ],
+      "title": "AddPlotFileReply",
+      "type": "object"
+    },
     "AgentKindEnum": {
       "description": "",
       "enum": [
@@ -255,6 +400,12 @@
         }
       },
       "title": "AnnotationAppearance",
+      "type": "object"
+    },
+    "AnnotationAsked": {
+      "additionalProperties": true,
+      "description": "An annotation as a request gives it: an AnnotationSpec, or, to change one, only the members that change; its positions numbers, or text in any notation the analyst types. Left open here: the catalogue reads it and says what is wrong in its own words.",
+      "title": "AnnotationAsked",
       "type": "object"
     },
     "AnnotationDrawnMessage": {
@@ -653,6 +804,49 @@
       "title": "ChartFurnitureEnum",
       "type": "string"
     },
+    "ClearReviewFlagParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "ClearReviewFlagParams",
+      "type": "object"
+    },
     "CollationView": {
       "additionalProperties": false,
       "description": "The analyst's answers to collation's marks, each for one revision of an item, so a later revision is marked again.",
@@ -812,6 +1006,48 @@
       "title": "CoverageLinkEnum",
       "type": "string"
     },
+    "CoverageParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "CoverageParams",
+      "type": "object"
+    },
     "CoveragePeriod": {
       "additionalProperties": false,
       "description": "A period in which the same sources have data for a platform.",
@@ -887,6 +1123,39 @@
         "periods"
       ],
       "title": "CoveragePlatform",
+      "type": "object"
+    },
+    "CoverageReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "coverage": {
+          "$ref": "#/$defs/CoverageReport"
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "coverage",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "CoverageReply",
       "type": "object"
     },
     "CoverageReport": {
@@ -1016,6 +1285,40 @@
       "title": "CoverageSource",
       "type": "object"
     },
+    "CreateCatalogueParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "location": {
+          "description": "An empty folder, or one holding a catalogue.",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "location",
+        "title"
+      ],
+      "title": "CreateCatalogueParams",
+      "type": "object"
+    },
+    "CreateCatalogueReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "store": {
+          "description": "The new store's id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store"
+      ],
+      "title": "CreateCatalogueReply",
+      "type": "object"
+    },
     "CutChosenMessage": {
       "additionalProperties": false,
       "description": "Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it.",
@@ -1034,6 +1337,56 @@
         "kind"
       ],
       "title": "CutChosenMessage",
+      "type": "object"
+    },
+    "CutsParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "cut_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cut_ids",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "CutsParams",
       "type": "object"
     },
     "DebriefFeatureCollection": {
@@ -1129,6 +1482,56 @@
         "kind"
       ],
       "title": "DeleteAnnotationMessage",
+      "type": "object"
+    },
+    "DeleteFeaturesParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "features": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "features",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "DeleteFeaturesParams",
       "type": "object"
     },
     "DeleteNarrativeMessage": {
@@ -1315,6 +1718,62 @@
       "title": "DismissAskedMessage",
       "type": "object"
     },
+    "DismissNewDataParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ItemRevision"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "DismissNewDataParams",
+      "type": "object"
+    },
+    "DuplicatesEnum": {
+      "description": "What to do with a file's entries the plot has already.",
+      "enum": [
+        "skip",
+        "add"
+      ],
+      "title": "DuplicatesEnum",
+      "type": "string"
+    },
     "Duration": {
       "additionalProperties": false,
       "description": "",
@@ -1343,6 +1802,39 @@
       ],
       "title": "DurationUnitEnum",
       "type": "string"
+    },
+    "EarlierRead": {
+      "additionalProperties": false,
+      "description": "A step in the plot now that read a file with the same content, under any name.",
+      "properties": {
+        "at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "by": {
+          "type": "string"
+        },
+        "how": {
+          "description": "The step's name, as the History view has it.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The file's name then.",
+          "type": "string"
+        },
+        "step": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "at",
+        "by",
+        "how",
+        "name"
+      ],
+      "title": "EarlierRead",
+      "type": "object"
     },
     "EditAnnotationMessage": {
       "additionalProperties": false,
@@ -1375,6 +1867,109 @@
       "title": "EditAnnotationMessage",
       "type": "object"
     },
+    "EditAnnotationParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "annotation": {
+          "$ref": "#/$defs/AnnotationAsked"
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "annotation",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "EditAnnotationParams",
+      "type": "object"
+    },
+    "EditNarrativeParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "entry": {
+          "$ref": "#/$defs/NarrativeSpec",
+          "description": "The members to change; null clears one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "entry",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "EditNarrativeParams",
+      "type": "object"
+    },
     "EditTrackMessage": {
       "additionalProperties": false,
       "description": "Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step.",
@@ -1400,6 +1995,71 @@
       "title": "EditTrackMessage",
       "type": "object"
     },
+    "EditTrackParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "current_time": {
+          "description": "A rotation's default pivot.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "edit": {
+          "$ref": "#/$defs/TrackEdit"
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "edit",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "EditTrackParams",
+      "type": "object"
+    },
+    "EmptyReply": {
+      "additionalProperties": false,
+      "description": "A method's reply that says nothing more than that it was done: {}.",
+      "title": "EmptyReply",
+      "type": "object"
+    },
     "ExportImageMessage": {
       "additionalProperties": false,
       "description": "Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25).",
@@ -1420,6 +2080,140 @@
       "title": "ExportImageMessage",
       "type": "object"
     },
+    "ExportImageParams": {
+      "additionalProperties": false,
+      "description": "A host's image to stamp and log (image given), or an agent's export for an open map to draw (no image; file the full path to write).",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "allow_newer_schema": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "footer": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageFormatEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "pattern": "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "description": "A PNG as base 64, or an SVG's text.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "item": {
+          "type": "string"
+        },
+        "overwrite": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "preset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImagePresetEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "type": "string"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageThemeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "viewport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Viewport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "width": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "ExportImageParams",
+      "type": "object"
+    },
     "ExportLog": {
       "additionalProperties": false,
       "description": "The analyst's own export log, exports.json beside their Debrief configuration: the newest 2,000 exports their plots could not keep.",
@@ -1435,6 +2229,54 @@
         }
       },
       "title": "ExportLog",
+      "type": "object"
+    },
+    "ExportLoggedEnum": {
+      "description": "Where an export is recorded.",
+      "enum": [
+        "plot",
+        "user"
+      ],
+      "title": "ExportLoggedEnum",
+      "type": "string"
+    },
+    "ExportedImage": {
+      "additionalProperties": false,
+      "description": "What exporting an image said, as the host answers an agent's export.",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$",
+          "type": "string"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recorded": {
+          "type": "boolean"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "short": {
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "id",
+        "short",
+        "revision",
+        "recorded"
+      ],
+      "title": "ExportedImage",
       "type": "object"
     },
     "FeatureCollectionTypeEnum": {
@@ -1466,6 +2308,56 @@
       ],
       "title": "FeatureTypeEnum",
       "type": "string"
+    },
+    "FigureIdParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "item": {
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "FigureIdParams",
+      "type": "object"
+    },
+    "FigureIdReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "id": {
+          "pattern": "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$",
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "short": {
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "short",
+        "revision"
+      ],
+      "title": "FigureIdReply",
+      "type": "object"
     },
     "FigureSource": {
       "additionalProperties": false,
@@ -1536,6 +2428,94 @@
         "current"
       ],
       "title": "FigureSource",
+      "type": "object"
+    },
+    "FindImageSourceParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "file": {
+          "description": "An image, or a Word or PowerPoint file of them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "An ID typed from a footer, in full or short.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "title": "FindImageSourceParams",
+      "type": "object"
+    },
+    "FindJumpsParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "feature",
+        "store",
+        "item"
+      ],
+      "title": "FindJumpsParams",
       "type": "object"
     },
     "FixChosenMessage": {
@@ -1630,6 +2610,44 @@
         "time"
       ],
       "title": "FixMark",
+      "type": "object"
+    },
+    "FixMarkChanges": {
+      "additionalProperties": false,
+      "description": "A fix's own colour, label or comment; null or \"\" takes one away.",
+      "properties": {
+        "colour": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "comment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "show_label": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "show_symbol": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "title": "FixMarkChanges",
       "type": "object"
     },
     "FormBusyMessage": {
@@ -1740,6 +2758,59 @@
       "title": "FormatSettings",
       "type": "object"
     },
+    "GotoParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "step": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "store",
+        "item"
+      ],
+      "title": "GotoParams",
+      "type": "object"
+    },
     "HistoryHead": {
       "additionalProperties": false,
       "description": "Where a plot's history stood, in the earlier layout (history/head.json). Read only to move a history into its plot file.",
@@ -1781,6 +2852,84 @@
         "plot_hash"
       ],
       "title": "HistoryHead",
+      "type": "object"
+    },
+    "HistoryParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "HistoryParams",
+      "type": "object"
+    },
+    "HistoryReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ListedStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "steps",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "HistoryReply",
       "type": "object"
     },
     "HistoryStep": {
@@ -1932,6 +3081,146 @@
       ],
       "title": "HistoryStep",
       "type": "object"
+    },
+    "HostAnswerParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "problem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExportedImage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "HostAnswerParams",
+      "type": "object"
+    },
+    "HostPollParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "wait_s": {
+          "description": "Seconds to wait for a request.",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "title": "HostPollParams",
+      "type": "object"
+    },
+    "HostPollReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "requests": {
+          "items": {
+            "$ref": "#/$defs/HostRequest"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "requests"
+      ],
+      "title": "HostPollReply",
+      "type": "object"
+    },
+    "HostRequest": {
+      "additionalProperties": false,
+      "description": "An agent's export, asked of the open map by the service.",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "file": {
+          "type": "string"
+        },
+        "footer": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "format": {
+          "$ref": "#/$defs/ImageFormatEnum"
+        },
+        "id": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/HostRequestKindEnum"
+        },
+        "overwrite": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "preset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImagePresetEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "type": "string"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageThemeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "store",
+        "item",
+        "file",
+        "format",
+        "agent"
+      ],
+      "title": "HostRequest",
+      "type": "object"
+    },
+    "HostRequestKindEnum": {
+      "description": "What the service asks of a host (VS Code).",
+      "enum": [
+        "export_image"
+      ],
+      "title": "HostRequestKindEnum",
+      "type": "string"
     },
     "ImageExport": {
       "additionalProperties": false,
@@ -2134,6 +3423,38 @@
       "title": "ImageRequest",
       "type": "object"
     },
+    "ImageSources": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "images": {
+          "items": {
+            "$ref": "#/$defs/TracedImage"
+          },
+          "type": "array"
+        },
+        "problem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "skipped": {
+          "items": {
+            "$ref": "#/$defs/SkippedPicture"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "images"
+      ],
+      "title": "ImageSources",
+      "type": "object"
+    },
     "ImageThemeEnum": {
       "description": "The colours an image is drawn in.",
       "enum": [
@@ -2142,6 +3463,316 @@
       ],
       "title": "ImageThemeEnum",
       "type": "string"
+    },
+    "ImportNarrativeParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "duplicates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuplicatesEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "platform": {
+          "description": "The source of entries whose document names none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "tracks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NameMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A platform's track: its id, or null for none."
+        },
+        "types": {
+          "description": "The entry types to read; \"\" for entries with none. Left out: all.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "within_period": {
+          "description": "Only entries within the plot's tracks' period.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "ImportNarrativeParams",
+      "type": "object"
+    },
+    "ImportParams": {
+      "additionalProperties": false,
+      "description": "A REP file, a legacy plot file or a Word or PDF document imported as a new plot.",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "allow_newer_schema": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "duplicates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuplicatesEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/NameMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How a REP file's tracks are plotted, otg or dr, one for all or by track name."
+        },
+        "path": {
+          "type": "string"
+        },
+        "platform": {
+          "description": "The source of entries whose document names none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remembered": {
+          "description": "The words saying how to change a remembered choice.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store": {
+          "type": "string"
+        },
+        "track_name": {
+          "description": "An ASW document's track.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tracks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NameMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A platform's track: its id, or null for none."
+        },
+        "types": {
+          "description": "The entry types to read; \"\" for entries with none. Left out: all.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "within_period": {
+          "description": "Only entries within the plot's tracks' period.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "store",
+        "path",
+        "agent"
+      ],
+      "title": "ImportParams",
+      "type": "object"
+    },
+    "ImportReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "annotations": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "fixes": {
+          "type": "integer"
+        },
+        "item": {
+          "type": "string"
+        },
+        "narrative_entries": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "notes": {
+          "description": "How each track is plotted, and how to change a remembered choice.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "omitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tracks": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "item",
+        "tracks",
+        "fixes",
+        "omitted"
+      ],
+      "title": "ImportReply",
+      "type": "object"
+    },
+    "ImportSensorParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "again": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "hosts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NameMap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "ImportSensorParams",
+      "type": "object"
     },
     "InnerSchemaRef": {
       "additionalProperties": false,
@@ -2160,6 +3791,148 @@
         "version"
       ],
       "title": "InnerSchemaRef",
+      "type": "object"
+    },
+    "IslandChangeReply": {
+      "additionalProperties": false,
+      "description": "A change to the plot's island, never a step, and the view as it now is.",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "view_hash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_hash",
+        "changed",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "IslandChangeReply",
+      "type": "object"
+    },
+    "IslandReply": {
+      "additionalProperties": false,
+      "description": "The plot's view (its island, SUB-22) and its hash, which a change to the view is checked against.",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The view; null if the plot has none."
+        },
+        "view_hash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_hash",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "IslandReply",
+      "type": "object"
+    },
+    "ItemAsked": {
+      "additionalProperties": false,
+      "description": "A catalogue item, by its catalogue's own id, and the revision the analyst saw.",
+      "properties": {
+        "catalogue": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "catalogue",
+        "item"
+      ],
+      "title": "ItemAsked",
       "type": "object"
     },
     "ItemRef": {
@@ -2240,6 +4013,107 @@
       ],
       "title": "ItemTypeEnum",
       "type": "string"
+    },
+    "Jump": {
+      "additionalProperties": false,
+      "description": "A fix reached faster than the threshold.",
+      "properties": {
+        "logged": {
+          "description": "A dead-reckoned track's jump: its logged speed.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "position": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "since": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "speed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "null when at the same time as the fix before, somewhere else."
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "position",
+        "since"
+      ],
+      "title": "Jump",
+      "type": "object"
+    },
+    "JumpsReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "jumps": {
+          "items": {
+            "$ref": "#/$defs/Jump"
+          },
+          "type": "array"
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "median_speed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "threshold": {
+          "$ref": "#/$defs/Speed"
+        }
+      },
+      "required": [
+        "feature",
+        "threshold",
+        "jumps",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "JumpsReply",
+      "type": "object"
     },
     "KnownStore": {
       "additionalProperties": false,
@@ -2433,6 +4307,124 @@
       "title": "LinkChangedMessage",
       "type": "object"
     },
+    "LinkTracksParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "linked": {
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceTrackRef"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "source",
+        "linked",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "LinkTracksParams",
+      "type": "object"
+    },
+    "ListedStep": {
+      "additionalProperties": false,
+      "description": "A step as the History panel lists it (SUB-21).",
+      "properties": {
+        "after": {
+          "description": "The step it was made after: what undoing it goes back to.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "agent": {
+          "description": "Who made it: each of its records' agents, once.",
+          "type": "string"
+        },
+        "at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProvActivityKindEnum"
+        },
+        "notes": {
+          "description": "The first record's notes: they name an edit made without a tool.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "records": {
+          "type": "integer"
+        },
+        "records_only": {
+          "description": "It changes only the plot's records, so undo takes it with the step before.",
+          "type": "boolean"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/StepStateEnum"
+        },
+        "tool": {
+          "description": "The tool that made it; null for an edit made without one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "seq",
+        "status",
+        "kind",
+        "agent",
+        "at",
+        "records",
+        "notes",
+        "records_only"
+      ],
+      "title": "ListedStep",
+      "type": "object"
+    },
     "LoggedExport": {
       "additionalProperties": false,
       "description": "An export recorded in the analyst's own export log, beside their Debrief configuration, where the plot's could not be written (a read-only catalogue, say), so every export stays traceable (decision, product owner, 16 Oct 2026).",
@@ -2455,6 +4447,88 @@
       ],
       "title": "LoggedExport",
       "type": "object"
+    },
+    "MarkFixParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "changes": {
+          "$ref": "#/$defs/FixMarkChanges"
+        },
+        "colour_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Read as cleaning's other methods read it; unused."
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "time",
+        "changes",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "MarkFixParams",
+      "type": "object"
+    },
+    "MatchedByEnum": {
+      "description": "How a file's track name was matched to one of the plot's tracks.",
+      "enum": [
+        "name",
+        "prefix"
+      ],
+      "title": "MatchedByEnum",
+      "type": "string"
     },
     "MeasureDefinition": {
       "additionalProperties": false,
@@ -2553,6 +4627,30 @@
       "title": "MeasureGroup",
       "type": "object"
     },
+    "MeasureGroupsReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/MeasureGroup"
+          },
+          "type": "array"
+        },
+        "measures": {
+          "items": {
+            "$ref": "#/$defs/MeasureDefinition"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "groups",
+        "measures"
+      ],
+      "title": "MeasureGroupsReply",
+      "type": "object"
+    },
     "MeasureSubjectEnum": {
       "description": "What a measure is of.",
       "enum": [
@@ -2589,6 +4687,121 @@
       "title": "MeasureValue",
       "type": "object"
     },
+    "MergeTracksParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "features": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "features",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "MergeTracksParams",
+      "type": "object"
+    },
+    "MoveParams": {
+      "additionalProperties": false,
+      "description": "Undo or redo.",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "MoveParams",
+      "type": "object"
+    },
+    "NameMap": {
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "description": "A name mapped to an id, or to null for none: a platform's track, a track name's host track, a track's plotting mode.",
+      "title": "NameMap",
+      "type": "object"
+    },
     "NamedSet": {
       "additionalProperties": false,
       "description": "A saved, reusable selection (TL-11).",
@@ -2612,6 +4825,59 @@
         "feature_ids"
       ],
       "title": "NamedSet",
+      "type": "object"
+    },
+    "NarrativeChoices": {
+      "additionalProperties": false,
+      "description": "The analyst's choices before a narrative is read, as legacy Debrief asked them (debrief_io.Choices).",
+      "properties": {
+        "duplicates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuplicatesEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platform": {
+          "description": "The source of entries whose document names none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tracks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NameMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A platform's track: its id, or null for none."
+        },
+        "types": {
+          "description": "The entry types to read; \"\" for entries with none. Left out: all.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "within_period": {
+          "description": "Only entries within the plot's tracks' period.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "title": "NarrativeChoices",
       "type": "object"
     },
     "NarrativeFeature": {
@@ -2690,6 +4956,84 @@
       "title": "NarrativeImportAnswers",
       "type": "object"
     },
+    "NarrativeImportReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "entries": {
+          "type": "integer"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "omitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries",
+        "sources",
+        "omitted",
+        "changed",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "NarrativeImportReply",
+      "type": "object"
+    },
     "NarrativeKindEnum": {
       "description": "",
       "enum": [
@@ -2716,6 +5060,242 @@
         "kind"
       ],
       "title": "NarrativeOnMapChangedMessage",
+      "type": "object"
+    },
+    "NarrativeParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "end": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "limit": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offset": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "start": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "NarrativeParams",
+      "type": "object"
+    },
+    "NarrativePreview": {
+      "additionalProperties": false,
+      "description": "What a narrative file holds, before it is read (CAP-19).",
+      "properties": {
+        "already": {
+          "description": "Entries the plot has already: the same time, source and text.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "described": {
+          "type": "string"
+        },
+        "dialect": {
+          "description": "A document's dialect; null for REP.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "earlier": {
+          "items": {
+            "$ref": "#/$defs/EarlierRead"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "end": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entries": {
+          "type": "integer"
+        },
+        "fixes": {
+          "description": "ASW data: positions of a track, not narrative.",
+          "type": "integer"
+        },
+        "format": {
+          "description": "rep, docx, doc or pdf.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "omitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "outside": {
+          "description": "Entries outside the plot's tracks' period.",
+          "type": "integer"
+        },
+        "platform": {
+          "description": "The source those entries will have.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "plot_end": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "plot_start": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/PreviewSource"
+          },
+          "type": "array"
+        },
+        "start": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/PreviewCount"
+          },
+          "type": "array"
+        },
+        "unnamed": {
+          "description": "Entries whose document names no platform.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "format",
+        "described",
+        "entries",
+        "fixes",
+        "types",
+        "sources",
+        "unnamed",
+        "outside",
+        "omitted",
+        "notes"
+      ],
+      "title": "NarrativePreview",
       "type": "object"
     },
     "NarrativeProperties": {
@@ -2769,6 +5349,110 @@
         "text"
       ],
       "title": "NarrativeProperties",
+      "type": "object"
+    },
+    "NarrativeReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "current": {
+          "description": "The entry current time is at, among those matching; null if none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/NarrativeRow"
+          },
+          "type": "array"
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/NarrativeTally"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/NarrativeTally"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries",
+        "total",
+        "offset",
+        "sources",
+        "types",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "NarrativeReply",
+      "type": "object"
+    },
+    "NarrativeRow": {
+      "additionalProperties": false,
+      "description": "An entry as debrief/narrative lists it.",
+      "properties": {
+        "entry_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "source",
+        "text"
+      ],
+      "title": "NarrativeRow",
       "type": "object"
     },
     "NarrativeSavedMessage": {
@@ -2838,6 +5522,24 @@
       "title": "NarrativeSpec",
       "type": "object"
     },
+    "NarrativeTally": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "entries": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "entries"
+      ],
+      "title": "NarrativeTally",
+      "type": "object"
+    },
     "NewDataMark": {
       "additionalProperties": false,
       "description": "Why an item is marked as new data for a plot (CAP-10): it came in after the plot, through Debrief's import, within the folder tree the plot draws from, and has data for the plot's platforms or within its period; the plot has not taken it or set it aside at this revision.",
@@ -2873,6 +5575,12 @@
         "note"
       ],
       "title": "NewDataMark",
+      "type": "object"
+    },
+    "NoParams": {
+      "additionalProperties": false,
+      "description": "The parameters of a method that takes none.",
+      "title": "NoParams",
       "type": "object"
     },
     "NonSpatialResult": {
@@ -2929,6 +5637,196 @@
         "kind"
       ],
       "title": "OpenNarrativeFormMessage",
+      "type": "object"
+    },
+    "OpenParams": {
+      "additionalProperties": false,
+      "description": "Given agent, a retired presentation.json is made a recorded step.",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "read_only": {
+          "description": "Shown read-only: an interrupted change is not recovered.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "OpenParams",
+      "type": "object"
+    },
+    "OpenReply": {
+      "additionalProperties": false,
+      "description": "The plot made whole, its base and its view.",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "migrated": {
+          "description": "A retired presentation.json was made one recorded step.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "plot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DebriefFeatureCollection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot with a retired presentation.json applied in memory, where it could not be migrated."
+        },
+        "recovered": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "description": "What opening repaired, for the analyst; false, not a list, when it was opened read-only and nothing was recovered (as sent since 16 Oct 2026)."
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The view; null if the plot has none."
+        },
+        "view_hash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_hash",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "OpenReply",
+      "type": "object"
+    },
+    "OpenRevisionParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "id": {
+          "description": "The image whose export log entry to give.",
+          "pattern": "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "item": {
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "store": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item",
+        "revision"
+      ],
+      "title": "OpenRevisionParams",
+      "type": "object"
+    },
+    "OpenRevisionReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "current": {
+          "type": "integer"
+        },
+        "export": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageExport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latest": {
+          "type": "integer"
+        },
+        "plot": {
+          "$ref": "#/$defs/DebriefFeatureCollection"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "step": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "plot",
+        "step",
+        "current",
+        "latest",
+        "revision"
+      ],
+      "title": "OpenRevisionReply",
       "type": "object"
     },
     "ParameterDeclaration": {
@@ -3218,6 +6116,131 @@
       "title": "PlayingChangedMessage",
       "type": "object"
     },
+    "PlotBase": {
+      "additionalProperties": false,
+      "description": "Where a plot's history stands: passed back with the next change, so a change made meanwhile elsewhere is never overwritten (SUB-28).",
+      "properties": {
+        "current": {
+          "description": "The current step.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plot_hash": {
+          "description": "The content hash of the plot at that step.",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "current",
+        "plot_hash"
+      ],
+      "title": "PlotBase",
+      "type": "object"
+    },
+    "PlotChangeParams": {
+      "additionalProperties": false,
+      "description": "A method that changes one plot, recorded with who made it (SUB-24).",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "PlotChangeParams",
+      "type": "object"
+    },
+    "PlotChangeReply": {
+      "additionalProperties": false,
+      "description": "A change to one plot: whether it changed, the feature it made or changed, and what the step's record says beyond its name.",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "changed",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "PlotChangeReply",
+      "type": "object"
+    },
     "PlotFeature": {
       "additionalProperties": false,
       "description": "The whole plot: its own details, and its view (the island). At most one per plot. Geometry is always null, so the plot file stays plain GeoJSON for other tools.",
@@ -3288,6 +6311,48 @@
       "title": "PlotKindEnum",
       "type": "string"
     },
+    "PlotParams": {
+      "additionalProperties": false,
+      "description": "A method on one plot, inside its history (SUB-21).",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "PlotParams",
+      "type": "object"
+    },
     "PlotProperties": {
       "additionalProperties": false,
       "description": "",
@@ -3325,6 +6390,35 @@
         "kind"
       ],
       "title": "PlotProperties",
+      "type": "object"
+    },
+    "PlotReply": {
+      "additionalProperties": false,
+      "description": "What every method on one plot answers, besides its own members.",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "PlotReply",
       "type": "object"
     },
     "PlotView": {
@@ -3485,6 +6579,118 @@
       "title": "PositionNotationEnum",
       "type": "string"
     },
+    "PreviewCount": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "count"
+      ],
+      "title": "PreviewCount",
+      "type": "object"
+    },
+    "PreviewNarrativeParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "item": {
+          "description": "Given, its period and tracks are taken into account.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "store": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "PreviewNarrativeParams",
+      "type": "object"
+    },
+    "PreviewSensorParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "item": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "store": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "store",
+        "item"
+      ],
+      "title": "PreviewSensorParams",
+      "type": "object"
+    },
+    "PreviewSource": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "track_id": {
+          "description": "The track it would belong to; null for none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "count"
+      ],
+      "title": "PreviewSource",
+      "type": "object"
+    },
     "ProvActivityKindEnum": {
       "description": "",
       "enum": [
@@ -3639,6 +6845,80 @@
       "title": "RedoAskedMessage",
       "type": "object"
     },
+    "RemoveJumpsParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "times": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "feature",
+        "times",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "RemoveJumpsParams",
+      "type": "object"
+    },
     "RenderedImage": {
       "additionalProperties": false,
       "description": "The image the map drew (image_rendered), before its ID goes into its metadata.",
@@ -3687,6 +6967,135 @@
         "height"
       ],
       "title": "RenderedImage",
+      "type": "object"
+    },
+    "RepTracksParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "RepTracksParams",
+      "type": "object"
+    },
+    "RepTracksReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "tracks": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "tracks"
+      ],
+      "title": "RepTracksReply",
+      "type": "object"
+    },
+    "ResolveAmbiguityParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "clear_cut_ids": {
+          "description": "With keep bearing or ambiguous_bearing: resolved cuts made ambiguous again in the same step, as a box drawn over their kept bearings with Select bearings on asks (product owner, 28 Oct 2026); one not resolved is left. Given (even empty), with other_cut_ids, the step is named for a box: \"Kept 12 Towed array cuts to starboard and made 15 ambiguous again\". Hidden cuts are left as they are.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cut_ids": {
+          "description": "The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "keep": {
+          "$ref": "#/$defs/AmbiguityKeepEnum"
+        },
+        "other_cut_ids": {
+          "description": "With keep bearing or ambiguous_bearing: cuts kept on their other bearing in the same step, so one step keeps some cuts' first bearings and others' twins, as a box drawn over the Bearings plot with Select bearings on asks (product owner, 28 Oct 2026). A cut named here and in cut_ids was boxed on both sides: it is left as it is, and the step says so. Hidden cuts are left as they are.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The cuts whose times fall in it, ends included, of the sensors named."
+        },
+        "sensor_ids": {
+          "description": "Sensors whose cuts in the period are resolved; every cut of each, without a period.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "keep",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "ResolveAmbiguityParams",
       "type": "object"
     },
     "ResolveAskedMessage": {
@@ -3821,6 +7230,65 @@
         "note"
       ],
       "title": "ReviewFlag",
+      "type": "object"
+    },
+    "ReviewFlagListed": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "catalogue": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "note": {
+          "description": "What the flag says, for its tooltip and screen readers.",
+          "type": "string"
+        },
+        "revised": {
+          "description": "Each item revised since the product took data from it, at its revision now.",
+          "items": {
+            "$ref": "#/$defs/ItemRef"
+          },
+          "type": "array"
+        },
+        "store": {
+          "description": "The store it is in; null if none in the configuration holds it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalogue",
+        "item",
+        "title",
+        "revised",
+        "note"
+      ],
+      "title": "ReviewFlagListed",
+      "type": "object"
+    },
+    "ReviewFlagsReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "flags": {
+          "items": {
+            "$ref": "#/$defs/ReviewFlagListed"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "flags"
+      ],
+      "title": "ReviewFlagsReply",
       "type": "object"
     },
     "RevisionShown": {
@@ -4155,6 +7623,97 @@
       "title": "SensorCutProperties",
       "type": "object"
     },
+    "SensorCutRow": {
+      "additionalProperties": false,
+      "description": "A cut as debrief/sensors lists it.",
+      "properties": {
+        "ambiguous_bearing": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "bearing": {
+          "type": "number"
+        },
+        "comment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "description": "[longitude, latitude] it is drawn from; null outside its host's span.",
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "origin_derived": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "range_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "resolved": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "side": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SideEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "bearing"
+      ],
+      "title": "SensorCutRow",
+      "type": "object"
+    },
     "SensorFeature": {
       "additionalProperties": false,
       "description": "A sensor carried by a track (CAP-22): a bow sonar, a towed array, the bearings read from a narrative. Its cuts are features of their own (SensorCutFeature), each naming it, so resolving one cut, or the cuts of a period, is one small recorded step (SUB-19), as each narrative entry is a feature of its own. Geometry is null: a cut is drawn from where the host track was at its time, so a track edited (moved, sheared, plotted by dead reckoning) carries its cuts with it, and a TMA solution (CAP-21) can be rooted in the cuts' times.",
@@ -4186,6 +7745,154 @@
         "properties"
       ],
       "title": "SensorFeature",
+      "type": "object"
+    },
+    "SensorImportReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "cuts": {
+          "type": "integer"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "omitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sensors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sensors",
+        "cuts",
+        "omitted",
+        "changed",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "SensorImportReply",
+      "type": "object"
+    },
+    "SensorInFile": {
+      "additionalProperties": false,
+      "description": "A sensor a file's lines hold, by track and name.",
+      "properties": {
+        "ambiguous": {
+          "type": "integer"
+        },
+        "cuts": {
+          "description": "Its cuts with a bearing.",
+          "type": "integer"
+        },
+        "end": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "host": {
+          "description": "That track's name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host_track_id": {
+          "description": "The plot's track that would carry it; null: ask.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lines": {
+          "type": "integer"
+        },
+        "matched_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MatchedByEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "sensor": {
+          "type": "string"
+        },
+        "start": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "track": {
+          "description": "The track name the lines give.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track",
+        "sensor",
+        "name",
+        "cuts",
+        "ambiguous",
+        "lines",
+        "start",
+        "end"
+      ],
+      "title": "SensorInFile",
       "type": "object"
     },
     "SensorKindEnum": {
@@ -4297,6 +8004,69 @@
       "title": "SensorObservationsProperties",
       "type": "object"
     },
+    "SensorPreview": {
+      "additionalProperties": false,
+      "description": "What a .dsf or REP file's sensor lines hold, before they are read (CAP-22).",
+      "properties": {
+        "content_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "cuts": {
+          "type": "integer"
+        },
+        "earlier": {
+          "items": {
+            "$ref": "#/$defs/EarlierRead"
+          },
+          "type": "array"
+        },
+        "fixes": {
+          "description": "Position lines: the file holds a track too.",
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "omitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sensors": {
+          "items": {
+            "$ref": "#/$defs/SensorInFile"
+          },
+          "type": "array"
+        },
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/TrackListed"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "sensors",
+        "cuts",
+        "fixes",
+        "tracks",
+        "omitted",
+        "notes",
+        "content_hash",
+        "earlier"
+      ],
+      "title": "SensorPreview",
+      "type": "object"
+    },
     "SensorProperties": {
       "additionalProperties": false,
       "description": "",
@@ -4372,6 +8142,332 @@
       "title": "SensorProperties",
       "type": "object"
     },
+    "SensorRow": {
+      "additionalProperties": false,
+      "description": "A sensor as debrief/sensors lists it.",
+      "properties": {
+        "ambiguous": {
+          "type": "integer"
+        },
+        "array_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArrayModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "array_offset_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "colour": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cut_list": {
+          "items": {
+            "$ref": "#/$defs/SensorCutRow"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cuts": {
+          "type": "integer"
+        },
+        "end": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host_track_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "resolved": {
+          "type": "integer"
+        },
+        "start": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "hidden",
+        "cuts",
+        "ambiguous",
+        "resolved"
+      ],
+      "title": "SensorRow",
+      "type": "object"
+    },
+    "SensorsParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "cuts": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sensor_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "SensorsParams",
+      "type": "object"
+    },
+    "SensorsReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sensors": {
+          "items": {
+            "$ref": "#/$defs/SensorRow"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sensors",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "SensorsReply",
+      "type": "object"
+    },
+    "SetArrayOffsetParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArrayModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Distance astern; null for at the ship."
+        },
+        "sensor_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sensor_ids",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SetArrayOffsetParams",
+      "type": "object"
+    },
+    "SetColourParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "colour": {
+          "type": "string"
+        },
+        "colour_name": {
+          "description": "The colour's name, for the step's name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "features",
+        "colour",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SetColourParams",
+      "type": "object"
+    },
     "SetContextMessage": {
       "additionalProperties": false,
       "description": "Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.",
@@ -4390,6 +8486,60 @@
         "kind"
       ],
       "title": "SetContextMessage",
+      "type": "object"
+    },
+    "SetHiddenParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "features": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "features",
+        "hidden",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SetHiddenParams",
       "type": "object"
     },
     "SetNarrativeMessage": {
@@ -4418,6 +8568,53 @@
       "title": "SetNarrativeMessage",
       "type": "object"
     },
+    "SetNorthArrowParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "shown": {
+          "type": "boolean"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "shown",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SetNorthArrowParams",
+      "type": "object"
+    },
     "SetSelectionMessage": {
       "additionalProperties": false,
       "description": "Host to map: the selection changed elsewhere (selection).",
@@ -4435,6 +8632,61 @@
         "kind"
       ],
       "title": "SetSelectionMessage",
+      "type": "object"
+    },
+    "SetSourcePreferenceParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "period": {
+          "$ref": "#/$defs/TimeRange"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceTrackRef"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "period",
+        "source",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SetSourcePreferenceParams",
       "type": "object"
     },
     "SetTimeMessage": {
@@ -4480,6 +8732,163 @@
         "kind"
       ],
       "title": "SetToteMessage",
+      "type": "object"
+    },
+    "SetTrackFrequenciesParams": {
+      "additionalProperties": false,
+      "description": "Each interval given is a duration, \"off\", or null for Debrief's default (CAP-32).",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "arrow_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "features": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "label_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "symbol_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "features",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SetTrackFrequenciesParams",
+      "type": "object"
+    },
+    "SetViewParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "hash": {
+          "description": "The view's hash as last read.",
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The view; null to clear it."
+        }
+      },
+      "required": [
+        "hash",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SetViewParams",
       "type": "object"
     },
     "SetViewportMessage": {
@@ -5082,6 +9491,339 @@
       "title": "SideEnum",
       "type": "string"
     },
+    "SkippedPicture": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "where": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "where",
+        "why"
+      ],
+      "title": "SkippedPicture",
+      "type": "object"
+    },
+    "SmoothTrackParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "window": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "feature",
+        "window",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SmoothTrackParams",
+      "type": "object"
+    },
+    "SmoothingPreviewParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        },
+        "window": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "feature",
+        "window",
+        "store",
+        "item"
+      ],
+      "title": "SmoothingPreviewParams",
+      "type": "object"
+    },
+    "SmoothingPreviewReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "largest": {
+          "$ref": "#/$defs/Length",
+          "description": "The most any moved."
+        },
+        "largest_time": {
+          "description": "When; null if none moved.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "moved": {
+          "description": "How many fixes moved.",
+          "type": "integer"
+        },
+        "preview": {
+          "$ref": "#/$defs/LineStringGeometry"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "description": "The words for it.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "preview",
+        "moved",
+        "largest",
+        "summary",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "SmoothingPreviewReply",
+      "type": "object"
+    },
+    "SmoothingReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "largest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The most any moved."
+        },
+        "largest_time": {
+          "description": "When; null if none moved.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "moved": {
+          "description": "How many fixes moved.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "description": "The words for it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "changed",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "SmoothingReply",
+      "type": "object"
+    },
+    "SmoothingSummary": {
+      "additionalProperties": false,
+      "description": "What smoothing did, or would do.",
+      "properties": {
+        "largest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The most any moved."
+        },
+        "largest_time": {
+          "description": "When; null if none moved.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "moved": {
+          "description": "How many fixes moved.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "summary": {
+          "description": "The words for it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "title": "SmoothingSummary",
+      "type": "object"
+    },
     "SourceChosenMessage": {
       "additionalProperties": false,
       "description": "Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09).",
@@ -5207,6 +9949,78 @@
       ],
       "title": "SpeedUnitEnum",
       "type": "string"
+    },
+    "SplitSideEnum": {
+      "description": "Which side of the fix at the time given a split falls.",
+      "enum": [
+        "before",
+        "after"
+      ],
+      "title": "SplitSideEnum",
+      "type": "string"
+    },
+    "SplitTrackParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "names": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "at",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "SplitTrackParams",
+      "type": "object"
     },
     "StacAsset": {
       "additionalProperties": true,
@@ -5593,6 +10407,56 @@
       "title": "StacLink",
       "type": "object"
     },
+    "StampedImage": {
+      "additionalProperties": false,
+      "description": "A host's image stamped with its ID and the export recorded, given back to write.",
+      "properties": {
+        "id": {
+          "pattern": "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "logged": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExportLoggedEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where the export is recorded; null for nowhere."
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recorded": {
+          "type": "boolean"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "short": {
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "short",
+        "revision",
+        "image",
+        "recorded"
+      ],
+      "title": "StampedImage",
+      "type": "object"
+    },
     "StepStateEnum": {
       "description": "Where a step stands, as the after links and the current step say.",
       "enum": [
@@ -5610,6 +10474,45 @@
       ],
       "title": "StoreKindEnum",
       "type": "string"
+    },
+    "StoreListed": {
+      "additionalProperties": false,
+      "description": "A store in the analyst's configuration.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "read_only": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "read_only"
+      ],
+      "title": "StoreListed",
+      "type": "object"
+    },
+    "StoresReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "stores": {
+          "items": {
+            "$ref": "#/$defs/StoreListed"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "stores"
+      ],
+      "title": "StoresReply",
+      "type": "object"
     },
     "TakeAskedMessage": {
       "additionalProperties": false,
@@ -5629,6 +10532,127 @@
         "kind"
       ],
       "title": "TakeAskedMessage",
+      "type": "object"
+    },
+    "TakeNewDataParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ItemAsked"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "TakeNewDataParams",
+      "type": "object"
+    },
+    "TakeNewDataReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message": {
+          "description": "Why nothing was taken.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "step": {
+          "description": "The step taking it.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "changed",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "TakeNewDataReply",
       "type": "object"
     },
     "TimeChangedMessage": {
@@ -5804,6 +10828,77 @@
       "title": "TimelineEntryKindEnum",
       "type": "string"
     },
+    "TmaChangeReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "residuals": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaResiduals"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The solution's residuals after the change."
+        }
+      },
+      "required": [
+        "changed",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "TmaChangeReply",
+      "type": "object"
+    },
     "TmaChosenMessage": {
       "additionalProperties": false,
       "description": "Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id).",
@@ -5842,6 +10937,243 @@
         "kind"
       ],
       "title": "TmaCreateMessage",
+      "type": "object"
+    },
+    "TmaCreateParams": {
+      "additionalProperties": false,
+      "description": "A TmaRequest, in request or as the parameters themselves.",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "colour": {
+          "description": "The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contact": {
+          "description": "The contact's name; left out, the next of \"Contact 1\", \"Contact 2\"...",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "course": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: the solution's course."
+        },
+        "cut_ids": {
+          "description": "Or the cuts to root it in, by feature id.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "first_bearing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first."
+        },
+        "first_position": {
+          "items": {
+            "description": "First guess by two clicks: [longitude, latitude] clicked on, or near, the first cut's line: the solution starts on the line, level with it.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "last_position": {
+          "items": {
+            "description": "First guess by two clicks: [longitude, latitude] clicked on, or near, the last cut's line; the course and speed are those from the first position, on the first cut's line, to this one, on the last's.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "name": {
+          "description": "The solution track's name; left out, the contact's with \"solution\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The cuts whose times fall in it, ends included, of the sensors named."
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts."
+        },
+        "request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaRequest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sensor_ids": {
+          "description": "The sensors whose cuts in the period it is rooted in.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "speed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: the solution's speed."
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "TmaCreateParams",
+      "type": "object"
+    },
+    "TmaCreateReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "feature": {
+          "description": "The feature made or changed.",
+          "type": "string"
+        },
+        "features": {
+          "description": "The features made (the parts of a split track).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "notes": {
+          "description": "What the step's record says beyond its name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "residuals": {
+          "$ref": "#/$defs/TmaResiduals",
+          "description": "The solution's residuals after the change."
+        }
+      },
+      "required": [
+        "residuals",
+        "changed",
+        "feature",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "TmaCreateReply",
       "type": "object"
     },
     "TmaCut": {
@@ -5965,6 +11297,66 @@
         "kind"
       ],
       "title": "TmaCutOffMessage",
+      "type": "object"
+    },
+    "TmaExcludeCutParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "cut_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "excluded": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "cut_ids",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "TmaExcludeCutParams",
       "type": "object"
     },
     "TmaExcludeMessage": {
@@ -6643,6 +12035,85 @@
       "title": "TmaResiduals",
       "type": "object"
     },
+    "TmaResidualsParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "store",
+        "item"
+      ],
+      "title": "TmaResidualsParams",
+      "type": "object"
+    },
+    "TmaResidualsReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "residuals": {
+          "$ref": "#/$defs/TmaResiduals"
+        }
+      },
+      "required": [
+        "residuals",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "TmaResidualsReply",
+      "type": "object"
+    },
     "TmaResolveMessage": {
       "additionalProperties": false,
       "description": "Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026).",
@@ -6867,6 +12338,74 @@
         "cuts"
       ],
       "title": "TmaSolutionRow",
+      "type": "object"
+    },
+    "TmaSplitLegParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentRef",
+          "description": "Who made the change, recorded in provenance (SUB-24)."
+        },
+        "allow_newer_schema": {
+          "description": "The analyst agreed to writing a newer schema into the catalogue (SUB-35).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "feature": {
+          "type": "string"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "join": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "side": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SplitSideEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "at",
+        "store",
+        "item",
+        "agent"
+      ],
+      "title": "TmaSplitLegParams",
       "type": "object"
     },
     "TmaSplitMessage": {
@@ -7248,6 +12787,42 @@
       "title": "ToolResult",
       "type": "object"
     },
+    "ToolsForSelectionParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "kinds": {
+          "description": "The selection's feature kinds.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kinds"
+      ],
+      "title": "ToolsForSelectionParams",
+      "type": "object"
+    },
+    "ToolsForSelectionReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "tools": {
+          "description": "The tools on offer, by name, in the order declared (TL-08).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "tools"
+      ],
+      "title": "ToolsForSelectionReply",
+      "type": "object"
+    },
     "ToteChangedMessage": {
       "additionalProperties": false,
       "description": "Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).",
@@ -7266,6 +12841,48 @@
         "kind"
       ],
       "title": "ToteChangedMessage",
+      "type": "object"
+    },
+    "ToteParams": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "item": {
+          "type": "string"
+        },
+        "revision": {
+          "description": "An earlier revision shown read-only.",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store": {
+          "type": "string"
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "tote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which tracks; left out, the plot's island says."
+        }
+      },
+      "required": [
+        "store",
+        "item",
+        "time"
+      ],
+      "title": "ToteParams",
       "type": "object"
     },
     "ToteResult": {
@@ -7442,6 +13059,46 @@
         }
       },
       "title": "ToteView",
+      "type": "object"
+    },
+    "TracedImage": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "pattern": "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$",
+              "type": "string"
+            },
+            {
+              "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$",
+              "type": "string"
+            }
+          ],
+          "description": "The ID as read, or as typed from a footer, in full or its short form."
+        },
+        "short": {
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/FigureSource"
+          },
+          "type": "array"
+        },
+        "where": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "short",
+        "where",
+        "sources"
+      ],
+      "title": "TracedImage",
       "type": "object"
     },
     "TrackCoverage": {
@@ -7681,6 +13338,24 @@
       ],
       "title": "TrackKindEnum",
       "type": "string"
+    },
+    "TrackListed": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "TrackListed",
+      "type": "object"
     },
     "TrackProperties": {
       "additionalProperties": false,

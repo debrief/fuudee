@@ -136,7 +136,7 @@ export function insideFolders(file: string, folders: string[], windows = false):
 export const OUTSIDE_FOLDERS = "An agent may export images only into this workspace's folders or the folder set in Debrief: Export folder.";
 
 /** What an export said, for the analyst: the file, its ID, and whether the plot's export log has it. */
-export function describeExported(answer: { file: string; short: string; recorded: boolean; note?: string }, footer: boolean): string {
+export function describeExported(answer: { file: string; short: string; recorded: boolean; note?: string | null }, footer: boolean): string {
   const where = footer ? "in its metadata and its corner" : "in its metadata (no footer)";
   const name = answer.file.split(/[\\/]/).pop();
   return `Exported ${name}. Its ID, ${answer.short}, is ${where}.${answer.recorded ? " The plot's export log has it." : ` ${answer.note ?? ""}`}`.trim();

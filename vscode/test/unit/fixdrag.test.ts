@@ -332,7 +332,7 @@ describe("a DR track edited by its origin, courses and speeds, as the tool servi
   });
 
   it("a jump on a DR track is a wild logged speed, said so", () => {
-    const jump = { time: FIX_TIMES[3], position: RED[3], speed: { value: 180, unit: "[kn_i]" }, since: FIX_TIMES[4], logged: true };
+    const jump = { time: FIX_TIMES[3], position: RED[3], speed: { value: 180, unit: "[kn_i]" as const }, since: FIX_TIMES[4], logged: true };
     expect(describeJump(jump).description).toMatch(/· logged 180\.0 kn on to 09:34:00Z$/);
     expect(jumpsFound("RED ONE (DR)", 1, { value: 36, unit: "[kn_i]" }, undefined, true)).toBe(
       "RED ONE (DR): 1 jump found, each logged faster than 36.0 kn, so dead reckoning takes the leg from it too far. Check them on the map and in the list.",

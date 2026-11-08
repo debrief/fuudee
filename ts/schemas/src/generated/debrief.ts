@@ -252,7 +252,10 @@ export type ImagePresetEnum = "screen" | "slide" | "a4_landscape";
  */
 export type ImageThemeEnum = "current" | "light";
 /**
- * Applied, undone or abandoned: what the after links and the history's current step say. Not part of step_hash, since undo changes it.
+ * Where a step stands, as the after links and the current step say.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StepStateEnum".
  */
 export type StepStateEnum = "applied" | "undone" | "abandoned";
 /**
@@ -260,6 +263,13 @@ export type StepStateEnum = "applied" | "undone" | "abandoned";
  * via the `definition` "FeatureCollectionTypeEnum".
  */
 export type FeatureCollectionTypeEnum = "FeatureCollection";
+/**
+ * What to do with a file's entries the plot has already.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DuplicatesEnum".
+ */
+export type DuplicatesEnum = "skip" | "add";
 /**
  * What a track edit does (CAP-01).
  *
@@ -274,6 +284,13 @@ export type TrackEditActionEnum = "move" | "rotate" | "shear" | "stretch" | "mov
  * via the `definition` "TrackEditAnchorEnum".
  */
 export type TrackEditAnchorEnum = "start" | "end";
+/**
+ * Where an export is recorded.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ExportLoggedEnum".
+ */
+export type ExportLoggedEnum = "plot" | "user";
 /**
  * The feature taxonomy (TL-06).
  *
@@ -293,6 +310,13 @@ export type PositionNotationEnum = "dd" | "dm" | "dms";
  */
 export type TimeStyleEnum = "time" | "date_time" | "dtg";
 /**
+ * What the service asks of a host (VS Code).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HostRequestKindEnum".
+ */
+export type HostRequestKindEnum = "export_image";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ItemTypeEnum".
  */
@@ -304,6 +328,13 @@ export type ItemTypeEnum = "Feature";
  * via the `definition` "StoreKindEnum".
  */
 export type StoreKindEnum = "file";
+/**
+ * How a file's track name was matched to one of the plot's tracks.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MatchedByEnum".
+ */
+export type MatchedByEnum = "name" | "prefix";
 /**
  * How a measure's value is written for people, by the formatting service (SUB-04).
  *
@@ -331,6 +362,13 @@ export type ResultPresentationEnum = "number" | "table" | "graph";
  */
 export type ParameterKindEnum = "number" | "integer" | "string" | "boolean" | "choice" | "quantity" | "time";
 /**
+ * Which side of the host's course a bearing is on (CAP-22).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SideEnum".
+ */
+export type SideEnum = "port" | "starboard";
+/**
  * What a Timeline row is.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -346,13 +384,6 @@ export type TimelineEntryKindEnum = "narrative" | "annotation" | "fix_comment" |
 export type ToolOutputKindEnum =
   "new_features" | "modified_features" | "deleted_features" | "non_spatial" | "named_sets" | "state_change";
 /**
- * Which side of the host's course a bearing is on (CAP-22).
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "SideEnum".
- */
-export type SideEnum = "port" | "starboard";
-/**
  * Whether a track in the Tote has values at current time.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -360,12 +391,12 @@ export type SideEnum = "port" | "starboard";
  */
 export type ToteRowStatusEnum = "ok" | "no_data" | "missing";
 /**
- * Where a step stands, as the after links and the current step say.
+ * Which side of the fix at the time given a split falls.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "StepStateEnum".
+ * via the `definition` "SplitSideEnum".
  */
-export type StepStateEnum1 = "applied" | "undone" | "abandoned";
+export type SplitSideEnum = "before" | "after";
 /**
  * How tracks imported are plotted: ask for each track (the default), or one choice the analyst said to use for future imports. User state, kept here and never in a catalogue or a plot file.
  *
@@ -526,6 +557,33 @@ export type WebviewMessageKindEnum =
 
 export interface DebriefSchemaDefinitions {}
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AddAnnotationParams".
+ */
+export interface AddAnnotationParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  annotation: AnnotationAsked;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
  * Who made a change; for software agents, which model (SUB-24).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -535,6 +593,93 @@ export interface AgentRef {
   kind: AgentKindEnum;
   model?: string | null;
   name: string;
+}
+/**
+ * An annotation as a request gives it: an AnnotationSpec, or, to change one, only the members that change; its positions numbers, or text in any notation the analyst types. Left open here: the catalogue reads it and says what is wrong in its own words.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationAsked".
+ */
+export interface AnnotationAsked {
+  [k: string]: unknown;
+}
+/**
+ * Where a plot's history stands: passed back with the next change, so a change made meanwhile elsewhere is never overwritten (SUB-28).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotBase".
+ */
+export interface PlotBase {
+  /**
+   * The current step.
+   */
+  current: number;
+  /**
+   * The content hash of the plot at that step.
+   */
+  plot_hash: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AddNarrativeParams".
+ */
+export interface AddNarrativeParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  entry: NarrativeSpec;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * A narrative entry as the analyst describes it in a form, or an agent in a request (debrief/add_narrative, debrief/edit_narrative): made into a narrative feature as one recorded step (CAP-20).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeSpec".
+ */
+export interface NarrativeSpec {
+  entry_type?: string | null;
+  source?: string | null;
+  text?: string | null;
+  time?: string | null;
+  track_id?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AddPlotFileParams".
+ */
+export interface AddPlotFileParams {
+  agent: AgentRef;
+  allow_newer_schema?: boolean | null;
+  path: string;
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AddPlotFileReply".
+ */
+export interface AddPlotFileReply {
+  item: string;
+  /**
+   * How many steps came with it, the step recording its arrival included.
+   */
+  steps: number;
+  title: string;
 }
 /**
  * Ambiguous cuts resolved, or made ambiguous again, as the map, a menu or an agent asks (CAP-22): one recorded, undoable step (product owner, 24 Oct 2026). The cuts are those named, or else the cuts of the sensors named within a period (the time window, as the analyst sets it). Cuts with no ambiguous bearing are left as they are, and the step says how many.
@@ -888,6 +1033,32 @@ export interface CancelMessage {
   kind: "cancel";
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ClearReviewFlagParams".
+ */
+export interface ClearReviewFlagParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
  * The analyst's answers to collation's marks, each for one revision of an item, so a later revision is marked again.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -997,6 +1168,28 @@ export interface TrackCoverage {
   track: string;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoverageParams".
+ */
+export interface CoverageParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
  * A period in which the same sources have data for a platform.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1063,6 +1256,25 @@ export interface CoverageSource {
   track: string;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoverageReply".
+ */
+export interface CoverageReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  coverage: CoverageReport;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+}
+/**
  * Coverage for one plot (CAP-08, CAP-09): its platforms with every source of data for each, the items in the folder tree it draws from with their marks, and whether the plot itself may need review.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1117,6 +1329,27 @@ export interface ReviewFlag {
   title: string;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CreateCatalogueParams".
+ */
+export interface CreateCatalogueParams {
+  /**
+   * An empty folder, or one holding a catalogue.
+   */
+  location: string;
+  title: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CreateCatalogueReply".
+ */
+export interface CreateCatalogueReply {
+  /**
+   * The new store's id.
+   */
+  store: string;
+}
+/**
  * Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1128,6 +1361,33 @@ export interface CutChosenMessage {
    */
   feature_id: string;
   kind: "cut_chosen";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CutsParams".
+ */
+export interface CutsParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  cut_ids: string[];
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * The unit of analysis (SUB-05), stored as an asset of a STAC item.
@@ -1380,18 +1640,14 @@ export interface TmaSolution {
    * When each leg after the first starts, in time order: the solution split into legs (product owner, 24 Oct 2026). A fix exactly at a time starts the later leg, as a split does. Left out, one leg.
    */
   leg_starts?: string[] | null;
-  period: TimeRange1;
+  /**
+   * The period of bearings it is rooted in, ends included.
+   */
+  period: TimeRange;
   /**
    * The sensors whose cuts it was rooted in when it was made, as their ids were then: what the analyst chose. The cuts themselves are in cut_ids.
    */
   sensor_ids: string[];
-}
-/**
- * A closed interval of time. Start shall not be after end.
- */
-export interface TimeRange1 {
-  end: string;
-  start: string;
 }
 /**
  * A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.
@@ -1549,7 +1805,10 @@ export interface SensorCutProperties {
    * A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous.
    */
   ambiguous_bearing?: Angle | null;
-  bearing: Angle1;
+  /**
+   * The bearing to the target, true, clockwise from north, from 0 up to 360 degrees.
+   */
+  bearing: Angle;
   /**
    * The bearing accuracy a ;SENSOR3: line gives, kept exactly as written: no format says what it means (a standard deviation, a half-width), so it is not drawn (product owner, 24 Oct 2026).
    */
@@ -1600,10 +1859,6 @@ export interface SensorCutProperties {
    * When the cut was taken, to the millisecond, Zulu (SUB-01).
    */
   time: string;
-}
-export interface Angle1 {
-  unit: AngleUnitEnum;
-  value: number;
 }
 /**
  * One narrative entry (CAP-19, CAP-20, EXT-14): what a platform, a person or a document logged at a time. A feature of its own with null geometry, as a time-only annotation is, so other GeoJSON tools read it, and each entry added, changed or deleted is one small recorded, undoable step (SUB-19). Every narrative feature in a plot together makes the plot's narrative: one combined Zulu time axis, however many sources it came from, in the order narrative_order gives (time; then source, ignoring case; then the plot's order, so a log's own order at one time is kept).
@@ -1892,6 +2147,9 @@ export interface HistoryStep {
    * Position in the plot's history, from 1, with no gaps.
    */
   seq: number;
+  /**
+   * Applied, undone or abandoned: what the after links and the history's current step say. Not part of step_hash, since undo changes it.
+   */
   state: StepStateEnum;
   /**
    * SHA-256 of this step's canonical JSON, without step_hash and state, followed by the previous step's step_hash (see the module description).
@@ -1921,6 +2179,33 @@ export interface DeleteAnnotationMessage {
    */
   feature_id: string;
   kind: "delete_annotation";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DeleteFeaturesParams".
+ */
+export interface DeleteFeaturesParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  features: string[];
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * Timeline to host: delete this narrative entry (feature_id), as one recorded step.
@@ -2014,6 +2299,52 @@ export interface DismissAskedMessage {
   kind: "dismiss_asked";
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DismissNewDataParams".
+ */
+export interface DismissNewDataParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  source: ItemRevision;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * A step in the plot now that read a file with the same content, under any name.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "EarlierRead".
+ */
+export interface EarlierRead {
+  at: string;
+  by: string;
+  /**
+   * The step's name, as the History view has it.
+   */
+  how: string;
+  /**
+   * The file's name then.
+   */
+  name: string;
+  step: number;
+}
+/**
  * Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2029,6 +2360,65 @@ export interface EditAnnotationMessage {
    */
   feature_id: string;
   kind: "edit_annotation";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "EditAnnotationParams".
+ */
+export interface EditAnnotationParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  annotation: AnnotationAsked;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "EditNarrativeParams".
+ */
+export interface EditNarrativeParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The members to change; null clears one.
+   */
+  entry: NarrativeSpec;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step.
@@ -2111,6 +2501,45 @@ export interface TrackEdit {
   speed?: Speed | null;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "EditTrackParams".
+ */
+export interface EditTrackParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * A rotation's default pivot.
+   */
+  current_time?: string | null;
+  edit: TrackEdit;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * A method's reply that says nothing more than that it was done: {}.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "EmptyReply".
+ */
+export interface EmptyReply {}
+/**
  * Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2139,6 +2568,34 @@ export interface ImageRequest {
   theme: ImageThemeEnum;
 }
 /**
+ * A host's image to stamp and log (image given), or an agent's export for an open map to draw (no image; file the full path to write).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ExportImageParams".
+ */
+export interface ExportImageParams {
+  agent: AgentRef;
+  allow_newer_schema?: boolean | null;
+  file?: string | null;
+  footer?: boolean | null;
+  format?: ImageFormatEnum | null;
+  height?: number | null;
+  id?: string | null;
+  /**
+   * A PNG as base 64, or an SVG's text.
+   */
+  image?: string | null;
+  item: string;
+  overwrite?: boolean | null;
+  preset?: ImagePresetEnum | null;
+  store: string;
+  theme?: ImageThemeEnum | null;
+  time?: TimeState | null;
+  tote?: ToteView | null;
+  viewport?: Viewport | null;
+  width?: number | null;
+}
+/**
  * The analyst's own export log, exports.json beside their Debrief configuration: the newest 2,000 exports their plots could not keep.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2160,6 +2617,38 @@ export interface LoggedExport {
   catalogue: string;
   export: ImageExport;
   item: string;
+}
+/**
+ * What exporting an image said, as the host answers an agent's export.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ExportedImage".
+ */
+export interface ExportedImage {
+  file: string;
+  id: string;
+  note?: string | null;
+  recorded: boolean;
+  revision: string;
+  short: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FigureIdParams".
+ */
+export interface FigureIdParams {
+  item: string;
+  revision?: string | null;
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FigureIdReply".
+ */
+export interface FigureIdReply {
+  id: string;
+  revision: string;
+  short: string;
 }
 /**
  * Where an image came from: a plot in one of the analyst's catalogues, at the revision the image was exported at (Find source of image).
@@ -2198,6 +2687,45 @@ export interface FigureSource {
   title: string;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FindImageSourceParams".
+ */
+export interface FindImageSourceParams {
+  /**
+   * An image, or a Word or PowerPoint file of them.
+   */
+  file?: string | null;
+  /**
+   * An ID typed from a footer, in full or short.
+   */
+  id?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FindJumpsParams".
+ */
+export interface FindJumpsParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  period?: TimeRange | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  threshold?: Speed | null;
+}
+/**
  * Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2213,6 +2741,19 @@ export interface FixChosenMessage {
    */
   fix_time: string;
   kind: "fix_chosen";
+}
+/**
+ * A fix's own colour, label or comment; null or "" takes one away.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FixMarkChanges".
+ */
+export interface FixMarkChanges {
+  colour?: string | null;
+  comment?: string | null;
+  label?: string | null;
+  show_label?: boolean | null;
+  show_symbol?: boolean | null;
 }
 /**
  * Host to form: the tool is running (message).
@@ -2256,6 +2797,30 @@ export interface FormatSettings {
   time_zone: string;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "GotoParams".
+ */
+export interface GotoParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  step: number;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
  * Where a plot's history stood, in the earlier layout (history/head.json). Read only to move a history into its plot file.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2279,6 +2844,125 @@ export interface HistoryHead {
    */
   plot_hash: string;
   schema_version: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HistoryParams".
+ */
+export interface HistoryParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HistoryReply".
+ */
+export interface HistoryReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  steps: ListedStep[];
+}
+/**
+ * A step as the History panel lists it (SUB-21).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ListedStep".
+ */
+export interface ListedStep {
+  /**
+   * The step it was made after: what undoing it goes back to.
+   */
+  after?: number | null;
+  /**
+   * Who made it: each of its records' agents, once.
+   */
+  agent: string;
+  at: string;
+  kind: ProvActivityKindEnum;
+  /**
+   * The first record's notes: they name an edit made without a tool.
+   */
+  notes: string[];
+  records: number;
+  /**
+   * It changes only the plot's records, so undo takes it with the step before.
+   */
+  records_only: boolean;
+  seq: number;
+  status: StepStateEnum;
+  /**
+   * The tool that made it; null for an edit made without one.
+   */
+  tool?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HostAnswerParams".
+ */
+export interface HostAnswerParams {
+  id: string;
+  problem?: string | null;
+  result?: ExportedImage | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HostPollParams".
+ */
+export interface HostPollParams {
+  /**
+   * Seconds to wait for a request.
+   */
+  wait_s?: number | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HostPollReply".
+ */
+export interface HostPollReply {
+  requests: HostRequest[];
+}
+/**
+ * An agent's export, asked of the open map by the service.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HostRequest".
+ */
+export interface HostRequest {
+  agent: AgentRef;
+  file: string;
+  footer?: boolean | null;
+  format: ImageFormatEnum;
+  id: string;
+  item: string;
+  kind: HostRequestKindEnum;
+  overwrite?: boolean | null;
+  preset?: ImagePresetEnum | null;
+  store: string;
+  theme?: ImageThemeEnum | null;
 }
 /**
  * Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn.
@@ -2316,6 +3000,291 @@ export interface RenderedImage {
    */
   viewport?: Viewport | null;
   width: number;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImageSources".
+ */
+export interface ImageSources {
+  images: TracedImage[];
+  problem?: string | null;
+  skipped?: SkippedPicture[] | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TracedImage".
+ */
+export interface TracedImage {
+  /**
+   * The ID as read, or as typed from a footer, in full or its short form.
+   */
+  id: string;
+  short: string;
+  sources: FigureSource[];
+  where: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SkippedPicture".
+ */
+export interface SkippedPicture {
+  where: string;
+  why: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImportNarrativeParams".
+ */
+export interface ImportNarrativeParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  duplicates?: DuplicatesEnum | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  path: string;
+  /**
+   * The source of entries whose document names none.
+   */
+  platform?: string | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  /**
+   * A platform's track: its id, or null for none.
+   */
+  tracks?: NameMap | null;
+  /**
+   * The entry types to read; "" for entries with none. Left out: all.
+   */
+  types?: string[] | null;
+  /**
+   * Only entries within the plot's tracks' period.
+   */
+  within_period?: boolean | null;
+}
+/**
+ * A name mapped to an id, or to null for none: a platform's track, a track name's host track, a track's plotting mode.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NameMap".
+ */
+export interface NameMap {
+  [k: string]: string | null;
+}
+/**
+ * A REP file, a legacy plot file or a Word or PDF document imported as a new plot.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImportParams".
+ */
+export interface ImportParams {
+  agent: AgentRef;
+  allow_newer_schema?: boolean | null;
+  duplicates?: DuplicatesEnum | null;
+  /**
+   * How a REP file's tracks are plotted, otg or dr, one for all or by track name.
+   */
+  modes?: string | NameMap | null;
+  path: string;
+  /**
+   * The source of entries whose document names none.
+   */
+  platform?: string | null;
+  /**
+   * The words saying how to change a remembered choice.
+   */
+  remembered?: string | null;
+  store: string;
+  /**
+   * An ASW document's track.
+   */
+  track_name?: string | null;
+  /**
+   * A platform's track: its id, or null for none.
+   */
+  tracks?: NameMap | null;
+  /**
+   * The entry types to read; "" for entries with none. Left out: all.
+   */
+  types?: string[] | null;
+  /**
+   * Only entries within the plot's tracks' period.
+   */
+  within_period?: boolean | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImportReply".
+ */
+export interface ImportReply {
+  annotations?: number | null;
+  fixes: number;
+  item: string;
+  narrative_entries?: number | null;
+  /**
+   * How each track is plotted, and how to change a remembered choice.
+   */
+  notes?: string[] | null;
+  omitted: string[];
+  tracks: string[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImportSensorParams".
+ */
+export interface ImportSensorParams {
+  again?: boolean | null;
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  hosts?: NameMap | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  path: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * A change to the plot's island, never a step, and the view as it now is.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "IslandChangeReply".
+ */
+export interface IslandChangeReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  /**
+   * The feature made or changed.
+   */
+  feature?: string | null;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  view?: PlotView | null;
+  view_hash: string;
+}
+/**
+ * The plot's view (its island, SUB-22) and its hash, which a change to the view is checked against.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "IslandReply".
+ */
+export interface IslandReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  /**
+   * The view; null if the plot has none.
+   */
+  view?: PlotView | null;
+  view_hash: string;
+}
+/**
+ * A catalogue item, by its catalogue's own id, and the revision the analyst saw.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ItemAsked".
+ */
+export interface ItemAsked {
+  catalogue: string;
+  item: string;
+  revision?: string | null;
+}
+/**
+ * A fix reached faster than the threshold.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Jump".
+ */
+export interface Jump {
+  /**
+   * A dead-reckoned track's jump: its logged speed.
+   */
+  logged?: boolean | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  position: [number, number];
+  since: string;
+  /**
+   * null when at the same time as the fix before, somewhere else.
+   */
+  speed?: Speed | null;
+  time: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "JumpsReply".
+ */
+export interface JumpsReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  feature: string;
+  jumps: Jump[];
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  median_speed?: Speed | null;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  threshold: Speed;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2371,6 +3340,69 @@ export interface LinkChangedMessage {
   source: SourceTrackRef;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LinkTracksParams".
+ */
+export interface LinkTracksParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  linked: boolean;
+  source: SourceTrackRef;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MarkFixParams".
+ */
+export interface MarkFixParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  changes: FixMarkChanges;
+  colour_name?: string | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * Read as cleaning's other methods read it; unused.
+   */
+  period?: TimeRange | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  time: string;
+}
+/**
  * One measure the Tote can show. The core measures are Debrief's own; a study may add more (CAP-07), each worked out in Python.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2417,6 +3449,14 @@ export interface MeasureGroup {
   title: string;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MeasureGroupsReply".
+ */
+export interface MeasureGroupsReply {
+  groups: MeasureGroup[];
+  measures: MeasureDefinition[];
+}
+/**
  * One measure's value at current time; value left out where it cannot be worked out (no depth recorded, say).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2429,6 +3469,84 @@ export interface MeasureValue {
    */
   unit?: string | null;
   value?: number | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MergeTracksParams".
+ */
+export interface MergeTracksParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  features: string[];
+  /**
+   * The plot's id.
+   */
+  item: string;
+  name?: string | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * Undo or redo.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MoveParams".
+ */
+export interface MoveParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * The analyst's choices before a narrative is read, as legacy Debrief asked them (debrief_io.Choices).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeChoices".
+ */
+export interface NarrativeChoices {
+  duplicates?: DuplicatesEnum | null;
+  /**
+   * The source of entries whose document names none.
+   */
+  platform?: string | null;
+  /**
+   * A platform's track: its id, or null for none.
+   */
+  tracks?: NameMap | null;
+  /**
+   * The entry types to read; "" for entries with none. Left out: all.
+   */
+  types?: string[] | null;
+  /**
+   * Only entries within the plot's tracks' period.
+   */
+  within_period?: boolean | null;
 }
 /**
  * What the analyst answered for documents of one dialect: the types not read (so a type not seen before is read), whether only entries within the plot's period, and the track each platform was said to be.
@@ -2468,6 +3586,40 @@ export interface PlatformTrack {
   track?: string | null;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeImportReply".
+ */
+export interface NarrativeImportReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  entries: number;
+  /**
+   * The feature made or changed.
+   */
+  feature?: string | null;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  omitted: string[];
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  sources: string[];
+}
+/**
  * Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2479,6 +3631,154 @@ export interface NarrativeOnMapChangedMessage {
    * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
    */
   narrative_on_map: boolean;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeParams".
+ */
+export interface NarrativeParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  at?: string | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  end?: string | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  limit?: number | null;
+  offset?: number | null;
+  sources?: string[] | null;
+  start?: string | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  text?: string | null;
+  types?: string[] | null;
+}
+/**
+ * What a narrative file holds, before it is read (CAP-19).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativePreview".
+ */
+export interface NarrativePreview {
+  /**
+   * Entries the plot has already: the same time, source and text.
+   */
+  already?: number | null;
+  content_hash?: string | null;
+  described: string;
+  /**
+   * A document's dialect; null for REP.
+   */
+  dialect?: string | null;
+  earlier?: EarlierRead[] | null;
+  end?: string | null;
+  entries: number;
+  /**
+   * ASW data: positions of a track, not narrative.
+   */
+  fixes: number;
+  /**
+   * rep, docx, doc or pdf.
+   */
+  format: string;
+  name: string;
+  notes: string[];
+  omitted: string[];
+  /**
+   * Entries outside the plot's tracks' period.
+   */
+  outside: number;
+  /**
+   * The source those entries will have.
+   */
+  platform?: string | null;
+  plot_end?: string | null;
+  plot_start?: string | null;
+  sources: PreviewSource[];
+  start?: string | null;
+  types: PreviewCount[];
+  /**
+   * Entries whose document names no platform.
+   */
+  unnamed: number;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PreviewSource".
+ */
+export interface PreviewSource {
+  count: number;
+  name: string;
+  /**
+   * The track it would belong to; null for none.
+   */
+  track_id?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PreviewCount".
+ */
+export interface PreviewCount {
+  count: number;
+  name: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeReply".
+ */
+export interface NarrativeReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * The entry current time is at, among those matching; null if none.
+   */
+  current?: string | null;
+  entries: NarrativeRow[];
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  offset: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  sources: NarrativeTally[];
+  total: number;
+  types: NarrativeTally[];
+}
+/**
+ * An entry as debrief/narrative lists it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeRow".
+ */
+export interface NarrativeRow {
+  entry_type?: string | null;
+  id: string;
+  source: string;
+  text: string;
+  time: string;
+  track_id?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeTally".
+ */
+export interface NarrativeTally {
+  entries: number;
+  name: string;
 }
 /**
  * Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not.
@@ -2495,18 +3795,12 @@ export interface NarrativeSavedMessage {
   message?: string | null;
 }
 /**
- * A narrative entry as the analyst describes it in a form, or an agent in a request (debrief/add_narrative, debrief/edit_narrative): made into a narrative feature as one recorded step (CAP-20).
+ * The parameters of a method that takes none.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "NarrativeSpec".
+ * via the `definition` "NoParams".
  */
-export interface NarrativeSpec {
-  entry_type?: string | null;
-  source?: string | null;
-  text?: string | null;
-  time?: string | null;
-  track_id?: string | null;
-}
+export interface NoParams {}
 /**
  * A number, table or graph (TL-13), held column by column. A number is one column with one value; a graph plots its first column against the rest.
  *
@@ -2546,6 +3840,92 @@ export interface OpenNarrativeFormMessage {
    */
   feature_id?: string | null;
   kind: "open_narrative_form";
+}
+/**
+ * Given agent, a retired presentation.json is made a recorded step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "OpenParams".
+ */
+export interface OpenParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * Shown read-only: an interrupted change is not recovered.
+   */
+  read_only?: boolean | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * The plot made whole, its base and its view.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "OpenReply".
+ */
+export interface OpenReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * A retired presentation.json was made one recorded step.
+   */
+  migrated?: boolean | null;
+  /**
+   * The plot with a retired presentation.json applied in memory, where it could not be migrated.
+   */
+  plot?: DebriefFeatureCollection | null;
+  /**
+   * What opening repaired, for the analyst; false, not a list, when it was opened read-only and nothing was recovered (as sent since 16 Oct 2026).
+   */
+  recovered: string[] | boolean;
+  /**
+   * The view; null if the plot has none.
+   */
+  view?: PlotView | null;
+  view_hash: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "OpenRevisionParams".
+ */
+export interface OpenRevisionParams {
+  /**
+   * The image whose export log entry to give.
+   */
+  id?: string | null;
+  item: string;
+  revision: string;
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "OpenRevisionReply".
+ */
+export interface OpenRevisionReply {
+  current: number;
+  export?: ImageExport | null;
+  latest: number;
+  plot: DebriefFeatureCollection;
+  revision: string;
+  step: number;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2592,6 +3972,134 @@ export interface PlayingChangedMessage {
   playing: boolean;
 }
 /**
+ * A method that changes one plot, recorded with who made it (SUB-24).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotChangeParams".
+ */
+export interface PlotChangeParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * A change to one plot: whether it changed, the feature it made or changed, and what the step's record says beyond its name.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotChangeReply".
+ */
+export interface PlotChangeReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  /**
+   * The feature made or changed.
+   */
+  feature?: string | null;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+}
+/**
+ * A method on one plot, inside its history (SUB-21).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotParams".
+ */
+export interface PlotParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * What every method on one plot answers, besides its own members.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotReply".
+ */
+export interface PlotReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PreviewNarrativeParams".
+ */
+export interface PreviewNarrativeParams {
+  agent?: AgentRef | null;
+  /**
+   * Given, its period and tracks are taken into account.
+   */
+  item?: string | null;
+  path: string;
+  store?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PreviewSensorParams".
+ */
+export interface PreviewSensorParams {
+  agent?: AgentRef | null;
+  item: string;
+  path: string;
+  store: string;
+}
+/**
  * Webview to host: loaded and listening.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2608,6 +4116,97 @@ export interface ReadyMessage {
  */
 export interface RedoAskedMessage {
   kind: "redo_asked";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RemoveJumpsParams".
+ */
+export interface RemoveJumpsParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  period?: TimeRange | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  threshold?: Speed | null;
+  times: string[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RepTracksParams".
+ */
+export interface RepTracksParams {
+  path: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RepTracksReply".
+ */
+export interface RepTracksReply {
+  tracks: string[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ResolveAmbiguityParams".
+ */
+export interface ResolveAmbiguityParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * With keep bearing or ambiguous_bearing: resolved cuts made ambiguous again in the same step, as a box drawn over their kept bearings with Select bearings on asks (product owner, 28 Oct 2026); one not resolved is left. Given (even empty), with other_cut_ids, the step is named for a box: "Kept 12 Towed array cuts to starboard and made 15 ambiguous again". Hidden cuts are left as they are.
+   */
+  clear_cut_ids?: string[] | null;
+  /**
+   * The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.
+   */
+  cut_ids?: string[] | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  keep: AmbiguityKeepEnum;
+  /**
+   * With keep bearing or ambiguous_bearing: cuts kept on their other bearing in the same step, so one step keeps some cuts' first bearings and others' twins, as a box drawn over the Bearings plot with Select bearings on asks (product owner, 28 Oct 2026). A cut named here and in cut_ids was boxed on both sides: it is left as it is, and the step says so. Hidden cuts are left as they are.
+   */
+  other_cut_ids?: string[] | null;
+  /**
+   * The cuts whose times fall in it, ends included, of the sensors named.
+   */
+  period?: TimeRange | null;
+  /**
+   * Sensors whose cuts in the period are resolved; every cut of each, without a period.
+   */
+  sensor_ids?: string[] | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects).
@@ -2634,6 +4233,34 @@ export interface ResolveAskedMessage {
  */
 export interface ReviewClearedMessage {
   kind: "review_cleared";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ReviewFlagListed".
+ */
+export interface ReviewFlagListed {
+  catalogue: string;
+  item: string;
+  /**
+   * What the flag says, for its tooltip and screen readers.
+   */
+  note: string;
+  /**
+   * Each item revised since the product took data from it, at its revision now.
+   */
+  revised: ItemRef[];
+  /**
+   * The store it is in; null if none in the configuration holds it.
+   */
+  store?: string | null;
+  title: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ReviewFlagsReply".
+ */
+export interface ReviewFlagsReply {
+  flags: ReviewFlagListed[];
 }
 /**
  * The plot is shown as it was at an earlier revision, read-only: the one an image was exported at (show_plot).
@@ -2723,6 +4350,255 @@ export interface SelectionChangedMessage {
   selection: Selection;
 }
 /**
+ * A cut as debrief/sensors lists it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutRow".
+ */
+export interface SensorCutRow {
+  ambiguous_bearing?: number | null;
+  bearing: number;
+  comment?: string | null;
+  hidden?: boolean | null;
+  id: string;
+  label?: string | null;
+  /**
+   * [longitude, latitude] it is drawn from; null outside its host's span.
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  origin?: [number, number] | null;
+  origin_derived?: boolean | null;
+  range_m?: number | null;
+  resolved?: SensorCutKeptEnum | null;
+  side?: SideEnum | null;
+  time: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorImportReply".
+ */
+export interface SensorImportReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  cuts: number;
+  /**
+   * The feature made or changed.
+   */
+  feature?: string | null;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  omitted: string[];
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  sensors: string[];
+}
+/**
+ * A sensor a file's lines hold, by track and name.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorInFile".
+ */
+export interface SensorInFile {
+  ambiguous: number;
+  /**
+   * Its cuts with a bearing.
+   */
+  cuts: number;
+  end: string;
+  /**
+   * That track's name.
+   */
+  host?: string | null;
+  /**
+   * The plot's track that would carry it; null: ask.
+   */
+  host_track_id?: string | null;
+  lines: number;
+  matched_by?: MatchedByEnum | null;
+  name: string;
+  sensor: string;
+  start: string;
+  /**
+   * The track name the lines give.
+   */
+  track: string;
+}
+/**
+ * What a .dsf or REP file's sensor lines hold, before they are read (CAP-22).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorPreview".
+ */
+export interface SensorPreview {
+  content_hash: string;
+  cuts: number;
+  earlier: EarlierRead[];
+  /**
+   * Position lines: the file holds a track too.
+   */
+  fixes: number;
+  name: string;
+  notes: string[];
+  omitted: string[];
+  sensors: SensorInFile[];
+  tracks: TrackListed[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackListed".
+ */
+export interface TrackListed {
+  id: string;
+  name: string;
+}
+/**
+ * A sensor as debrief/sensors lists it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorRow".
+ */
+export interface SensorRow {
+  ambiguous: number;
+  array_mode?: ArrayModeEnum | null;
+  array_offset_m?: number | null;
+  colour?: string | null;
+  cut_list?: SensorCutRow[] | null;
+  cuts: number;
+  end?: string | null;
+  hidden: boolean;
+  host?: string | null;
+  host_track_id?: string | null;
+  id: string;
+  name: string;
+  resolved: number;
+  start?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorsParams".
+ */
+export interface SensorsParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  cuts?: boolean | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  period?: TimeRange | null;
+  sensor_ids?: string[] | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorsReply".
+ */
+export interface SensorsReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  sensors: SensorRow[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetArrayOffsetParams".
+ */
+export interface SetArrayOffsetParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  mode?: ArrayModeEnum | null;
+  /**
+   * Distance astern; null for at the ship.
+   */
+  offset?: Length | null;
+  sensor_ids: string[];
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetColourParams".
+ */
+export interface SetColourParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  colour: string;
+  /**
+   * The colour's name, for the step's name.
+   */
+  colour_name?: string | null;
+  features: string[];
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
  * Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2734,6 +4610,34 @@ export interface SetContextMessage {
    */
   context_tracks: ContextTracksEnum;
   kind: "set_context";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetHiddenParams".
+ */
+export interface SetHiddenParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  features: string[];
+  hidden: boolean;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away.
@@ -2794,6 +4698,33 @@ export interface TimelineEntry {
   track?: string | null;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetNorthArrowParams".
+ */
+export interface SetNorthArrowParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  shown: boolean;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
  * Host to map: the selection changed elsewhere (selection).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2802,6 +4733,35 @@ export interface TimelineEntry {
 export interface SetSelectionMessage {
   kind: "set_selection";
   selection: Selection;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetSourcePreferenceParams".
+ */
+export interface SetSourcePreferenceParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  period: TimeRange;
+  source: SourceTrackRef;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * Host to map: current time changed elsewhere (time).
@@ -2825,6 +4785,72 @@ export interface SetToteMessage {
    * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
    */
   tote_view?: ToteView | null;
+}
+/**
+ * Each interval given is a duration, "off", or null for Debrief's default (CAP-32).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetTrackFrequenciesParams".
+ */
+export interface SetTrackFrequenciesParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  arrow_interval?: Duration | number | string | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  features: string[];
+  /**
+   * The plot's id.
+   */
+  item: string;
+  label_interval?: Duration | number | string | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  symbol_interval?: Duration | number | string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SetViewParams".
+ */
+export interface SetViewParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The view's hash as last read.
+   */
+  hash: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  /**
+   * The view; null to clear it.
+   */
+  view?: PlotView | null;
 }
 /**
  * Host to map: show this area (viewport).
@@ -3521,6 +5547,167 @@ export interface ToteRow {
   values?: MeasureValue[] | null;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SmoothTrackParams".
+ */
+export interface SmoothTrackParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  period?: TimeRange | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  window: number;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SmoothingPreviewParams".
+ */
+export interface SmoothingPreviewParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  period?: TimeRange | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+  window: number;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SmoothingPreviewReply".
+ */
+export interface SmoothingPreviewReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  feature: string;
+  /**
+   * The most any moved.
+   */
+  largest: Length;
+  /**
+   * When; null if none moved.
+   */
+  largest_time?: string | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * How many fixes moved.
+   */
+  moved: number;
+  preview: LineStringGeometry;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  /**
+   * The words for it.
+   */
+  summary: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SmoothingReply".
+ */
+export interface SmoothingReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  /**
+   * The feature made or changed.
+   */
+  feature?: string | null;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * The most any moved.
+   */
+  largest?: Length | null;
+  /**
+   * When; null if none moved.
+   */
+  largest_time?: string | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * How many fixes moved.
+   */
+  moved?: number | null;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  /**
+   * The words for it.
+   */
+  summary?: string | null;
+}
+/**
+ * What smoothing did, or would do.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SmoothingSummary".
+ */
+export interface SmoothingSummary {
+  /**
+   * The most any moved.
+   */
+  largest?: Length | null;
+  /**
+   * When; null if none moved.
+   */
+  largest_time?: string | null;
+  /**
+   * How many fixes moved.
+   */
+  moved?: number | null;
+  /**
+   * The words for it.
+   */
+  summary?: string | null;
+}
+/**
  * Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -3540,6 +5727,39 @@ export interface SourceChosenMessage {
    * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).
    */
   time_range: TimeRange;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SplitTrackParams".
+ */
+export interface SplitTrackParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  at: string;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  names?: [string, string] | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -3693,6 +5913,42 @@ export interface StacItemProperties {
   [k: string]: unknown;
 }
 /**
+ * A host's image stamped with its ID and the export recorded, given back to write.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StampedImage".
+ */
+export interface StampedImage {
+  id: string;
+  image: string;
+  /**
+   * Where the export is recorded; null for nowhere.
+   */
+  logged?: ExportLoggedEnum | null;
+  note?: string | null;
+  recorded: boolean;
+  revision: string;
+  short: string;
+}
+/**
+ * A store in the analyst's configuration.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StoreListed".
+ */
+export interface StoreListed {
+  id: string;
+  read_only: boolean;
+  title: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StoresReply".
+ */
+export interface StoresReply {
+  stores: StoreListed[];
+}
+/**
  * Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -3704,6 +5960,72 @@ export interface TakeAskedMessage {
    */
   item_revision: ItemRevision;
   kind: "take_asked";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TakeNewDataParams".
+ */
+export interface TakeNewDataParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  source: ItemAsked;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TakeNewDataReply".
+ */
+export interface TakeNewDataReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  /**
+   * The feature made or changed.
+   */
+  feature?: string | null;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * Why nothing was taken.
+   */
+  message?: string | null;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  /**
+   * The step taking it.
+   */
+  step?: number | null;
 }
 /**
  * Map to host: the analyst moved current time (time).
@@ -3727,6 +6049,41 @@ export interface TimelineChosenMessage {
    */
   feature_id: string;
   kind: "timeline_chosen";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaChangeReply".
+ */
+export interface TmaChangeReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  /**
+   * The feature made or changed.
+   */
+  feature?: string | null;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  /**
+   * The solution's residuals after the change.
+   */
+  residuals?: TmaResiduals | null;
 }
 /**
  * Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id).
@@ -3813,6 +6170,120 @@ export interface TmaRequest {
   speed?: Speed | null;
 }
 /**
+ * A TmaRequest, in request or as the parameters themselves.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaCreateParams".
+ */
+export interface TmaCreateParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.
+   */
+  colour?: string | null;
+  /**
+   * The contact's name; left out, the next of "Contact 1", "Contact 2"...
+   */
+  contact?: string | null;
+  /**
+   * First guess by form: the solution's course.
+   */
+  course?: Angle | null;
+  /**
+   * Or the cuts to root it in, by feature id.
+   */
+  cut_ids?: string[] | null;
+  /**
+   * First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first.
+   */
+  first_bearing?: SensorCutKeptEnum | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  first_position?: [number | null, number | null];
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  last_position?: [number | null, number | null];
+  /**
+   * The solution track's name; left out, the contact's with "solution".
+   */
+  name?: string | null;
+  /**
+   * The cuts whose times fall in it, ends included, of the sensors named.
+   */
+  period?: TimeRange | null;
+  /**
+   * First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.
+   */
+  range?: Length | null;
+  request?: TmaRequest | null;
+  /**
+   * The sensors whose cuts in the period it is rooted in.
+   */
+  sensor_ids?: string[] | null;
+  /**
+   * First guess by form: the solution's speed.
+   */
+  speed?: Speed | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaCreateReply".
+ */
+export interface TmaCreateReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  changed: boolean;
+  /**
+   * The feature made or changed.
+   */
+  feature: string;
+  /**
+   * The features made (the parts of a split track).
+   */
+  features?: string[] | null;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What the step's record says beyond its name.
+   */
+  notes?: string[] | null;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  /**
+   * The solution's residuals after the change.
+   */
+  residuals: TmaResiduals;
+}
+/**
  * Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -3824,6 +6295,35 @@ export interface TmaCutOffMessage {
    */
   error_cut_off: number;
   kind: "tma_cut_off";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaExcludeCutParams".
+ */
+export interface TmaExcludeCutParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  cut_ids: string[];
+  excluded?: boolean | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step.
@@ -3951,6 +6451,48 @@ export interface TmaPreviewMessage {
   preview?: LineStringGeometry | null;
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaResidualsParams".
+ */
+export interface TmaResidualsParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaResidualsReply".
+ */
+export interface TmaResidualsReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  residuals: TmaResiduals;
+}
+/**
  * Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -3979,6 +6521,36 @@ export interface TmaSelectMessage {
    */
   feature_id: string;
   kind: "tma_select";
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSplitLegParams".
+ */
+export interface TmaSplitLegParams {
+  /**
+   * Who made the change, recorded in provenance (SUB-24).
+   */
+  agent: AgentRef;
+  /**
+   * The analyst agreed to writing a newer schema into the catalogue (SUB-35).
+   */
+  allow_newer_schema?: boolean | null;
+  at: string;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  feature: string;
+  /**
+   * The plot's id.
+   */
+  item: string;
+  join?: boolean | null;
+  side?: SplitSideEnum | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
 }
 /**
  * Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step.
@@ -4011,6 +6583,26 @@ export interface TmaTimeAskedMessage {
   kind: "tma_time_asked";
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToolsForSelectionParams".
+ */
+export interface ToolsForSelectionParams {
+  /**
+   * The selection's feature kinds.
+   */
+  kinds: string[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToolsForSelectionReply".
+ */
+export interface ToolsForSelectionReply {
+  /**
+   * The tools on offer, by name, in the order declared (TL-08).
+   */
+  tools: string[];
+}
+/**
  * Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -4022,6 +6614,23 @@ export interface ToteChangedMessage {
    * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
    */
   tote_view: ToteView;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteParams".
+ */
+export interface ToteParams {
+  item: string;
+  /**
+   * An earlier revision shown read-only.
+   */
+  revision?: string | null;
+  store: string;
+  time: string;
+  /**
+   * Which tracks; left out, the plot's island says.
+   */
+  tote?: ToteView | null;
 }
 /**
  * Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026).
