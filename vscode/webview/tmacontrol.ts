@@ -313,6 +313,7 @@ export class TmaControl {
       const open = more.getAttribute("aria-expanded") !== "true";
       more.setAttribute("aria-expanded", String(open));
       q<HTMLElement>(".tma-more").hidden = !open;
+      this.moreToggled();
       if (open) this.element.querySelector<HTMLElement>(".tma-more input")?.focus();
     });
     const closeMore = (event: KeyboardEvent) => {
@@ -323,6 +324,7 @@ export class TmaControl {
       more.focus();
       more.setAttribute("aria-expanded", "false");
       q<HTMLElement>(".tma-more").hidden = true;
+      this.moreToggled();
     };
     more.addEventListener("keydown", closeMore);
     q<HTMLElement>(".tma-more").addEventListener("keydown", closeMore);
@@ -355,6 +357,17 @@ export class TmaControl {
     // Not mid-drag: the plot's size is read once a drag.
     if (!this.live) this.frozenGeometry = undefined;
     this.drawPlot();
+  }
+
+  /**
+   * ⋯ opened or closed: the plot drawn to the height it now has, there and then. The ResizeObserver
+   * would draw it a frame or more on, but on CI (8 Nov 2026, job 128771670799) the plot was left
+   * drawn at its height with ⋯ open (26 px short, a gap beneath it) once ⋯ closed: the cut-off,
+   * committed as ⋯ closes, had drawn it with ⋯ still open, and no redraw followed.
+   */
+  private moreToggled(): void {
+    if (this.box) this.resizeWaiting = true;
+    else this.relayout();
   }
 
   /** The view resized under a box being dragged: laid out once the box is done. */
