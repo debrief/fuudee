@@ -26,8 +26,8 @@ export async function playCollation(page, shot) {
   await showPanel(page, "coverage");
   await blue.waitFor();
   // The sample's other serials have BLUE ONE too: proposed, by name, as the same platform.
-  assert.match(await blue.locator(".cov-head").innerText(), /BLUE ONE\s+3 sources/);
-  assert.deepEqual(await blue.locator(".cov-source .cov-title").allTextContents(), ["Serial 1", "Serial 2", "Serial 3"]);
+  assert.match(await blue.locator(".cov-head").innerText(), /BLUE ONE\s+4 sources/);
+  assert.deepEqual(await blue.locator(".cov-source .cov-title").allTextContents(), ["Serial 1", "Serial 2", "Serial 3", "Serial 4"]);
   // Folded: nothing to choose yet, so a study of many items stays readable.
   assert.equal(await blue.getAttribute("open"), null);
 
