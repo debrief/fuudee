@@ -30,8 +30,7 @@ env:
 jobs:
   preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    # Pinned: Playwright 1.56.1 cannot install Chromium on ubuntu-latest's 26.04 image.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       PR: ${{ github.event.pull_request.number }}
       SHA: ${{ github.event.pull_request.head.sha }}
@@ -57,7 +56,7 @@ jobs:
       - name: Screenshot the pages this pull request changes
         run: |
           export PLAYWRIGHT_DIR="$RUNNER_TEMP/playwright"
-          npm install --no-save --prefix "$PLAYWRIGHT_DIR" playwright@1.56.1
+          npm install --no-save --prefix "$PLAYWRIGHT_DIR" playwright@1.64.1
           (cd "$PLAYWRIGHT_DIR" && npx playwright install --with-deps chromium)
           git diff --name-only "${{ github.event.pull_request.base.sha }}...$SHA" > changed.txt
           node scripts/preview_shots.mjs preview-site "shots/pr-$PR/${SHA::7}" $(cat changed.txt)
