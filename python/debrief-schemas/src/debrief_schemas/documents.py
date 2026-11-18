@@ -974,17 +974,27 @@ def tma_request_problems(request: Any, where: str = "tma_request") -> list[str]:
     if request.cut_ids and (request.sensor_ids or request.period):
         problems.append(f"{where}: name the cuts, or the sensors and a period, not both")
     problems += _time_range_problems(f"{where} period", request.period)
+    start = request.start_position
     form = [request.range, request.course, request.speed]
     clicks = [request.first_position, request.last_position]
-    if any(v is not None for v in form) and any(v is not None for v in clicks):
+    if (any(v is not None for v in form) or start is not None) and any(
+        v is not None for v in clicks
+    ):
         problems.append(f"{where}: a first guess is by form or by two positions, not both")
-    if any(v is not None for v in form) and not all(v is not None for v in form):
+    if start is not None:
+        # Suggest's guess: where it starts, a course and a speed, instead of a range.
+        if request.range is not None:
+            problems.append(f"{where}: a suggested first guess gives a start, not a range")
+        if request.course is None or request.speed is None:
+            problems.append(f"{where}: a suggested first guess gives a course and a speed")
+    elif any(v is not None for v in form) and not all(v is not None for v in form):
         problems.append(f"{where}: a first guess by form gives a range, a course and a speed")
     if any(v is not None for v in clicks) and not all(v is not None for v in clicks):
         problems.append(f"{where}: a first guess by two clicks gives both positions")
     for name, position in (
         ("first_position", request.first_position),
         ("last_position", request.last_position),
+        ("start_position", start),
     ):
         if position is not None and not (-180 <= position[0] <= 180 and -90 <= position[1] <= 90):
             problems.append(f"{where}: {name} is not on the globe")

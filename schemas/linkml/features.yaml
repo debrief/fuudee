@@ -456,6 +456,19 @@ classes:
           exact_number_dimensions: 1
           dimensions:
             - exact_cardinality: 2
+      start_position:
+        description: >-
+          First guess as Suggest gives it (CAP-21 as amended; 18 Nov 2026):
+          [longitude, latitude] where the solution is at the first cut's
+          time, with a course and a speed, instead of a range. The fit's
+          start is not on the first cut's measured bearing, which carries its
+          own error; putting it there would shift the whole solution
+          sideways.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
 
   SourceTrackRef:
     description: >-

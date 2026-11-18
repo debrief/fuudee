@@ -30,6 +30,7 @@ It is a service method by its recipe (engineering guide §2), so it needs no rec
 - **One course, one speed.** As the form's guess is: one leg.
 - **Hidden cuts are left out**, as the RMS leaves them out; at least five cuts with an origin are needed (four unknowns and a residual).
 - **A flat plane** about the first cut's origin: the solution itself is dead reckoned along geodesics, so a guess from tens of kilometres differs from the plane's by metres, which the analyst's fit absorbs.
+- **The solution is the fit itself** (18 Nov 2026, found on serial 4). At first the form put Suggest's range along the first cut's measured bearing, as a typed guess is. That bearing carries the cut's own error, so the whole solution was shifted sideways; with the target on one side throughout, every error fell on one side (mean −2.4°, RMS 2.9° against the fit's 1.5°, made worse by the form's rounding of speed to 0.1 kn). Pinning the fit to that bearing removed the bias but moved the start 0.8 nmi from the truth. Instead the reply gives the fit's `start_position`, and the form sends it with the unrounded course and speed while its fields read as filled: the solution made then has the fit's RMS (1.516° against 1.515°) and errors either side of zero. The remaining difference, the plane the fit works on against the solution's geodesics, is under 0.1°.
 - **The notes say it.** The suggestion's note is shown under the form; the made solution's step records the first guess as given, as now.
 
 ## What it gives on serial 1 (the walkthrough's sample)

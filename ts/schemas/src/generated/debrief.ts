@@ -6172,6 +6172,11 @@ export interface TmaRequest {
    * First guess by form: the solution's speed.
    */
   speed?: Speed | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  start_position?: [number, number];
 }
 /**
  * A TmaRequest, in request or as the parameters themselves.
@@ -6247,6 +6252,11 @@ export interface TmaCreateParams {
    * First guess by form: the solution's speed.
    */
   speed?: Speed | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  start_position?: [number | null, number | null];
   /**
    * The store's id in the analyst's configuration.
    */
@@ -6657,6 +6667,11 @@ export interface TmaSuggestParams {
    */
   speed?: Speed | null;
   /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  start_position?: [number | null, number | null];
+  /**
    * The store's id in the analyst's configuration.
    */
   store: string;
@@ -6719,6 +6734,11 @@ export interface TmaSuggestion {
    * Metres a second. Given when determined.
    */
   speed?: number | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  start_position?: [number, number];
 }
 /**
  * Host to bearing view: the first guess suggested (suggestion), to fill the form where it is determined and to say its note; or, with message alone, why none could be (cuts ambiguous and unresolved, too few).

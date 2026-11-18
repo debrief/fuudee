@@ -61,12 +61,17 @@ export function tmaRequestProblems(request: TmaRequest, where = "tma_request"): 
   if (request.cut_ids?.length && (request.sensor_ids?.length || request.period)) problems.push(`${where}: name the cuts, or the sensors and a period, not both`);
   const period = request.period;
   if (period && !(Date.parse(period.start) <= Date.parse(period.end))) problems.push(`${where} period: time range starts after it ends`);
+  const start = request.start_position;
   const form = [request.range, request.course, request.speed];
   const clicks = [request.first_position, request.last_position];
-  if (form.some(given) && clicks.some(given)) problems.push(`${where}: a first guess is by form or by two positions, not both`);
-  if (form.some(given) && !form.every(given)) problems.push(`${where}: a first guess by form gives a range, a course and a speed`);
+  if ((form.some(given) || given(start)) && clicks.some(given)) problems.push(`${where}: a first guess is by form or by two positions, not both`);
+  if (given(start)) {
+    // Suggest's guess: where it starts, a course and a speed, instead of a range.
+    if (given(request.range)) problems.push(`${where}: a suggested first guess gives a start, not a range`);
+    if (!given(request.course) || !given(request.speed)) problems.push(`${where}: a suggested first guess gives a course and a speed`);
+  } else if (form.some(given) && !form.every(given)) problems.push(`${where}: a first guess by form gives a range, a course and a speed`);
   if (clicks.some(given) && !clicks.every(given)) problems.push(`${where}: a first guess by two clicks gives both positions`);
-  for (const [name, position] of [["first_position", request.first_position], ["last_position", request.last_position]] as const) {
+  for (const [name, position] of [["first_position", request.first_position], ["last_position", request.last_position], ["start_position", start]] as const) {
     if (position && !(Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90)) problems.push(`${where}: ${name} is not on the globe`);
   }
   if (request.range && !(Number.isFinite(request.range.value) && request.range.value > 0)) problems.push(`${where}: the range is more than nothing`);

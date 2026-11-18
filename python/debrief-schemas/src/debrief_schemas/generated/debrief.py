@@ -2319,6 +2319,9 @@ class TmaRequest(ConfiguredBaseModel):
     last_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess by two clicks: [longitude, latitude] clicked on, or near, the last cut's line; the course and speed are those from the first position, on the first cut's line, to this one, on the last's.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['TmaRequest']} })
+    start_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess as Suggest gives it (CAP-21 as amended; 18 Nov 2026): [longitude, latitude] where the solution is at the first cut's time, with a course and a speed, instead of a range. The fit's start is not on the first cut's measured bearing, which carries its own error; putting it there would shift the whole solution sideways.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['TmaRequest', 'TmaSuggestion']} })
 
     @field_validator('colour')
     def pattern_colour(cls, v):
@@ -7641,6 +7644,9 @@ class TmaSuggestion(ConfiguredBaseModel):
                        'TimeState',
                        'TmaSuggestion']} })
     range_spread: Optional[float] = Field(default=None, description="""Two standard deviations of the range at the first cut, metres; left out where the fit says nothing of range.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSuggestion']} })
+    start_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""[longitude, latitude] where the fit puts the target at the first cut's time, for the request's start_position, so the solution made is the fit itself. Given when determined.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['TmaRequest', 'TmaSuggestion']} })
     course: Optional[float] = Field(default=None, description="""Degrees true. Given when determined.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
                        'TrackEdit',
                        'SensorCutProperties',
@@ -15306,6 +15312,9 @@ class TmaCreateParams(PlotChangeParams, TmaRequest):
     last_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess by two clicks: [longitude, latitude] clicked on, or near, the last cut's line; the course and speed are those from the first position, on the first cut's line, to this one, on the last's.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['TmaRequest']} })
+    start_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess as Suggest gives it (CAP-21 as amended; 18 Nov 2026): [longitude, latitude] where the solution is at the first cut's time, with a course and a speed, instead of a range. The fit's start is not on the first cut's measured bearing, which carries its own error; putting it there would shift the whole solution sideways.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['TmaRequest', 'TmaSuggestion']} })
     allow_newer_schema: Optional[bool] = Field(default=None, description="""The analyst agreed to writing a newer schema into the catalogue (SUB-35).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotChangeParams',
                        'ImportParams',
                        'AddPlotFileParams',
@@ -15471,6 +15480,9 @@ class TmaSuggestParams(PlotParams, TmaRequest):
     last_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess by two clicks: [longitude, latitude] clicked on, or near, the last cut's line; the course and speed are those from the first position, on the first cut's line, to this one, on the last's.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['TmaRequest']} })
+    start_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess as Suggest gives it (CAP-21 as amended; 18 Nov 2026): [longitude, latitude] where the solution is at the first cut's time, with a course and a speed, instead of a range. The fit's start is not on the first cut's measured bearing, which carries its own error; putting it there would shift the whole solution sideways.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['TmaRequest', 'TmaSuggestion']} })
     store: str = Field(default=..., description="""The store's id in the analyst's configuration.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource',
                        'PlotParams',
                        'CreateCatalogueReply',

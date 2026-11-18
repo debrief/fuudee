@@ -179,6 +179,16 @@ classes:
       range_spread:
         description: Two standard deviations of the range at the first cut, metres; left out where the fit says nothing of range.
         range: float
+      start_position:
+        description: >-
+          [longitude, latitude] where the fit puts the target at the first
+          cut's time, for the request's start_position, so the solution made
+          is the fit itself. Given when determined.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
       course: {range: float, description: "Degrees true. Given when determined."}
       speed: {range: float, description: "Metres a second. Given when determined."}
       rms: {range: float, description: "The fit's RMS error, degrees."}
