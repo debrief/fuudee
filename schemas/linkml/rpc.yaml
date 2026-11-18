@@ -652,6 +652,18 @@ classes:
     attributes:
       request: {range: TmaRequest, inlined: true}
 
+  TmaSuggestParams:
+    is_a: PlotParams
+    mixins: [TmaRequest]
+    description: The cuts to suggest a first guess for (a TmaRequest's sensor_ids and period, or cut_ids), in request or as the parameters themselves.
+    attributes:
+      request: {range: TmaRequest, inlined: true}
+
+  TmaSuggestReply:
+    is_a: PlotReply
+    attributes:
+      suggestion: {range: TmaSuggestion, required: true, inlined: true}
+
   TmaChangeReply:
     is_a: PlotChangeReply
     attributes:

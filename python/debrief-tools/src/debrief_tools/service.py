@@ -1360,6 +1360,26 @@ def _tma_create(call: PlotCall, asked: mp.TmaCreate) -> dict[str, Any]:
     return {"changed": True, "feature": feature, "notes": notes, "residuals": residuals}
 
 
+@_reads_plot(
+    "debrief/tma_suggest",
+    "Suggests a first guess for a TMA solution from its cuts.",
+    mp.TmaSuggest,
+    request=models.TmaSuggestParams,
+    reply=models.TmaSuggestReply,
+)
+def _tma_suggest(call: PlotCall, asked: mp.TmaSuggest) -> dict[str, Any]:
+    """A first guess for a TMA solution (CAP-21 as amended): batch least squares over the
+    cuts asked for (sensor_ids and perhaps a period, or cut_ids), on one course at one
+    speed, as gitma2's. Makes nothing: the analyst puts it in the first guess's form and
+    makes the solution with debrief/tma_create. Refused while any cut is ambiguous and
+    unresolved; where the cuts do not settle the range, determined is false and note says
+    why. A TmaRequest, in request or as the params themselves."""
+    request = asked.request
+    if request is None:
+        request = {k: v for k, v in call.params.items() if k in mp.TMA_ASKED}
+    return {"suggestion": call.catalogue.tma_suggest(call.item, request, call.base)}
+
+
 @_changes_plot(
     "debrief/tma_split_leg",
     "Splits a solution into legs, or joins two.",

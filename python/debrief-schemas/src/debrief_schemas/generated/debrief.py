@@ -2301,10 +2301,16 @@ class TmaRequest(ConfiguredBaseModel):
                        'SetColourParams',
                        'SensorRow',
                        'FixMarkChanges']} })
-    range: Optional[Length] = Field(default=None, description="""First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'SensorCutProperties', 'TimeState']} })
+    range: Optional[Length] = Field(default=None, description="""First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'SensorCutProperties',
+                       'TimeState',
+                       'TmaSuggestion']} })
     first_bearing: Optional[SensorCutKeptEnum] = Field(default=None, description="""First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest']} })
-    course: Optional[Angle] = Field(default=None, description="""First guess by form: the solution's course.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'SensorCutProperties']} })
-    speed: Optional[Speed] = Field(default=None, description="""First guess by form: the solution's speed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'Jump']} })
+    course: Optional[Angle] = Field(default=None, description="""First guess by form: the solution's course.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'TrackEdit',
+                       'SensorCutProperties',
+                       'TmaSuggestion']} })
+    speed: Optional[Speed] = Field(default=None, description="""First guess by form: the solution's speed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'TmaSuggestion', 'Jump']} })
     first_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess by two clicks: [longitude, latitude] clicked on, or near, the first cut's line: the solution starts on the line, level with it.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['TmaRequest']} })
@@ -2705,8 +2711,11 @@ class TrackEdit(ConfiguredBaseModel):
     angle: Optional[Angle] = Field(default=None, description="""How far a rotation turns the fixes about the pivot; positive is clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     pivot: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     anchor: Optional[TrackEditAnchorEnum] = Field(default=None, description="""The end of the period a shear or a stretch holds fixed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
-    course: Optional[Angle] = Field(default=None, description="""The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'SensorCutProperties']} })
-    speed: Optional[Speed] = Field(default=None, description="""The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'Jump']} })
+    course: Optional[Angle] = Field(default=None, description="""The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'TrackEdit',
+                       'SensorCutProperties',
+                       'TmaSuggestion']} })
+    speed: Optional[Speed] = Field(default=None, description="""The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'TmaSuggestion', 'Jump']} })
     fix_time: Optional[str] = Field(default=None, description="""The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'FixChosenMessage']} })
     position: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'Jump']} })
     plotting_mode: Optional[PlottingModeEnum] = Field(default=None, description="""How set_plotting_mode plots the track, over the ground or by dead reckoning.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TrackEdit']} })
@@ -3626,12 +3635,18 @@ class SensorCutProperties(ConfiguredBaseModel):
     bearing: Angle = Field(default=..., description="""The bearing to the target, true, clockwise from north, from 0 up to 360 degrees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties', 'TmaCut', 'SensorCutRow']} })
     ambiguous_bearing: Optional[Angle] = Field(default=None, description="""A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut', 'SensorCutRow']} })
     resolved: Optional[SensorCutKeptEnum] = Field(default=None, description="""Which of the two bearings the analyst kept, for a cut with an ambiguous bearing; left out while it is unresolved, when both are drawn. Each resolution, of one cut or of every cut in a period, is one recorded, undoable step with provenance (product owner, 24 Oct 2026), and can be undone or reset to ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut', 'SensorCutRow', 'SensorRow']} })
-    range: Optional[Length] = Field(default=None, description="""How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view. A range of 0 (a ;SENSOR2: or ;SENSOR3: line's, as legacy read it) is drawn as a point where the cut was taken, as legacy drew it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'SensorCutProperties', 'TimeState']} })
+    range: Optional[Length] = Field(default=None, description="""How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view. A range of 0 (a ;SENSOR2: or ;SENSOR3: line's, as legacy read it) is drawn as a point where the cut was taken, as legacy drew it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'SensorCutProperties',
+                       'TimeState',
+                       'TmaSuggestion']} })
     origin: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""[longitude, latitude] of the sensor, where the source recorded it with the cut (legacy Debrief's absolute origin): the cut is drawn from there instead of from the host track. Left out, from the host track's position at the cut's time. Where origin_derived is true, Debrief worked it out (where the sensor was, pinned when its track was split) and the source did not record it.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['SensorCutProperties', 'TmaCut', 'SensorCutRow']} })
     origin_derived: Optional[bool] = Field(default=None, description="""True where origin is not recorded by the source but derived by Debrief: where the sensor (its array astern, if it has one) was before its track was split, pinned so the cut is drawn, and its side told, as before (round 3 review, 24 Oct 2026). A TMA residual can tell a recorded origin from a derived one by it. Only with origin.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut', 'SensorCutRow']} })
-    course: Optional[Angle] = Field(default=None, description="""The course, true, the cut's port and starboard are told by, pinned with a derived origin when its track was split (the course logged where the sensor was then). Left out, the host's logged course at the cut's time. Only with origin.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'SensorCutProperties']} })
+    course: Optional[Angle] = Field(default=None, description="""The course, true, the cut's port and starboard are told by, pinned with a derived origin when its track was split (the course logged where the sensor was then). Left out, the host's logged course at the cut's time. Only with origin.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'TrackEdit',
+                       'SensorCutProperties',
+                       'TmaSuggestion']} })
     bearing_accuracy: Optional[str] = Field(default=None, description="""The bearing accuracy a ;SENSOR3: line gives, kept exactly as written: no format says what it means (a standard deviation, a half-width), so it is not drawn (product owner, 24 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
     label: Optional[str] = Field(default=None, description="""Text the source gives the cut, such as legacy Debrief's label.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
                        'SensorCutProperties',
@@ -4933,7 +4948,10 @@ class TimeState(ConfiguredBaseModel):
                        'PlotBase',
                        'NarrativeReply',
                        'OpenRevisionReply']} })
-    range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'SensorCutProperties', 'TimeState']} })
+    range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'SensorCutProperties',
+                       'TimeState',
+                       'TmaSuggestion']} })
 
     @field_validator('current')
     def pattern_current(cls, v):
@@ -5695,6 +5713,7 @@ class ToteRow(ConfiguredBaseModel):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
     values: Optional[list[MeasureValue]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries', 'ToteRow']} })
@@ -5750,6 +5769,7 @@ class ToteResult(ConfiguredBaseModel):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
     rows: list[ToteRow] = Field(default=..., description="""One per secondary, in the order chosen.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult', 'TmaResiduals']} })
@@ -6128,6 +6148,7 @@ class CoverageReport(ConfiguredBaseModel):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
 
@@ -6611,6 +6632,7 @@ class NewDataMark(ConfiguredBaseModel):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
 
@@ -6694,6 +6716,7 @@ class ReviewFlag(ConfiguredBaseModel):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
 
@@ -7258,6 +7281,7 @@ class TmaSensorRow(ConfiguredBaseModel):
                        'SensorRow',
                        'FixMarkChanges']} })
     cuts: int = Field(default=..., description="""How many cuts it has.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -7572,7 +7596,7 @@ class TmaResiduals(ConfiguredBaseModel):
 
     solution_id: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals', 'TmaView']} })
     rows: list[TmaResidualRow] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult', 'TmaResiduals']} })
-    rms: Optional[float] = Field(default=None, description="""The root mean square of the residuals counted (degrees): every rooted cut with a residual, less those left out. Left out when none is counted.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
+    rms: Optional[float] = Field(default=None, description="""The root mean square of the residuals counted (degrees): every rooted cut with a residual, less those left out. Left out when none is counted.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals', 'TmaSuggestion']} })
     counted: int = Field(default=..., description="""How many residuals the RMS counts.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
     excluded: int = Field(default=..., description="""How many cuts the analyst left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow',
                        'TmaResiduals',
@@ -7592,6 +7616,43 @@ class TmaResiduals(ConfiguredBaseModel):
                        'SetHiddenParams',
                        'SensorCutRow',
                        'SensorRow']} })
+
+
+class TmaSuggestion(ConfiguredBaseModel):
+    """
+    A first guess suggested for a TMA solution (debrief/tma_suggest; CAP-21 as amended, design note docs/notes/tma-suggested-first-guess.md): batch least squares over the cuts asked for, one course at one speed, as gitma2's. Never a solution: it fills the first guess's form, and the analyst makes and fits the solution as before. Offered only where the cuts settle the range (determined); otherwise note says why and the form keeps Debrief's guess.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    determined: bool = Field(default=..., description="""Whether the cuts settle the range: two standard deviations of it within half of it, and the fit converged. Without a change of the ownship's course or speed in the period they seldom do.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSuggestion']} })
+    cuts: int = Field(default=..., description="""How many cuts the fit used: those shown, with an origin.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
+                       'TmaSolutionRow',
+                       'TmaView',
+                       'SensorInFile',
+                       'SensorPreview',
+                       'SensorsParams',
+                       'SensorRow',
+                       'SensorImportReply']} })
+    range: Optional[float] = Field(default=None, description="""Metres along the first cut's bearing, from where it was taken, to the target then, as the form's range. Given when determined.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'SensorCutProperties',
+                       'TimeState',
+                       'TmaSuggestion']} })
+    range_spread: Optional[float] = Field(default=None, description="""Two standard deviations of the range at the first cut, metres; left out where the fit says nothing of range.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSuggestion']} })
+    course: Optional[float] = Field(default=None, description="""Degrees true. Given when determined.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'TrackEdit',
+                       'SensorCutProperties',
+                       'TmaSuggestion']} })
+    speed: Optional[float] = Field(default=None, description="""Metres a second. Given when determined.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'TmaSuggestion', 'Jump']} })
+    rms: Optional[float] = Field(default=None, description="""The fit's RMS error, degrees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals', 'TmaSuggestion']} })
+    note: str = Field(default=..., description="""What the view says of it, in the analyst's words.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
+                       'ToteResult',
+                       'CoverageReport',
+                       'NewDataMark',
+                       'ReviewFlag',
+                       'TmaSuggestion',
+                       'StampedImage',
+                       'ExportedImage']} })
 
 
 class TmaSolutionRow(ConfiguredBaseModel):
@@ -7706,6 +7767,7 @@ class TmaSolutionRow(ConfiguredBaseModel):
                        'RemoveJumpsParams']} })
     leg_starts: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaSolutionRow']} })
     cuts: int = Field(default=..., description="""How many cuts it is rooted in.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -7915,6 +7977,7 @@ class TmaView(ConfiguredBaseModel):
     sensors: Optional[list[TmaSensorRow]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'SensorPreview', 'SensorsReply', 'SensorImportReply']} })
     sensor_id: Optional[str] = Field(default=None, description="""The sensor whose cuts are listed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TmaCut', 'TmaView']} })
     cuts: Optional[list[TmaCut]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -12404,6 +12467,7 @@ class SensorInFile(ConfiguredBaseModel):
                        'SensorRow',
                        'MergeTracksParams']} })
     cuts: int = Field(default=..., description="""Its cuts with a bearing.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -12583,6 +12647,7 @@ class SensorPreview(ConfiguredBaseModel):
                        'MergeTracksParams']} })
     sensors: list[SensorInFile] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'SensorPreview', 'SensorsReply', 'SensorImportReply']} })
     cuts: int = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -12822,6 +12887,7 @@ class ReviewFlagListed(ReviewFlag):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
 
@@ -14296,6 +14362,7 @@ class SensorsParams(PlotParams):
                        'SensorsParams',
                        'SetArrayOffsetParams']} })
     cuts: Optional[bool] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -14580,6 +14647,7 @@ class SensorRow(ConfiguredBaseModel):
     array_offset_m: Optional[float] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SensorRow']} })
     array_mode: Optional[ArrayModeEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SensorProperties', 'SensorRow']} })
     cuts: int = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -14801,6 +14869,7 @@ class SensorImportReply(PlotChangeReply):
 
     sensors: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'SensorPreview', 'SensorsReply', 'SensorImportReply']} })
     cuts: int = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow',
+                       'TmaSuggestion',
                        'TmaSolutionRow',
                        'TmaView',
                        'SensorInFile',
@@ -15060,7 +15129,7 @@ class TmaCreateParams(PlotChangeParams, TmaRequest):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
          'mixins': ['TmaRequest']})
 
-    request: Optional[TmaRequest] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateParams']} })
+    request: Optional[TmaRequest] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateParams', 'TmaSuggestParams']} })
     sensor_ids: Optional[list[str]] = Field(default=None, description="""The sensors whose cuts in the period it is rooted in.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',
@@ -15138,10 +15207,16 @@ class TmaCreateParams(PlotChangeParams, TmaRequest):
                        'SetColourParams',
                        'SensorRow',
                        'FixMarkChanges']} })
-    range: Optional[Length] = Field(default=None, description="""First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'SensorCutProperties', 'TimeState']} })
+    range: Optional[Length] = Field(default=None, description="""First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'SensorCutProperties',
+                       'TimeState',
+                       'TmaSuggestion']} })
     first_bearing: Optional[SensorCutKeptEnum] = Field(default=None, description="""First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest']} })
-    course: Optional[Angle] = Field(default=None, description="""First guess by form: the solution's course.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'SensorCutProperties']} })
-    speed: Optional[Speed] = Field(default=None, description="""First guess by form: the solution's speed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'Jump']} })
+    course: Optional[Angle] = Field(default=None, description="""First guess by form: the solution's course.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'TrackEdit',
+                       'SensorCutProperties',
+                       'TmaSuggestion']} })
+    speed: Optional[Speed] = Field(default=None, description="""First guess by form: the solution's speed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'TmaSuggestion', 'Jump']} })
     first_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess by two clicks: [longitude, latitude] clicked on, or near, the first cut's line: the solution starts on the line, level with it.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['TmaRequest']} })
@@ -15210,6 +15285,178 @@ class TmaCreateParams(PlotChangeParams, TmaRequest):
             err_msg = f"Invalid colour format: {v}"
             raise ValueError(err_msg)
         return v
+
+
+class TmaSuggestParams(PlotParams, TmaRequest):
+    """
+    The cuts to suggest a first guess for (a TmaRequest's sensor_ids and period, or cut_ids), in request or as the parameters themselves.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'mixins': ['TmaRequest']})
+
+    request: Optional[TmaRequest] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateParams', 'TmaSuggestParams']} })
+    sensor_ids: Optional[list[str]] = Field(default=None, description="""The sensors whose cuts in the period it is rooted in.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
+                       'TmaRequest',
+                       'AmbiguityResolution',
+                       'SensorsParams',
+                       'SetArrayOffsetParams']} })
+    period: Optional[TimeRange] = Field(default=None, description="""The cuts whose times fall in it, ends included, of the sensors named.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
+                       'TmaRequest',
+                       'TrackEdit',
+                       'AmbiguityResolution',
+                       'TmaSolutionRow',
+                       'TmaFocus',
+                       'SensorsParams',
+                       'FindJumpsParams',
+                       'RemoveJumpsParams',
+                       'SmoothingPreviewParams',
+                       'SmoothTrackParams',
+                       'MarkFixParams',
+                       'SetSourcePreferenceParams']} })
+    cut_ids: Optional[list[str]] = Field(default=None, description="""Or the cuts to root it in, by feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
+                       'TmaRequest',
+                       'AmbiguityResolution',
+                       'TmaFocus',
+                       'TmaExcludeMessage',
+                       'CutsParams',
+                       'TmaExcludeCutParams']} })
+    contact: Optional[str] = Field(default=None, description="""The contact's name; left out, the next of \"Contact 1\", \"Contact 2\"...""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaRequest', 'TmaSolutionRow']} })
+    name: Optional[str] = Field(default=None, description="""The solution track's name; left out, the contact's with \"solution\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'TmaRequest',
+                       'SourceTrackRef',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorProperties',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'TrackCoverage',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TmaSensorRow',
+                       'TmaSolutionRow',
+                       'TmaOwnship',
+                       'EarlierRead',
+                       'PreviewCount',
+                       'PreviewSource',
+                       'NarrativePreview',
+                       'SensorInFile',
+                       'TrackListed',
+                       'SensorPreview',
+                       'NarrativeTally',
+                       'SensorRow',
+                       'MergeTracksParams']} })
+    colour: Optional[str] = Field(default=None, description="""The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'TmaSensorRow',
+                       'TmaCut',
+                       'TmaSolutionRow',
+                       'TmaOwnship',
+                       'TimelineEntry',
+                       'SetColourParams',
+                       'SensorRow',
+                       'FixMarkChanges']} })
+    range: Optional[Length] = Field(default=None, description="""First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'SensorCutProperties',
+                       'TimeState',
+                       'TmaSuggestion']} })
+    first_bearing: Optional[SensorCutKeptEnum] = Field(default=None, description="""First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest']} })
+    course: Optional[Angle] = Field(default=None, description="""First guess by form: the solution's course.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest',
+                       'TrackEdit',
+                       'SensorCutProperties',
+                       'TmaSuggestion']} })
+    speed: Optional[Speed] = Field(default=None, description="""First guess by form: the solution's speed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'TmaSuggestion', 'Jump']} })
+    first_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess by two clicks: [longitude, latitude] clicked on, or near, the first cut's line: the solution starts on the line, level with it.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['TmaRequest']} })
+    last_position: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""First guess by two clicks: [longitude, latitude] clicked on, or near, the last cut's line; the course and speed are those from the first position, on the first cut's line, to this one, on the last's.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['TmaRequest']} })
+    store: str = Field(default=..., description="""The store's id in the analyst's configuration.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource',
+                       'PlotParams',
+                       'CreateCatalogueReply',
+                       'ImportParams',
+                       'AddPlotFileParams',
+                       'PreviewNarrativeParams',
+                       'PreviewSensorParams',
+                       'ToteParams',
+                       'ReviewFlagListed',
+                       'FigureIdParams',
+                       'ExportImageParams',
+                       'OpenRevisionParams',
+                       'HostRequest']} })
+    item: str = Field(default=..., description="""The plot's id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport',
+                       'PlotParams',
+                       'ImportReply',
+                       'AddPlotFileReply',
+                       'PreviewNarrativeParams',
+                       'PreviewSensorParams',
+                       'ToteParams',
+                       'ItemAsked',
+                       'FigureIdParams',
+                       'ExportImageParams',
+                       'OpenRevisionParams',
+                       'HostRequest']} })
+    base: Optional[PlotBase] = Field(default=None, description="""The base the caller last saw; left out, the change is not checked against one.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotParams', 'PlotReply']} })
+    agent: Optional[AgentRef] = Field(default=None, description="""Who is asking; a method that changes the plot records it (SUB-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'PlotParams',
+                       'ImportParams',
+                       'AddPlotFileParams',
+                       'PreviewNarrativeParams',
+                       'PreviewSensorParams',
+                       'ListedStep',
+                       'ExportImageParams',
+                       'HostRequest']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class TmaSuggestReply(PlotReply):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    suggestion: TmaSuggestion = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSuggestReply']} })
+    recovered: list[str] = Field(default=..., description="""What opening the plot had to repair after a crash, for the analyst (NFR-10).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotReply']} })
+    base: PlotBase = Field(default=..., description="""Where the plot's history stands now.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotParams', 'PlotReply']} })
+    latest: int = Field(default=..., description="""How many steps the history holds.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown',
+                       'HistoryHead',
+                       'PlotReply',
+                       'OpenRevisionReply']} })
 
 
 class TmaChangeReply(PlotChangeReply):
@@ -15868,7 +16115,7 @@ class Jump(ConfiguredBaseModel):
     position: conlist(min_length=2, max_length=2, item_type=float) = Field(default=..., json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['TrackEdit', 'Jump']} })
-    speed: Optional[Speed] = Field(default=None, description="""null when at the same time as the fix before, somewhere else.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'Jump']} })
+    speed: Optional[Speed] = Field(default=None, description="""null when at the same time as the fix before, somewhere else.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaRequest', 'TrackEdit', 'TmaSuggestion', 'Jump']} })
     since: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Jump']} })
     logged: Optional[bool] = Field(default=None, description="""A dead-reckoned track's jump: its logged speed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Jump', 'StampedImage']} })
 
@@ -17408,6 +17655,7 @@ class StampedImage(ConfiguredBaseModel):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
 
@@ -17520,6 +17768,7 @@ class ExportedImage(ConfiguredBaseModel):
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag',
+                       'TmaSuggestion',
                        'StampedImage',
                        'ExportedImage']} })
 
@@ -18134,6 +18383,7 @@ TmaSensorRow.model_rebuild()
 TmaCut.model_rebuild()
 TmaResidualRow.model_rebuild()
 TmaResiduals.model_rebuild()
+TmaSuggestion.model_rebuild()
 TmaSolutionRow.model_rebuild()
 TmaOwnship.model_rebuild()
 TmaView.model_rebuild()
@@ -18284,6 +18534,8 @@ CutsParams.model_rebuild()
 TmaResidualsParams.model_rebuild()
 TmaResidualsReply.model_rebuild()
 TmaCreateParams.model_rebuild()
+TmaSuggestParams.model_rebuild()
+TmaSuggestReply.model_rebuild()
 TmaChangeReply.model_rebuild()
 TmaCreateReply.model_rebuild()
 TmaSplitLegParams.model_rebuild()

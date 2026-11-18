@@ -156,6 +156,34 @@ classes:
           and the RMS until shown again (legacy's "only plot visible data";
           product owner, 25 Oct 2026).
 
+  TmaSuggestion:
+    description: >-
+      A first guess suggested for a TMA solution (debrief/tma_suggest; CAP-21 as
+      amended, design note docs/notes/tma-suggested-first-guess.md): batch least
+      squares over the cuts asked for, one course at one speed, as gitma2's. Never
+      a solution: it fills the first guess's form, and the analyst makes and fits
+      the solution as before. Offered only where the cuts settle the range
+      (determined); otherwise note says why and the form keeps Debrief's guess.
+    attributes:
+      determined:
+        description: >-
+          Whether the cuts settle the range: two standard deviations of it within
+          half of it, and the fit converged. Without a change of the ownship's course
+          or speed in the period they seldom do.
+        range: boolean
+        required: true
+      cuts: {range: integer, required: true, description: "How many cuts the fit used: those shown, with an origin."}
+      range:
+        description: Metres along the first cut's bearing, from where it was taken, to the target then, as the form's range. Given when determined.
+        range: float
+      range_spread:
+        description: Two standard deviations of the range at the first cut, metres; left out where the fit says nothing of range.
+        range: float
+      course: {range: float, description: "Degrees true. Given when determined."}
+      speed: {range: float, description: "Metres a second. Given when determined."}
+      rms: {range: float, description: "The fit's RMS error, degrees."}
+      note: {required: true, description: "What the view says of it, in the analyst's words."}
+
   TmaSolutionRow:
     description: A TMA solution in the plot, as the bearing view lists it and draws it.
     attributes:

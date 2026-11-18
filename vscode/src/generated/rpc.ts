@@ -88,6 +88,8 @@ import type {
   TmaResidualsParams,
   TmaResidualsReply,
   TmaSplitLegParams,
+  TmaSuggestParams,
+  TmaSuggestReply,
   ToolsForSelectionParams,
   ToolsForSelectionReply,
   ToteParams,
@@ -134,6 +136,7 @@ export interface RpcMethods {
   "debrief/delete_cuts": { params: CutsParams; reply: PlotChangeReply };
   "debrief/tma_residuals": { params: TmaResidualsParams; reply: TmaResidualsReply };
   "debrief/tma_create": { params: TmaCreateParams; reply: TmaCreateReply };
+  "debrief/tma_suggest": { params: TmaSuggestParams; reply: TmaSuggestReply };
   "debrief/tma_split_leg": { params: TmaSplitLegParams; reply: PlotChangeReply };
   "debrief/tma_exclude_cut": { params: TmaExcludeCutParams; reply: TmaChangeReply };
   "debrief/edit_track": { params: EditTrackParams; reply: PlotChangeReply };

@@ -12434,6 +12434,272 @@
       "title": "TmaSplitMessage",
       "type": "object"
     },
+    "TmaSuggestParams": {
+      "additionalProperties": false,
+      "description": "The cuts to suggest a first guess for (a TmaRequest's sensor_ids and period, or cut_ids), in request or as the parameters themselves.",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who is asking; a method that changes the plot records it (SUB-24)."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotBase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base the caller last saw; left out, the change is not checked against one."
+        },
+        "colour": {
+          "description": "The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contact": {
+          "description": "The contact's name; left out, the next of \"Contact 1\", \"Contact 2\"...",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "course": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: the solution's course."
+        },
+        "cut_ids": {
+          "description": "Or the cuts to root it in, by feature id.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "first_bearing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first."
+        },
+        "first_position": {
+          "items": {
+            "description": "First guess by two clicks: [longitude, latitude] clicked on, or near, the first cut's line: the solution starts on the line, level with it.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "item": {
+          "description": "The plot's id.",
+          "type": "string"
+        },
+        "last_position": {
+          "items": {
+            "description": "First guess by two clicks: [longitude, latitude] clicked on, or near, the last cut's line; the course and speed are those from the first position, on the first cut's line, to this one, on the last's.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "name": {
+          "description": "The solution track's name; left out, the contact's with \"solution\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The cuts whose times fall in it, ends included, of the sensors named."
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts."
+        },
+        "request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaRequest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sensor_ids": {
+          "description": "The sensors whose cuts in the period it is rooted in.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "speed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: the solution's speed."
+        },
+        "store": {
+          "description": "The store's id in the analyst's configuration.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "store",
+        "item"
+      ],
+      "title": "TmaSuggestParams",
+      "type": "object"
+    },
+    "TmaSuggestReply": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PlotBase",
+          "description": "Where the plot's history stands now."
+        },
+        "latest": {
+          "description": "How many steps the history holds.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recovered": {
+          "description": "What opening the plot had to repair after a crash, for the analyst (NFR-10).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "suggestion": {
+          "$ref": "#/$defs/TmaSuggestion"
+        }
+      },
+      "required": [
+        "suggestion",
+        "recovered",
+        "base",
+        "latest"
+      ],
+      "title": "TmaSuggestReply",
+      "type": "object"
+    },
+    "TmaSuggestion": {
+      "additionalProperties": false,
+      "description": "A first guess suggested for a TMA solution (debrief/tma_suggest; CAP-21 as amended, design note docs/notes/tma-suggested-first-guess.md): batch least squares over the cuts asked for, one course at one speed, as gitma2's. Never a solution: it fills the first guess's form, and the analyst makes and fits the solution as before. Offered only where the cuts settle the range (determined); otherwise note says why and the form keeps Debrief's guess.",
+      "properties": {
+        "course": {
+          "description": "Degrees true. Given when determined.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cuts": {
+          "description": "How many cuts the fit used: those shown, with an origin.",
+          "type": "integer"
+        },
+        "determined": {
+          "description": "Whether the cuts settle the range: two standard deviations of it within half of it, and the fit converged. Without a change of the ownship's course or speed in the period they seldom do.",
+          "type": "boolean"
+        },
+        "note": {
+          "description": "What the view says of it, in the analyst's words.",
+          "type": "string"
+        },
+        "range": {
+          "description": "Metres along the first cut's bearing, from where it was taken, to the target then, as the form's range. Given when determined.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "range_spread": {
+          "description": "Two standard deviations of the range at the first cut, metres; left out where the fit says nothing of range.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rms": {
+          "description": "The fit's RMS error, degrees.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "speed": {
+          "description": "Metres a second. Given when determined.",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "determined",
+        "cuts",
+        "note"
+      ],
+      "title": "TmaSuggestion",
+      "type": "object"
+    },
     "TmaTimeAskedMessage": {
       "additionalProperties": false,
       "description": "Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.",
