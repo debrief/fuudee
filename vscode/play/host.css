@@ -7,6 +7,14 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
 .side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
 .side select { width: 100%; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 3px; font: inherit; }
+/* Fold arrows (Outline, Catalogues, Tools' sections, panel headings): one chevron the size of VS Code's
+   (a 16px codicon), pointing right when closed and down when open; a text triangle was too small to tell apart. */
+:is(#outline li[aria-expanded] > .twisty, .catalogues li[aria-expanded] > .row .arrow, .tools button.fold .arrow, .side h2 button.fold .arrow)::before {
+  content: ""; display: block; width: var(--chevron-size, 16px); height: var(--chevron-size, 16px); background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6 3.5 10.5 8 6 12.5' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+:is(#outline li[aria-expanded="true"] > .twisty, .catalogues li[aria-expanded="true"] > .row .arrow, .tools button.fold:not([aria-expanded="false"]) .arrow, .side .panel:not(.folded) h2 button.fold .arrow)::before { transform: rotate(90deg); }
+@media (forced-colors: active) { :is(#outline .twisty, .catalogues .arrow, .tools button.fold .arrow, .side h2 button.fold .arrow)::before { background: CanvasText; } }
 .list { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; }
 /* No scroll anchoring: rows unwrapping as a panel widens would move the list's place, which the layout keeps (dock). */
 .list { overflow-anchor: none; }
@@ -19,7 +27,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 #outline li.cut, #outline li.fix, #outline li.leg { font-variant-numeric: tabular-nums; }
 #outline li.hidden-cut { color: var(--vscode-descriptionForeground); }
 #outline li.hidden-cut .name { font-style: italic; }
-#outline .twisty { display: inline-block; width: 12px; color: var(--vscode-descriptionForeground); }
+#outline .twisty { display: inline-block; width: 16px; vertical-align: text-bottom; color: var(--vscode-icon-foreground, var(--vscode-foreground)); }
 #outline:focus-within li[tabindex="0"]:not(:focus) { outline: 1px dotted var(--vscode-focusBorder); outline-offset: -1px; }
 #outline .tree-spacer { padding: 0; }
 #outline .icon { display: inline-block; width: 14px; text-align: center; color: var(--vscode-descriptionForeground); }
@@ -79,10 +87,8 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .catalogues .row { padding: 2px 4px; border-radius: 2px; }
 .catalogues li.catalogues-plot > .row { cursor: pointer; }
 .catalogues li.catalogues-plot > .row:hover { background: var(--vscode-list-hoverBackground); }
-.catalogues .arrow { display: inline-block; width: 1em; cursor: pointer; color: var(--vscode-descriptionForeground); }
-.catalogues li[aria-expanded="true"] > .row .arrow::before { content: "▾"; }
-.catalogues li[aria-expanded="false"] > .row .arrow::before { content: "▸"; }
-.catalogues li:not([aria-expanded]) > .row { padding-left: calc(1em + 4px); }
+.catalogues .arrow { display: inline-block; width: 16px; vertical-align: text-bottom; cursor: pointer; color: var(--vscode-icon-foreground, var(--vscode-foreground)); }
+.catalogues li:not([aria-expanded]) > .row { padding-left: calc(16px + 4px); }
 .catalogues li.catalogues-catalogue > .row .name { font-weight: 600; }
 .catalogues li.warning > .row .icon { color: var(--vscode-editorWarning-foreground); }
 .catalogues li.catalogues-welcome { padding: 2px 4px; }
@@ -90,8 +96,7 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 /* The Tools panel model's sections (webview/panels/tools.ts): each a heading that opens and closes, with its count. */
 .tools li.tools-section { display: block; }
 .tools li.tools-section > button.fold { display: flex; align-items: baseline; gap: 6px; width: 100%; margin: 4px 0 0; padding: 1px 0; background: none; border: 0; color: var(--vscode-descriptionForeground); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; text-align: left; }
-.tools li.tools-section > button.fold .arrow::before { content: "▾"; }
-.tools li.tools-section > button.fold[aria-expanded="false"] .arrow::before { content: "▸"; }
+.tools li.tools-section > button.fold .arrow { align-self: center; }
 .tools li.tools-section > button.fold .detail { font-size: 11px; }
 .tools .tools-rows { list-style: none; margin: 0; padding: 0 0 0 12px; }
 .tools button.disabled { opacity: .55; cursor: default; }
@@ -215,9 +220,7 @@ dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background
 .side h2 button.fold { position: relative; display: block; width: 100%; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
 .side h2 button.fold:hover:not(:disabled) { background: none; }
 /* Its arrow sits in the margin, so each heading lines up with its panel's contents. */
-.side h2 button.fold .arrow { position: absolute; top: 0; left: -10px; width: 10px; text-align: center; font-size: 10px; }
-.side h2 button.fold .arrow::before { content: "▾"; }
-.side .panel.folded h2 button.fold .arrow::before { content: "▸"; }
+.side h2 button.fold .arrow { position: absolute; top: 50%; left: -12px; margin-top: -6px; --chevron-size: 12px; }
 .side .panel.folded { padding-bottom: 6px; }
 .side .panel.folded h2 { margin-bottom: 4px; }
 .side .tote-pick select { width: auto; }

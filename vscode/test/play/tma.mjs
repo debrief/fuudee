@@ -652,7 +652,7 @@ export async function playTma(page, shot) {
   };
   await expand(solutionId);
   await outlineRow(`${solutionId}#leg1`).waitFor();
-  assert.match(await outlineRow(`${solutionId}#leg1`).innerText(), /^[▸▾]\s*\S\s+Leg 1 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ · 60 fixes · \d{3}\.\d°T \d+\.\d kn$/);
+  assert.match(await outlineRow(`${solutionId}#leg1`).innerText(), /^\S\s+Leg 1 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ · 60 fixes · \d{3}\.\d°T \d+\.\d kn$/);
   await expand(`${solutionId}#leg1`);
   await fixRow(29).waitFor();
   assert.equal(await fixRow(29).getAttribute("aria-level"), "5"); // Plot features, Tracks, the solution, its leg, the fix
