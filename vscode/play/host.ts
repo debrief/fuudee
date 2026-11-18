@@ -27,7 +27,7 @@
  * layout every time, with every panel open, and remembers neither, so a post's demo always shows
  * what the post describes.
  */
-import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaView, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaView, TmaRequest, TmaResiduals, TmaSuggestion, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
@@ -2234,6 +2234,8 @@ const fromBearings = receiveBearings(
       void refreshBearings();
     },
     create: (request) => void createTma(request),
+    // Suggest on the first guess's form (CAP-21 as amended): as debrief/tma_suggest, reading only.
+    suggest: (request) => void suggestTma(request),
     guess: (request) => {
       tmaGuessing = request;
       post(map, { kind: "tma_guess", tma_request: request });
@@ -2328,6 +2330,10 @@ const bearingsView = {
   preview(id: string, preview: { coordinates?: unknown } | undefined): void {
     if (!bearingsWindow()) return tmaControl.preview(id, preview?.coordinates as [number, number][] | undefined);
     toBearingsWindow({ kind: "tma_preview", feature_id: id, ...(preview && { preview }) });
+  },
+  suggested(suggestion: TmaSuggestion | undefined, problem: string | undefined): void {
+    if (!bearingsWindow()) return tmaControl.suggested(suggestion, problem);
+    toBearingsWindow({ kind: "tma_suggested", ...(suggestion ? { suggestion } : { message: problem ?? "No first guess could be suggested." }) });
   },
   made(problem: string | undefined): void {
     if (!bearingsWindow()) return tmaControl.made(problem);
@@ -2546,6 +2552,12 @@ async function changeTma(change: Record<string, unknown>): Promise<{ error?: str
   if (outcome.feature) await select([outcome.feature]);
   if (outcome.notes?.length) toast(outcome.notes.join(" "));
   return outcome;
+}
+/** A first guess suggested for the form's cuts (debrief/tma_suggest): reading only, answered to Bearings. */
+async function suggestTma(request: TmaRequest): Promise<void> {
+  if (!opened || !pythonReady) return bearingsView.suggested(undefined, "Open a plot first.");
+  const outcome = await pythonJson<{ error?: string; suggestion?: TmaSuggestion }>("tma_suggest", opened.item.id, JSON.stringify({ base: opened.base, request }));
+  bearingsView.suggested(outcome.suggestion, outcome.error);
 }
 async function createTma(request: TmaRequest): Promise<Made> {
   const outcome = await changeTma({ kind: "create", request });

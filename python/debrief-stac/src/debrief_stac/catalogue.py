@@ -1334,6 +1334,16 @@ class Catalogue:
         except tma.TmaError as error:
             raise CatalogueError(str(error)) from None
 
+    def tma_suggest(
+        self, item_id: str, request: models.TmaRequest | dict, base: Base | None = None
+    ) -> dict:
+        """A first guess suggested for the cuts asked for (debrief_stac.tma.suggest), reading
+        only: a TmaSuggestion. Refused while any of the cuts is ambiguous and unresolved."""
+        try:
+            return tma.suggest(self._plot_at(item_id, base), request)
+        except tma.TmaError as error:
+            raise CatalogueError(str(error)) from None
+
     def tma_exclude(
         self,
         item_id: str,

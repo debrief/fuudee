@@ -41,7 +41,7 @@ function controller() {
     errorCutOff: 3,
   } satisfies BearingsAct;
   const logged: string[] = [];
-  const view = new BearingsView(session, { cuts: async () => [], residuals: async () => undefined }, act, (line) => logged.push(line));
+  const view = new BearingsView(session, { cuts: async () => [], residuals: async () => undefined, suggest: async () => ({ problem: "None here." }) }, act, (line) => logged.push(line));
   return { session, act, view, logged };
 }
 

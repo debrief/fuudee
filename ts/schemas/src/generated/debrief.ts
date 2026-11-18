@@ -478,7 +478,9 @@ export type WebviewMessage =
   | TmaCutOffMessage
   | TmaPlotDrawnMessage
   | TmaPanesMessage
-  | TmaMadeMessage;
+  | TmaMadeMessage
+  | TmaSuggestMessage
+  | TmaSuggestedMessage;
 /**
  * Every webview message's kind. Each has one class below, which says what the message is for and which members it carries.
  *
@@ -553,7 +555,9 @@ export type WebviewMessageKindEnum =
   | "tma_cut_off"
   | "tma_plot_drawn"
   | "tma_panes"
-  | "tma_made";
+  | "tma_made"
+  | "tma_suggest"
+  | "tma_suggested";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -6568,6 +6572,167 @@ export interface TmaSplitMessage {
    */
   feature_id: string;
   kind: "tma_split";
+}
+/**
+ * Bearing view to host: suggest a first guess for these cuts (tma_request: the cuts, as the first guess's form has them), by batch least squares (debrief/tma_suggest; CAP-21 as amended, product owner, 18 Nov 2026). Reading only.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSuggestMessage".
+ */
+export interface TmaSuggestMessage {
+  kind: "tma_suggest";
+  /**
+   * A TMA solution asked for (tma_create, tma_guess, tma_guessed).
+   */
+  tma_request: TmaRequest;
+}
+/**
+ * The cuts to suggest a first guess for (a TmaRequest's sensor_ids and period, or cut_ids), in request or as the parameters themselves.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSuggestParams".
+ */
+export interface TmaSuggestParams {
+  /**
+   * Who is asking; a method that changes the plot records it (SUB-24).
+   */
+  agent?: AgentRef | null;
+  /**
+   * The base the caller last saw; left out, the change is not checked against one.
+   */
+  base?: PlotBase | null;
+  /**
+   * The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.
+   */
+  colour?: string | null;
+  /**
+   * The contact's name; left out, the next of "Contact 1", "Contact 2"...
+   */
+  contact?: string | null;
+  /**
+   * First guess by form: the solution's course.
+   */
+  course?: Angle | null;
+  /**
+   * Or the cuts to root it in, by feature id.
+   */
+  cut_ids?: string[] | null;
+  /**
+   * First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first.
+   */
+  first_bearing?: SensorCutKeptEnum | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  first_position?: [number | null, number | null];
+  /**
+   * The plot's id.
+   */
+  item: string;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  last_position?: [number | null, number | null];
+  /**
+   * The solution track's name; left out, the contact's with "solution".
+   */
+  name?: string | null;
+  /**
+   * The cuts whose times fall in it, ends included, of the sensors named.
+   */
+  period?: TimeRange | null;
+  /**
+   * First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.
+   */
+  range?: Length | null;
+  request?: TmaRequest | null;
+  /**
+   * The sensors whose cuts in the period it is rooted in.
+   */
+  sensor_ids?: string[] | null;
+  /**
+   * First guess by form: the solution's speed.
+   */
+  speed?: Speed | null;
+  /**
+   * The store's id in the analyst's configuration.
+   */
+  store: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSuggestReply".
+ */
+export interface TmaSuggestReply {
+  /**
+   * Where the plot's history stands now.
+   */
+  base: PlotBase;
+  /**
+   * How many steps the history holds.
+   */
+  latest: number;
+  /**
+   * What opening the plot had to repair after a crash, for the analyst (NFR-10).
+   */
+  recovered: string[];
+  suggestion: TmaSuggestion;
+}
+/**
+ * A first guess suggested for a TMA solution (debrief/tma_suggest; CAP-21 as amended, design note docs/notes/tma-suggested-first-guess.md): batch least squares over the cuts asked for, one course at one speed, as gitma2's. Never a solution: it fills the first guess's form, and the analyst makes and fits the solution as before. Offered only where the cuts settle the range (determined); otherwise note says why and the form keeps Debrief's guess.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSuggestion".
+ */
+export interface TmaSuggestion {
+  /**
+   * Degrees true. Given when determined.
+   */
+  course?: number | null;
+  /**
+   * How many cuts the fit used: those shown, with an origin.
+   */
+  cuts: number;
+  /**
+   * Whether the cuts settle the range: two standard deviations of it within half of it, and the fit converged. Without a change of the ownship's course or speed in the period they seldom do.
+   */
+  determined: boolean;
+  /**
+   * What the view says of it, in the analyst's words.
+   */
+  note: string;
+  /**
+   * Metres along the first cut's bearing, from where it was taken, to the target then, as the form's range. Given when determined.
+   */
+  range?: number | null;
+  /**
+   * Two standard deviations of the range at the first cut, metres; left out where the fit says nothing of range.
+   */
+  range_spread?: number | null;
+  /**
+   * The fit's RMS error, degrees.
+   */
+  rms?: number | null;
+  /**
+   * Metres a second. Given when determined.
+   */
+  speed?: number | null;
+}
+/**
+ * Host to bearing view: the first guess suggested (suggestion), to fill the form where it is determined and to say its note; or, with message alone, why none could be (cuts ambiguous and unresolved, too few).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSuggestedMessage".
+ */
+export interface TmaSuggestedMessage {
+  kind: "tma_suggested";
+  message?: string | null;
+  /**
+   * A first guess suggested for a TMA solution (tma_suggested; debrief/tma_suggest).
+   */
+  suggestion?: TmaSuggestion | null;
 }
 /**
  * Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.

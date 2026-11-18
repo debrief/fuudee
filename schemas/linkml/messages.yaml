@@ -108,6 +108,8 @@ enums:
       tma_plot_drawn: {}
       tma_panes: {}
       tma_made: {}
+      tma_suggest: {}
+      tma_suggested: {}
 
 slots:
   # The members webview messages carry; each kind's class names its own.
@@ -153,6 +155,10 @@ slots:
     multivalued: true
     inlined_as_list: true
   message: {}
+  suggestion:
+    description: A first guess suggested for a TMA solution (tma_suggested; debrief/tma_suggest).
+    range: TmaSuggestion
+    inlined: true
   result_title: {}
   result: {range: ToolResult, inlined: true}
   annotation:
@@ -859,6 +865,21 @@ classes:
     slot_usage:
       kind: {equals_string: tma_panes}
       panes_shown: {required: true}
+
+  TmaSuggestMessage:
+    is_a: WebviewMessageBase
+    description: "Bearing view to host: suggest a first guess for these cuts (tma_request: the cuts, as the first guess's form has them), by batch least squares (debrief/tma_suggest; CAP-21 as amended, product owner, 18 Nov 2026). Reading only."
+    slots: [tma_request]
+    slot_usage:
+      kind: {equals_string: tma_suggest}
+      tma_request: {required: true}
+
+  TmaSuggestedMessage:
+    is_a: WebviewMessageBase
+    description: "Host to bearing view: the first guess suggested (suggestion), to fill the form where it is determined and to say its note; or, with message alone, why none could be (cuts ambiguous and unresolved, too few)."
+    slots: [suggestion, message]
+    slot_usage:
+      kind: {equals_string: tma_suggested}
 
   TmaMadeMessage:
     is_a: WebviewMessageBase

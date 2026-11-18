@@ -339,3 +339,18 @@ describe("splitting before or after a fix, held to the shared vectors", () => {
     });
   }
 });
+
+describe("a suggested first guess as the form's fields (CAP-21 as amended)", () => {
+  it("puts metres, degrees and metres a second into the analyst's units", async () => {
+    const { suggestedFields } = await import("../src/index.js");
+    expect(suggestedFields({ range: 9144, course: 200, speed: 3.0866 })).toEqual({ range: "4.94 nmi", course: "200.0", speed: "6.0 kn" });
+    expect(suggestedFields({ range: 9144, course: -10, speed: 3 })?.course).toBe("350.0");
+    expect(suggestedFields({ course: 200, speed: 3 })).toBeUndefined();
+  });
+  it("says why Suggest waits while cuts are ambiguous", async () => {
+    const { suggestBlocked } = await import("../src/index.js");
+    expect(suggestBlocked(0)).toBeUndefined();
+    expect(suggestBlocked(1)).toMatch(/^1 of these cuts is ambiguous: keep a side first/);
+    expect(suggestBlocked(4)).toMatch(/^4 of these cuts are ambiguous/);
+  });
+});

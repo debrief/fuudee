@@ -58,7 +58,7 @@ export const SENT: Record<Component, readonly MessageKind[]> = {
   tote: ["ready", "tote_changed"],
   coverage: ["ready", "source_chosen", "link_changed", "take_asked", "dismiss_asked", "review_cleared"],
   timeline: ["ready", "timeline_chosen", "save_narrative", "delete_narrative", "narrative_on_map_changed", "undo_asked", "redo_asked"],
-  bearings: ["ready", "tma_create", "tma_guess", "tma_exclude", "tma_split", "tma_time_asked", "resolve_asked", "tma_resolve", "tma_select", "tma_menu", "tma_cut_off", "tma_plot_drawn", "tma_panes"],
+  bearings: ["ready", "tma_create", "tma_suggest", "tma_guess", "tma_exclude", "tma_split", "tma_time_asked", "resolve_asked", "tma_resolve", "tma_select", "tma_menu", "tma_cut_off", "tma_plot_drawn", "tma_panes"],
   map: ["ready", "selection_changed", "time_changed", "viewport_changed", "show_hidden", "edit_annotation", "edit_track", "fix_chosen", "resolve_asked", "cut_chosen", "annotation_drawn", "image_rendered", "latest_asked", "tma_preview", "tma_guessed"],
   form: ["ready", "cancel", "run_tool"],
   annotation: ["ready", "cancel", "save_annotation", "delete_annotation"],
@@ -177,6 +177,8 @@ export interface BearingsHandlers {
   ready(): unknown;
   /** A solution asked for: the host answers the page (tma_made, or the control's made()). */
   create(request: TmaRequest): unknown;
+  /** A first guess suggested for these cuts: the host answers the page (tma_suggested; debrief/tma_suggest). */
+  suggest(request: TmaRequest): unknown;
   guess(request: TmaRequest): unknown;
   exclude(solution: string, cutIds: string[], excluded: boolean): unknown;
   split(solution: string, at: string): unknown;
@@ -192,6 +194,7 @@ export interface BearingsHandlers {
 }
 export const bearingsEvents = (send: Send): TmaControlHost => ({
   create: (tma_request) => send({ kind: "tma_create", tma_request }),
+  suggest: (tma_request) => send({ kind: "tma_suggest", tma_request }),
   guess: (tma_request) => send({ kind: "tma_guess", tma_request }),
   exclude: (feature_id, cut_ids, excluded) => send({ kind: "tma_exclude", feature_id, cut_ids, excluded }),
   split: (feature_id, current_time) => send({ kind: "tma_split", feature_id, current_time }),
@@ -209,6 +212,7 @@ export const receiveBearings = (h: BearingsHandlers, check: Check, refused: Refu
     {
       ready: () => h.ready(),
       tma_create: (m) => h.create(m.tma_request),
+      tma_suggest: (m) => h.suggest(m.tma_request),
       // Bearings always asks with a request; only the host's tma_guess to the map may come without one.
       tma_guess: (m) => m.tma_request && h.guess(m.tma_request),
       tma_exclude: (m) => h.exclude(m.feature_id, m.cut_ids, m.excluded),

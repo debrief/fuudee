@@ -211,3 +211,17 @@ def test_the_outlines_operations_refuse_what_they_cannot_do(client, sensor) -> N
     )
     assert "needs cut_ids" in error("debrief/delete_cuts", {"cut_ids": []})
     assert "no cut" in error("debrief/delete_cuts", {"cut_ids": [feature]})
+
+
+def test_an_agent_asks_for_a_suggested_first_guess(client, sensor) -> None:
+    """debrief/tma_suggest (CAP-21 as amended): reading only, a TmaSuggestion. Nelson holds
+    one course here, so the cuts do not settle the range and no guess is offered."""
+    period = {"start": "1995-12-12T05:00:00.000Z", "end": "1995-12-12T05:20:00.000Z"}
+    asked = {**WHERE, "request": {"sensor_ids": [sensor], "period": period}}
+    suggestion = result(client, "debrief/tma_suggest", asked)["suggestion"]
+    assert suggestion["cuts"] == 21 and isinstance(suggestion["determined"], bool)
+    assert suggestion["note"]
+    flat = result(client, "debrief/tma_suggest", {**WHERE, "sensor_ids": [sensor]})["suggestion"]
+    assert flat["cuts"] == 21
+    answer = rpc(client, "debrief/tma_suggest", {**WHERE, "sensor_ids": ["sensor-none"]}).json()
+    assert answer["error"]["code"] == INVALID_PARAMS and "no sensor" in answer["error"]["message"]

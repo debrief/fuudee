@@ -74,6 +74,7 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
 | `debrief/delete_cuts` | yes | yes | `debrief.delete_cuts` | Deletes cuts. |
 | `debrief/tma_residuals` |  |  | `debrief.tma_residuals` | A solution's bearing residuals and RMS error. |
 | `debrief/tma_create` | yes | yes | `debrief.tma_create` | Makes a TMA solution from a sensor's cuts. |
+| `debrief/tma_suggest` |  |  | `debrief.tma_suggest` | Suggests a first guess for a TMA solution from its cuts. |
 | `debrief/tma_split_leg` | yes | yes | `debrief.tma_split_leg` | Splits a solution into legs, or joins two. |
 | `debrief/tma_exclude_cut` | yes | yes | `debrief.tma_exclude_cut` | Leaves cuts out of a solution's RMS error, or counts them again. |
 | `debrief/edit_track` | yes | yes | `debrief.edit_track` | Moves, rotates, shears or stretches a track, moves a fix, or plots it by dead reckoning. |

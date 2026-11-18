@@ -390,6 +390,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         if (!service || !opened) return undefined;
         return (await service.tmaResiduals(opened.store.id, opened.item.id, solutionId)).residuals;
       },
+      // Suggest on the first guess's form (CAP-21 as amended): reading only, refused while cuts are ambiguous.
+      suggest: async (request) => {
+        const opened = session.current;
+        if (!service || !opened) return { problem: "Open a plot first." };
+        try {
+          return { suggestion: (await service.tmaSuggest(opened.store.id, opened.item.id, request)).suggestion };
+        } catch (error) {
+          return { problem: error instanceof Error ? error.message : String(error) };
+        }
+      },
     },
     {
       create: async (request) => {

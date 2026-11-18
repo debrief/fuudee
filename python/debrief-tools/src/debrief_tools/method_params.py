@@ -370,6 +370,15 @@ class TmaCreate(Params):
     ] = None  # type: ignore[assignment]  # left out only: null is refused
 
 
+class TmaSuggest(Params):
+    # Left out, the request is read from the params themselves (TmaRequest's members).
+    request: Annotated[
+        dict[str, Any],
+        shaped(models.TmaRequest),
+        Refusal("tma_suggest takes the request as an object"),
+    ] = None  # type: ignore[assignment]  # left out only: null is refused
+
+
 # What debrief/tma_create reads from its params when no request object is given.
 TMA_ASKED = frozenset(models.TmaRequest.model_fields)
 

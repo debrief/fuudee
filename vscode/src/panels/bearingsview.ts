@@ -22,7 +22,7 @@
  * what that surface's page says is acted on, so the popped-out view is linked exactly as the
  * panel's is. It needs nothing of VS Code's at run time, so the unit tests drive it with stand-ins.
  */
-import type { AmbiguityResolution, LineStringGeometry, TimeState, WebviewMessage, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
+import type { AmbiguityResolution, LineStringGeometry, TimeState, WebviewMessage, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaSuggestion, TmaView } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { receiveBearings } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
@@ -39,6 +39,8 @@ export interface BearingsAsk {
   cuts(sensorId: string): Promise<ListedCut[] | undefined>;
   /** A solution's residuals (debrief/tma_residuals). */
   residuals(solutionId: string): Promise<TmaResiduals | undefined>;
+  /** A first guess suggested for these cuts (debrief/tma_suggest), or why none could be. */
+  suggest(request: TmaRequest): Promise<{ suggestion?: TmaSuggestion; problem?: string }>;
 }
 
 export interface BearingsAct {
@@ -216,6 +218,10 @@ export class BearingsView {
           this.shownNow = { solution: done.feature };
           await this.refresh();
         }
+      },
+      suggest: async (request) => {
+        const done = await this.ask.suggest(request);
+        this.post(done.suggestion ? { kind: "tma_suggested", suggestion: done.suggestion } : { kind: "tma_suggested", message: done.problem ?? "No first guess could be suggested." });
       },
       guess: (request) => this.act.guess(request),
       exclude: (id, cuts, excluded) => this.act.exclude(id, cuts, excluded),

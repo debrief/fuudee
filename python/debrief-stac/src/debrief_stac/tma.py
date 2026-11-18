@@ -36,11 +36,15 @@ made: 120 Bow sonar cuts 09:00:00Z–09:59:30Z", "Contact 1 solution split into 
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
+import numpy as np
+
+from debrief_kernel import geodesy_arrays, tma_fit
 from debrief_kernel import tma as kernel
 from debrief_kernel.formatting import (
     DEFAULT_SETTINGS,
@@ -586,6 +590,121 @@ def _two_clicks(request: models.TmaRequest, first: CutInfo, last: CutInfo, times
         f"{_course_speed_text(course, knots)}"
     )
     return ends[0].position, course, knots, said
+
+
+# --- A suggested first guess (CAP-21 as amended; docs/notes/tma-suggested-first-guess.md) ---
+
+# A guess is offered only where the cuts fit one course and speed: their typical error (robust
+# to a few wild bearings) within this many degrees. Above it, a manoeuvre or a side kept wrongly.
+SUGGEST_TYPICAL_DEG = 3.0
+# Cuts far off the fit in a run this long drift off it, rather than being wild bearings.
+DRIFT_RUN = 3
+
+
+def suggest(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> dict:
+    """A first guess for the cuts asked for, as a TmaSuggestion: batch least squares on
+    one course at one speed (debrief_kernel.tma_fit, gitma2's). Reading only: it makes
+    nothing. Refused while any cut shown is ambiguous and unresolved: a side is kept
+    first (product owner, 18 Nov 2026), since a fit along the wrong side is confidently
+    wrong. Where the cuts do not settle the range, determined is false and note says why."""
+    request = request_from(value)
+    rooted = rooted_cuts(plot, request)
+    shown = [c for c in rooted if not c.properties.hidden]
+    if not shown:
+        raise TmaError("There are no cuts shown there to suggest a first guess from.")
+    unresolved = [c for c in shown if sensors.is_ambiguous(c)]
+    if unresolved:
+        n = len(unresolved)
+        raise TmaError(
+            f"{_count(n, 'of these cuts is', 'of these cuts are')} ambiguous: keep a side "
+            f"of {'it' if n == 1 else 'them'} first (Select bearings in Bearings, or Keep port "
+            "or Keep starboard in the Tools), then ask for a suggestion again."
+        )
+    infos = [i for i in cut_infos(plot, shown) if i.origin is not None]
+    first_shown = cut_infos(plot, shown[:1])[0]
+    if first_shown.origin is None:
+        raise TmaError(
+            f"The first cut, at {sensors.when(first_shown.cut.properties.time)}, was taken "
+            f"outside {_host_name(plot, first_shown)}'s fixes, so a solution has nowhere to "
+            "start: choose a period that starts where the track has fixes."
+        )
+    if len(infos) < 5:
+        raise TmaError(
+            f"A suggestion needs five cuts or more with somewhere they were taken from: these "
+            f"give {len(infos)}. Choose a longer period."
+        )
+    reference = infos[0].origin
+    lon = np.array([i.origin.longitude for i in infos])
+    lat = np.array([i.origin.latitude for i in infos])
+    out = geodesy_arrays.range_bearing(
+        np.full(len(infos), reference.longitude), np.full(len(infos), reference.latitude), lon, lat
+    )
+    towards = np.radians(out.bearing_deg)
+    ox, oy = out.range_m * np.sin(towards), out.range_m * np.cos(towards)
+    times = np.array([parse_utc(i.cut.properties.time) for i in infos], dtype=np.float64)
+    t = (times - times[0]) / 1000.0
+    z = np.radians([_bearing_of(i.cut, None)[0] for i in infos])
+    fitted = tma_fit.fit(t, ox, oy, z)
+    if fitted is None:  # fewer than five: refused above
+        raise TmaError("Too few cuts to suggest a first guess from.")
+    rms = math.degrees(fitted.rms_rad)
+    typical = math.degrees(fitted.typical_rad)
+    spread = 2 * fitted.range_sd_m if math.isfinite(fitted.range_sd_m) else None
+    reply: dict = {"determined": False, "cuts": fitted.count, "rms": rms}
+    if spread is not None:
+        reply["range_spread"] = spread
+    length = DEFAULT_SETTINGS.length_unit
+    if typical > SUGGEST_TYPICAL_DEG:
+        reply["note"] = (
+            f"The {_count(fitted.count, 'cut')} do not fit one course and speed (typically "
+            f"{typical:.1f}° off the best that does): the target may have manoeuvred, or a side "
+            "may have been kept wrongly. Choose one leg's cuts, or check the sides kept, and "
+            "Suggest again."
+        )
+        return reply
+    if not (fitted.converged and fitted.determined):
+        reply["note"] = (
+            f"The {_count(fitted.count, 'cut')} do not settle the range: "
+            f"{_host_name(plot, infos[0])} needs to change course or speed during the period "
+            "for bearings to give range. Enter a first guess yourself."
+        )
+        return reply
+    course = math.degrees(fitted.course_rad)
+    knots = _knots(fitted.speed_mps)
+    bearing = math.degrees(z[0]) % 360.0
+    reply.update(
+        determined=True,
+        range=fitted.along_m,
+        course=course,
+        speed=fitted.speed_mps,
+        note=(
+            f"Suggested by least squares over {_count(fitted.count, 'cut')}: "
+            f"{format_quantity(Quantity(fitted.along_m, 'm').to(length))} "
+            f"(± {format_quantity(Quantity(spread, 'm').to(length))}) along "
+            f"{format_bearing(Quantity(bearing, 'deg'))}, "
+            f"then {_course_speed_text(course, knots)}, "
+            f"one course and speed throughout; RMS {rms:.1f}°. Check it, then make the solution."
+        ),
+    )
+    # Far off the fit: a run of three or more together drifts off it (a manoeuvre, perhaps),
+    # fewer are wild bearings.
+    spans = tma_fit.runs(fitted.far_off)
+    drift = [r for r in spans if r[1] - r[0] + 1 >= DRIFT_RUN]
+    wild = sum(r[1] - r[0] + 1 for r in spans if r not in drift)
+    if drift:
+        first, last = max(drift, key=lambda r: r[1] - r[0])
+        when = _when(int(times[first]))
+        reply["note"] += (
+            f" The {_count(last - first + 1, 'cut')} from {when} drift off it: the target may "
+            "have manoeuvred, at or some time before then, and one course and speed bends to fit "
+            "it. Suggest on a shorter period for a better guess."
+        )
+    if wild:
+        reply["note"] += (
+            f" {_count(wild, 'cut is', 'cuts are')} far off it (wild bearings, perhaps): "
+            f"leave {'it' if wild == 1 else 'them'} out once the solution is made."
+        )
+    return reply
 
 
 # --- Changing a solution ----------------------------------------------------------------
