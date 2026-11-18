@@ -80,7 +80,24 @@ def sensors_for(zig: bool) -> list[ReadSensor]:
             for m in range(N)
         ],
     )
-    return [bow, towed]
+    # The same target turning to 090 at minute 45, and the Bow sonar with one wild bearing.
+    turned = run(TARGET_START, [TARGET_COURSE if m <= 45 else 90.0 for m in range(N)], TARGET_KN)
+    hull = ReadSensor(
+        name="Hull array",
+        host_track_id="track-blue",
+        cuts=[
+            ReadCut(T0 + m * MINUTE, range_bearing(own[m], turned[m])[1].value) for m in range(N)
+        ],
+    )
+    wild = ReadSensor(
+        name="Wild sonar",
+        host_track_id="track-blue",
+        cuts=[
+            ReadCut(T0 + m * MINUTE, (bearings[m] + (25.0 if m == 45 else 0.0)) % 360)
+            for m in range(N)
+        ],
+    )
+    return [bow, towed, hull, wild]
 
 
 def make(tmp_path: Path, zig: bool) -> Catalogue:
@@ -154,3 +171,30 @@ def test_too_few_cuts_are_refused(tmp_path: Path) -> None:
     asked = {**ask(catalogue), "period": {"start": at(0), "end": at(3)}}
     with pytest.raises(CatalogueError, match="five cuts or more"):
         catalogue.tma_suggest("p", asked)
+
+
+def test_cuts_that_do_not_fit_one_course_and_speed_are_not_offered(tmp_path: Path) -> None:
+    catalogue = make(tmp_path, zig=True)
+    # Its turn is in the middle of a short period: the cuts fit no one course and speed.
+    middle = {**ask(catalogue, "Hull array"), "period": {"start": at(30), "end": at(60)}}
+    suggestion = catalogue.tma_suggest("p", middle)
+    assert not suggestion["determined"] and "course" not in suggestion
+    # One leg's cuts fit: the target turns after minute 45, ownship at 30.
+    leg = {**ask(catalogue, "Hull array"), "period": {"start": at(0), "end": at(45)}}
+    assert catalogue.tma_suggest("p", leg)["determined"]
+    # The whole period fits one course and speed but for its end, which the note points to.
+    whole = catalogue.tma_suggest("p", ask(catalogue, "Hull array"))
+    assert (
+        "drift off it: the target may have manoeuvred, at or some time before then" in whole["note"]
+    )
+    assert "wild bearings" not in whole["note"]
+
+
+def test_a_wild_bearing_is_said_and_does_not_stop_the_guess(tmp_path: Path) -> None:
+    catalogue = make(tmp_path, zig=True)
+    suggestion = catalogue.tma_suggest("p", ask(catalogue, "Wild sonar"))
+    assert suggestion["determined"]
+    assert suggestion["range"] == pytest.approx(TARGET_RANGE, rel=0.05)
+    assert suggestion["note"].endswith(
+        "1 cut is far off it (wild bearings, perhaps): leave it out once the solution is made."
+    )

@@ -40,7 +40,7 @@
  *   way; a zoom kept. The whole frame is timed (timings) against the drag budget (NFR-04).
  */
 import { convert, DEFAULT_SETTINGS, fixed, formatTime, UNIT_LABELS, bearingText, type FormatSettings, type LonLat, type Kept } from "@debrief/kernel";
-import type { AmbiguityResolution, TmaCut, TmaFocus, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
+import type { AmbiguityResolution, TmaCut, TmaFocus, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaSuggestion, TmaView } from "@debrief/schemas";
 import {
   about,
   controlsBeside,
@@ -87,6 +87,8 @@ import {
   focusChoice,
   guessDefaults,
   isAmbiguousRow,
+  suggestBlocked,
+  suggestedFields,
   liveResiduals,
   primeLive,
   nearestRow,
@@ -107,6 +109,8 @@ const EMPTY = "Select a sensor or a TMA solution in the Outline to see its beari
 export interface TmaControlHost {
   /** Make a solution as asked (tma_create). */
   create(request: TmaRequest): void;
+  /** Suggest a first guess for these cuts by least squares (tma_suggest; debrief/tma_suggest): the host answers with suggested(). */
+  suggest(request: TmaRequest): void;
   /** Make a solution of these cuts by two clicks on the map (tma_guess). */
   guess(request: TmaRequest): void;
   /** Leave rooted cuts out of the RMS, or count them again (tma_exclude). */
@@ -522,6 +526,26 @@ export class TmaControl {
     this.form.querySelector<HTMLButtonElement>("button[type=submit]")?.removeAttribute("disabled");
   }
 
+  /** The host's answer to Suggest: the form's range, course and speed filled where the cuts settle them, and what it says; or why none. */
+  suggested(suggestion?: TmaSuggestion, problem?: string): void {
+    if (!this.formOpen) return;
+    const note = this.form.querySelector<HTMLElement>(".tma-suggest-note");
+    const button = this.form.querySelector<HTMLButtonElement>(".tma-suggest");
+    if (button) button.disabled = false;
+    if (!suggestion) {
+      if (note) note.textContent = problem ?? "No first guess could be suggested.";
+      return;
+    }
+    if (note) note.textContent = suggestion.note;
+    const fields = suggestion.determined ? suggestedFields(suggestion, this.settings) : undefined;
+    if (!fields) return;
+    for (const [name, value] of Object.entries(fields)) {
+      const input = this.form.querySelector<HTMLInputElement>(`input[name=${name}]`);
+      if (input) input.value = value;
+    }
+    this.checkForm(false);
+  }
+
   /** The residuals shown: as a drag leaves them, or as Python gave them. For tests and agents. */
   get residuals(): TmaResiduals | undefined {
     return this.live ?? this.view?.residuals ?? undefined;
@@ -767,6 +791,8 @@ export class TmaControl {
     const ambiguous = isAmbiguousRow(first);
     const guess = guessDefaults(first, undefined, this.settings);
     const contact = nextContact(this.view?.solutions ?? []);
+    // Suggest will not run while any cut shown is ambiguous and unresolved (product owner, 18 Nov 2026).
+    const blocked = suggestBlocked(rows.filter((r) => !("hidden" in r && r.hidden) && isAmbiguousRow(r)).length);
     const field = (name: string, label: string, value: string, hint: string) =>
       `<label class="tma-field"><span>${label}</span><input name="${name}" value="${escape(value)}" autocomplete="off" spellcheck="false" aria-describedby="tma-${name}-means"></label><span class="tma-means" id="tma-${name}-means">${escape(hint)}</span>`;
     const along = ambiguous
@@ -783,7 +809,9 @@ export class TmaControl {
       field("course", "Course", guess.course, "Degrees true; offered across the bearing.") +
       field("speed", "Speed", guess.speed, "Offered as 8 kn.") +
       `<p class="tma-form-problem" role="alert"></p>` +
+      `<p class="tma-suggest-note" id="tma-suggest-note" role="status" aria-live="polite">${escape(blocked ?? "")}</p>` +
       `<div class="tma-form-buttons"><button type="submit" class="primary">Make solution</button>` +
+      `<button type="button" class="tma-suggest"${blocked ? " disabled" : ""} aria-describedby="tma-suggest-note" title="${escape(blocked ?? "Fill the range, course and speed from the cuts by least squares, one course and speed throughout, where the cuts settle the range")}">Suggest</button>` +
       `<button type="button" class="tma-clicks" title="Click on the first cut's line, then on the last's, on the map: the course and speed follow">Two clicks on the map instead</button>` +
       `<button type="button" class="tma-cancel">Cancel</button></div>`;
     this.form.hidden = false;
@@ -803,6 +831,13 @@ export class TmaControl {
       this.form.querySelector<HTMLButtonElement>("button[type=submit]")!.disabled = true;
       this.host.create(made);
     };
+    this.form.querySelector(".tma-suggest")!.addEventListener("click", (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      if (button.disabled) return;
+      button.disabled = true;
+      this.form.querySelector<HTMLElement>(".tma-suggest-note")!.textContent = "Suggesting…";
+      this.host.suggest(request);
+    });
     this.form.querySelector(".tma-clicks")!.addEventListener("click", () => {
       const contact = this.form.querySelector<HTMLInputElement>("input[name=contact]")!.value.trim();
       this.host.guess({ ...request, ...(contact && { contact }) });

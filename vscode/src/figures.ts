@@ -42,6 +42,7 @@ export const LEAVES_PLOT = new Set([
   "debrief/sensors",
   "debrief/stores",
   "debrief/tma_residuals",
+  "debrief/tma_suggest",
   "debrief/tools_for_selection",
   "debrief/tote",
   "initialize",

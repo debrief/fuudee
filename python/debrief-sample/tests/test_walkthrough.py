@@ -373,3 +373,25 @@ def test_bearings_and_tma_gives_on_the_sample_what_its_steps_promise(
     assert f"RED ONE's true track would leave {true_beyond}:" in words["legs"]
     assert _rms(true_errors) < 2.0 and rms["legs"] < _rms(true_errors) + 0.3
     assert wrong_side <= 1
+
+
+def test_suggest_finds_red_ones_first_leg_from_the_bow_sonar(sample: Path, tmp_path: Path) -> None:
+    """Suggest (CAP-21 as amended, 18 Nov 2026) on the walkthrough's first leg, from the Bow
+    sonar, whose cuts are not ambiguous: the range, course and speed the walkthrough reaches by
+    a move and a shear (TMA_RANGE, TMA_SHEAR), to within its own rounding. The towed array's
+    cuts are refused until a side is kept."""
+    from debrief_stac import CatalogueError
+
+    target = Catalogue.create(tmp_path / "work", "work", "Work", "A catalogue to work in")
+    item = copy_for_tour(target, sample, "tma")
+    plot = target.read_plot(item)
+    day = next(f for f in plot.features if f.properties.kind == "sensor_cut").properties.time[:10]
+    period = {"start": f"{day}T{TMA_PERIOD[0]}.000Z", "end": f"{day}T10:32:00.000Z"}
+    asked = {"sensor_ids": ["sensor-blue-one-bow-sonar"], "period": period}
+    suggestion = target.tma_suggest(item, asked)
+    assert suggestion["determined"]
+    assert suggestion["range"] / 1852 == pytest.approx(TMA_RANGE, abs=0.1)
+    assert suggestion["course"] == pytest.approx(TMA_SHEAR[0], abs=3.0)
+    assert suggestion["speed"] / (1852 / 3600) == pytest.approx(TMA_SHEAR[1], abs=0.3)
+    with pytest.raises(CatalogueError, match="ambiguous: keep a side"):
+        target.tma_suggest(item, {**asked, "sensor_ids": [TMA_SENSOR]})

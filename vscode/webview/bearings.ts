@@ -60,6 +60,9 @@ onMessage((message) => {
   } else if (message.kind === "tma_made") {
     // The host's answer to a solution asked for: made, or why not.
     control.made(message.message ?? undefined);
+  } else if (message.kind === "tma_suggested") {
+    // The host's answer to Suggest: a first guess for the form, or why none.
+    control.suggested(message.suggestion ?? undefined, message.message ?? undefined);
   }
 });
 

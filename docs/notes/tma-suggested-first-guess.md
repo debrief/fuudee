@@ -25,10 +25,28 @@ It is a service method by its recipe (engineering guide §2), so it needs no rec
 
 - **Ambiguous cuts refuse it** (product owner, 18 Nov 2026). A fit along the wrong side is confidently wrong, and the solve cannot tell which side is the contact. While any cut shown in the period is ambiguous and unresolved, Suggest is disabled and says how many, naming the ways to keep a side (Select bearings in Bearings; Keep port or Keep starboard in the Tools); the service refuses with the same words.
 - **Offered only where the range is settled.** From bearings alone, range needs ownship to change course or speed during the period. The fit's covariance (the residuals' variance times (JᵀJ)⁻¹) gives the range's spread at the first cut; a guess is offered when two standard deviations are within half the range and the fit converged. Otherwise the form keeps Debrief's guess and says why (*BLUE ONE needs to change course or speed during the period for bearings to give range*). The threshold is a choice for the trial, recorded here.
-- **One course, one speed.** A target that manoeuvres in the period fits badly; the RMS says so, and the analyst splits the solution as now. Proposing the legs is stage B.
+- **Offered only where one course and speed fit.** The cuts' typical error about the fit, 1.4826 × the median absolute residual (robust to a few wild bearings), must be within 3°; above it, the target manoeuvred in the period or a side was kept wrongly, and the form says so rather than offer a confident wrong answer. Checked before the range, so the analyst hears the likelier cause.
+- **Far-off cuts are said.** Residuals over three typical errors (floor 0.1°) are far off the fit. A run of three or more together *drifts* off it: the target may have manoeuvred at or some time before then (the fit bends to absorb part of a turn, so the run starts late and the note does not claim a time), and a shorter period is suggested. Fewer are wild bearings, to be left out once the solution is made. Proposing the legs themselves is stage B.
+- **One course, one speed.** As the form's guess is: one leg.
 - **Hidden cuts are left out**, as the RMS leaves them out; at least five cuts with an origin are needed (four unknowns and a residual).
 - **A flat plane** about the first cut's origin: the solution itself is dead reckoned along geodesics, so a guess from tens of kilometres differs from the plane's by metres, which the analyst's fit absorbs.
 - **The notes say it.** The suggestion's note is shown under the form; the made solution's step records the first guess as given, as now.
+
+## What it gives on serial 1 (the walkthrough's sample)
+
+Measured 18 Nov 2026 (held by `test_suggest_finds_red_ones_first_leg_from_the_bow_sonar`); the walkthrough reaches 3.27 nmi, 246° 3.8 kn on the first leg and 200° 5.2 kn on the second by hand.
+
+| Cuts | Suggest says |
+| --- | --- |
+| Bow sonar, 09:46–10:32Z (90 cuts, none ambiguous) | 3.27 nmi (± 0.12), 248.3° 3.9 kn, RMS 1.4° |
+| Towed array, any period, sides not kept | Refused: keep a side first |
+| Towed array, every cut kept to port | Not offered: typically 13° off one course and speed (the sides are wrong) |
+| Towed array, every cut kept to starboard, 09:46–10:32Z | Not offered: range not settled |
+| Towed array, each cut kept on the Bow sonar's side, 09:46–10:32Z | 3.48 nmi (± 0.19), 248.3° 3.5 kn, RMS 1.5° |
+| The same, 09:46–12:00Z (RED ONE turns at 10:38Z) | Not offered: typically 7.4° off one course and speed |
+| The same, 10:38–12:00Z | 3.29 nmi (± 1.19), 201.4° 5.1 kn, RMS 5.3°, two cuts far off (the wild bearing among them) |
+
+What this shows and does not: on one sample, a leg's guess lands where the walkthrough's hand fit does, and the refusals fire where they should. Two standard deviations understated the towed array's range error once (0.21 nmi off against ± 0.19). Nothing here measures an analyst's time: that is the trial's next step.
 
 ## Stage B, if stage A helps
 

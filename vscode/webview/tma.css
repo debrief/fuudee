@@ -98,7 +98,7 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 
 /* The first guess, for the cuts TMA solution from cuts… names (in the Tools). */
 .tma-form { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 6px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); background: var(--vscode-editorWidget-background, transparent); }
-.tma-form-title, .tma-form-problem, .tma-form-buttons { grid-column: 1 / -1; margin: 0; }
+.tma-form-title, .tma-form-problem, .tma-suggest-note, .tma-form-buttons { grid-column: 1 / -1; margin: 0; }
 .tma-form-title { font-weight: 600; }
 .tma-field { display: contents; }
 .tma-field > span { color: var(--vscode-descriptionForeground); }
@@ -106,7 +106,8 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-field input[aria-invalid="true"] { border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
 .tma-means { grid-column: 2; font-size: 11px; color: var(--vscode-descriptionForeground); }
 .tma-means.tma-problem, .tma-form-problem { color: var(--vscode-errorForeground); }
-.tma-form-problem:empty { display: none; }
+.tma-form-problem:empty, .tma-suggest-note:empty { display: none; }
+.tma-suggest-note { color: var(--vscode-descriptionForeground); }
 .tma-form-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 /* What is said and the hint share one line, the one cell (a plot that grew under the pointer as
    the hint went, by 78 px, took other times for a box). */

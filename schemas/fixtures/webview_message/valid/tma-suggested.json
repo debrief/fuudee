@@ -1,0 +1,13 @@
+{
+  "kind": "tma_suggested",
+  "suggestion": {
+    "determined": true,
+    "cuts": 61,
+    "range": 11112.4,
+    "range_spread": 410.2,
+    "course": 200.1,
+    "speed": 3.09,
+    "rms": 0.02,
+    "note": "Suggested by least squares over 61 cuts: 6.00 nmi (± 0.22 nmi) along 030.0°T, then 200.1°T 6.0 kn, one course and speed throughout; RMS 0.0°. Check it, then make the solution."
+  }
+}

@@ -1202,6 +1202,8 @@ class WebviewMessageKindEnum(str, Enum):
     tma_plot_drawn = "tma_plot_drawn"
     tma_panes = "tma_panes"
     tma_made = "tma_made"
+    tma_suggest = "tma_suggest"
+    tma_suggested = "tma_suggested"
 
 
 class StepStateEnum(str, Enum):
@@ -8721,6 +8723,7 @@ class FormBusyMessage(WebviewMessageBase):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     kind: Literal["form_busy"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -8755,6 +8758,7 @@ class FormErrorMessage(WebviewMessageBase):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     kind: Literal["form_error"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -9333,6 +9337,7 @@ class ShowFixesMessage(WebviewMessageBase):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     kind: Literal["show_fixes"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -9796,6 +9801,7 @@ class NarrativeSavedMessage(WebviewMessageBase):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     kind: Literal["narrative_saved"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -9993,6 +9999,7 @@ class ShowCoverageMessage(WebviewMessageBase):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     kind: Literal["show_coverage"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -10264,6 +10271,7 @@ class ImageRenderedMessage(WebviewMessageBase):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     kind: Literal["image_rendered"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -10492,7 +10500,10 @@ class TmaCreateMessage(WebviewMessageBase):
          'slot_usage': {'kind': {'equals_string': 'tma_create', 'name': 'kind'},
                         'tma_request': {'name': 'tma_request', 'required': True}}})
 
-    tma_request: TmaRequest = Field(default=..., description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage', 'TmaGuessMessage', 'TmaGuessedMessage']} })
+    tma_request: TmaRequest = Field(default=..., description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage',
+                       'TmaGuessMessage',
+                       'TmaGuessedMessage',
+                       'TmaSuggestMessage']} })
     kind: Literal["tma_create"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -10518,7 +10529,10 @@ class TmaGuessMessage(WebviewMessageBase):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
          'slot_usage': {'kind': {'equals_string': 'tma_guess', 'name': 'kind'}}})
 
-    tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage', 'TmaGuessMessage', 'TmaGuessedMessage']} })
+    tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage',
+                       'TmaGuessMessage',
+                       'TmaGuessedMessage',
+                       'TmaSuggestMessage']} })
     kind: Literal["tma_guess"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -10544,7 +10558,10 @@ class TmaGuessedMessage(WebviewMessageBase):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
          'slot_usage': {'kind': {'equals_string': 'tma_guessed', 'name': 'kind'}}})
 
-    tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage', 'TmaGuessMessage', 'TmaGuessedMessage']} })
+    tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage',
+                       'TmaGuessMessage',
+                       'TmaGuessedMessage',
+                       'TmaSuggestMessage']} })
     kind: Literal["tma_guessed"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -11043,6 +11060,71 @@ class TmaPanesMessage(WebviewMessageBase):
          'equals_string': 'tma_panes'} })
 
 
+class TmaSuggestMessage(WebviewMessageBase):
+    """
+    Bearing view to host: suggest a first guess for these cuts (tma_request: the cuts, as the first guess's form has them), by batch least squares (debrief/tma_suggest; CAP-21 as amended, product owner, 18 Nov 2026). Reading only.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_suggest', 'name': 'kind'},
+                        'tma_request': {'name': 'tma_request', 'required': True}}})
+
+    tma_request: TmaRequest = Field(default=..., description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaCreateMessage',
+                       'TmaGuessMessage',
+                       'TmaGuessedMessage',
+                       'TmaSuggestMessage']} })
+    kind: Literal["tma_suggest"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase',
+                       'ListedStep',
+                       'HostRequest'],
+         'equals_string': 'tma_suggest'} })
+
+
+class TmaSuggestedMessage(WebviewMessageBase):
+    """
+    Host to bearing view: the first guess suggested (suggestion), to fill the form where it is determined and to say its note; or, with message alone, why none could be (cuts ambiguous and unresolved, too few).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief',
+         'slot_usage': {'kind': {'equals_string': 'tma_suggested', 'name': 'kind'}}})
+
+    suggestion: Optional[TmaSuggestion] = Field(default=None, description="""A first guess suggested for a TMA solution (tma_suggested; debrief/tma_suggest).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSuggestedMessage', 'TmaSuggestReply']} })
+    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FormBusyMessage',
+                       'FormErrorMessage',
+                       'ShowFixesMessage',
+                       'NarrativeSavedMessage',
+                       'ShowCoverageMessage',
+                       'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
+                       'TmaMadeMessage',
+                       'TakeNewDataReply']} })
+    kind: Literal["tma_suggested"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessageBase',
+                       'ListedStep',
+                       'HostRequest'],
+         'equals_string': 'tma_suggested'} })
+
+
 class TmaMadeMessage(WebviewMessageBase):
     """
     Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open.
@@ -11079,6 +11161,7 @@ class TmaMadeMessage(WebviewMessageBase):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     kind: Literal["tma_made"] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -15450,7 +15533,7 @@ class TmaSuggestParams(PlotParams, TmaRequest):
 class TmaSuggestReply(PlotReply):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    suggestion: TmaSuggestion = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSuggestReply']} })
+    suggestion: TmaSuggestion = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSuggestedMessage', 'TmaSuggestReply']} })
     recovered: list[str] = Field(default=..., description="""What opening the plot had to repair after a crash, for the analyst (NFR-10).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotReply']} })
     base: PlotBase = Field(default=..., description="""Where the plot's history stands now.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotParams', 'PlotReply']} })
     latest: int = Field(default=..., description="""How many steps the history holds.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown',
@@ -16924,6 +17007,7 @@ class TakeNewDataReply(PlotChangeReply):
                        'NarrativeSavedMessage',
                        'ShowCoverageMessage',
                        'ImageRenderedMessage',
+                       'TmaSuggestedMessage',
                        'TmaMadeMessage',
                        'TakeNewDataReply']} })
     changed: bool = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotChangeReply']} })
@@ -18457,6 +18541,8 @@ TmaResolveMessage.model_rebuild()
 TmaCutOffMessage.model_rebuild()
 TmaPlotDrawnMessage.model_rebuild()
 TmaPanesMessage.model_rebuild()
+TmaSuggestMessage.model_rebuild()
+TmaSuggestedMessage.model_rebuild()
 TmaMadeMessage.model_rebuild()
 PlotHistory.model_rebuild()
 HistoryStep.model_rebuild()
@@ -18671,6 +18757,8 @@ class WebviewMessage(
                 TmaPlotDrawnMessage,
                 TmaPanesMessage,
                 TmaMadeMessage,
+                TmaSuggestMessage,
+                TmaSuggestedMessage,
             ],
             Field(discriminator="kind"),
         ]

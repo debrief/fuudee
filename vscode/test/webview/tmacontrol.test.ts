@@ -40,7 +40,7 @@ function solutionView(residuals = [0.4, -0.2, 0.1, 0.3, -0.5, 0.2, 0, -0.1, 0.3,
 }
 
 function host(): TmaControlHost & { drawn: ReturnType<typeof vi.fn> } {
-  return { create: vi.fn(), guess: vi.fn(), exclude: vi.fn(), split: vi.fn(), time: vi.fn(), resolve: vi.fn(), resolveCuts: vi.fn(), select: vi.fn(), cutOff: vi.fn(), drawn: vi.fn() };
+  return { create: vi.fn(), suggest: vi.fn(), guess: vi.fn(), exclude: vi.fn(), split: vi.fn(), time: vi.fn(), resolve: vi.fn(), resolveCuts: vi.fn(), select: vi.fn(), cutOff: vi.fn(), drawn: vi.fn() };
 }
 
 let element: HTMLElement;
@@ -186,5 +186,55 @@ describe("laid out again as the view changes size (#122, #123)", () => {
     expect(told.drawn).not.toHaveBeenCalled();
     pointer("pointerup", error.x + 10, error.top + 10);
     expect(told.drawn.mock.calls.at(-1)![0]).toBe(240);
+  });
+});
+
+describe("Suggest on the first guess's form (CAP-21 as amended; product owner, 18 Nov 2026)", () => {
+  function cutsView(ambiguous: boolean): TmaView {
+    const cuts = Array.from({ length: 6 }, (_, i) => ({
+      id: `cut-${i}`,
+      sensor_id: "sensor-a",
+      time: T(i * 2),
+      bearing: 40 + i,
+      ...(ambiguous && i % 2 === 0 && { ambiguous_bearing: 140 - i }),
+    }));
+    const ids = cuts.map((c) => c.id);
+    return { plot_id: "serial-1", sensor_id: "sensor-a", title: "Towed array", error_cut_off: 3, cuts, solutions: [], coverage: [], focus: { make: true, cut_ids: ids } } as TmaView;
+  }
+  const value = (name: string) => q<HTMLInputElement>(`input[name=${name}]`).value;
+
+  it("will not suggest while cuts are ambiguous, and says how to keep a side", () => {
+    control.show(cutsView(true));
+    const suggest = q<HTMLButtonElement>(".tma-suggest");
+    expect(suggest.disabled).toBe(true);
+    expect(q(".tma-suggest-note").textContent).toBe("3 of these cuts are ambiguous: keep a side first (Select bearings in Bearings, or Keep port or Keep starboard in the Tools), then Suggest.");
+    suggest.click();
+    expect(told.suggest).not.toHaveBeenCalled();
+  });
+
+  it("asks the host for the form's cuts, then fills range, course and speed", () => {
+    control.show(cutsView(false));
+    const suggest = q<HTMLButtonElement>(".tma-suggest");
+    expect(suggest.disabled).toBe(false);
+    suggest.click();
+    expect(told.suggest).toHaveBeenCalledWith({ cut_ids: ["cut-0", "cut-1", "cut-2", "cut-3", "cut-4", "cut-5"] });
+    expect(q(".tma-suggest-note").textContent).toBe("Suggesting…");
+    control.suggested({ determined: true, cuts: 6, range: 9144, range_spread: 500, course: 200, speed: 3.0866, rms: 0.8, note: "Suggested by least squares over 6 cuts." });
+    expect(value("range")).toBe("4.94 nmi");
+    expect(value("course")).toBe("200.0");
+    expect(value("speed")).toBe("6.0 kn");
+    expect(q(".tma-suggest-note").textContent).toBe("Suggested by least squares over 6 cuts.");
+    expect(suggest.disabled).toBe(false);
+  });
+
+  it("keeps the analyst's fields where the cuts do not settle the range, saying why", () => {
+    control.show(cutsView(false));
+    const before = value("range");
+    q<HTMLButtonElement>(".tma-suggest").click();
+    control.suggested({ determined: false, cuts: 6, rms: 0.5, note: "The 6 cuts do not settle the range." });
+    expect(value("range")).toBe(before);
+    expect(q(".tma-suggest-note").textContent).toBe("The 6 cuts do not settle the range.");
+    control.suggested(undefined, "There are no cuts shown there to suggest a first guess from.");
+    expect(q(".tma-suggest-note").textContent).toBe("There are no cuts shown there to suggest a first guess from.");
   });
 });

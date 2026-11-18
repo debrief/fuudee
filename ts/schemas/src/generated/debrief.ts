@@ -478,7 +478,9 @@ export type WebviewMessage =
   | TmaCutOffMessage
   | TmaPlotDrawnMessage
   | TmaPanesMessage
-  | TmaMadeMessage;
+  | TmaMadeMessage
+  | TmaSuggestMessage
+  | TmaSuggestedMessage;
 /**
  * Every webview message's kind. Each has one class below, which says what the message is for and which members it carries.
  *
@@ -553,7 +555,9 @@ export type WebviewMessageKindEnum =
   | "tma_cut_off"
   | "tma_plot_drawn"
   | "tma_panes"
-  | "tma_made";
+  | "tma_made"
+  | "tma_suggest"
+  | "tma_suggested";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -6570,6 +6574,19 @@ export interface TmaSplitMessage {
   kind: "tma_split";
 }
 /**
+ * Bearing view to host: suggest a first guess for these cuts (tma_request: the cuts, as the first guess's form has them), by batch least squares (debrief/tma_suggest; CAP-21 as amended, product owner, 18 Nov 2026). Reading only.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSuggestMessage".
+ */
+export interface TmaSuggestMessage {
+  kind: "tma_suggest";
+  /**
+   * A TMA solution asked for (tma_create, tma_guess, tma_guessed).
+   */
+  tma_request: TmaRequest;
+}
+/**
  * The cuts to suggest a first guess for (a TmaRequest's sensor_ids and period, or cut_ids), in request or as the parameters themselves.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -6702,6 +6719,20 @@ export interface TmaSuggestion {
    * Metres a second. Given when determined.
    */
   speed?: number | null;
+}
+/**
+ * Host to bearing view: the first guess suggested (suggestion), to fill the form where it is determined and to say its note; or, with message alone, why none could be (cuts ambiguous and unresolved, too few).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSuggestedMessage".
+ */
+export interface TmaSuggestedMessage {
+  kind: "tma_suggested";
+  message?: string | null;
+  /**
+   * A first guess suggested for a TMA solution (tma_suggested; debrief/tma_suggest).
+   */
+  suggestion?: TmaSuggestion | null;
 }
 /**
  * Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.

@@ -569,6 +569,17 @@ def tma_view(item: str, request_json: str) -> str:
     return json.dumps(out)
 
 
+def tma_suggest(item: str, request_json: str) -> str:
+    """A first guess suggested for a TMA solution's cuts by least squares (CAP-21 as amended),
+    as debrief/tma_suggest: reading only. request: base, and request (a TmaRequest's cuts)."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    try:
+        return json.dumps({"suggestion": _cat().tma_suggest(item, request["request"], base)})
+    except (CatalogueError, HistoryError) as error:
+        return json.dumps({"error": str(error)})
+
+
 def tma_change(item: str, request_json: str) -> str:
     """A TMA solution made, split into legs, or its cuts left out of its RMS or counted
     again: each one recorded, undoable step (CAP-21), as debrief/tma_create,

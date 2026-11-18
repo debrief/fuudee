@@ -37,6 +37,10 @@ GRID_COURSES = 8
 GRID_RANGES = 12
 # A guess is offered only where two standard deviations of range are within half the range.
 DETERMINED_RELATIVE_SD = 0.25
+# A residual this many typical errors from the fit is far off it (a wild bearing, perhaps).
+FAR_OFF = 3.0
+# Bearings are seldom better than this: the floor of the typical error when judging far off.
+TYPICAL_FLOOR = math.radians(0.1)
 
 
 @dataclass(frozen=True)
@@ -50,6 +54,10 @@ class Fit:
     range_m: float  # from the first cut's origin to the target at its time
     range_sd_m: float  # inf where the fit says nothing of range
     along_m: float  # the target's distance along the first bearing at its time
+    # The typical error, robust to a few wild bearings: 1.4826 × the median absolute
+    # residual (the standard deviation, were the errors Gaussian), radians.
+    typical_rad: float = 0.0
+    far_off: tuple[int, ...] = ()  # indices of residuals more than FAR_OFF typical errors off
 
     @property
     def course_rad(self) -> float:
@@ -149,6 +157,17 @@ def levenberg_marquardt(
     return th, False, max_iterations, c
 
 
+def runs(indices: tuple[int, ...]) -> list[tuple[int, int]]:
+    """Consecutive indices as (first, last) runs."""
+    out: list[tuple[int, int]] = []
+    for i in indices:
+        if out and i == out[-1][1] + 1:
+            out[-1] = (out[-1][0], i)
+        else:
+            out.append((i, i))
+    return out
+
+
 def fit(t: Floats, ox: Floats, oy: Floats, z: Floats) -> Fit | None:
     """Batch least squares over the cuts given, in time order (at least five, so that the
     four unknowns leave a residual variance). None where there are too few."""
@@ -158,7 +177,11 @@ def fit(t: Floats, ox: Floats, oy: Floats, z: Floats) -> Fit | None:
         return None
     start = grid_start(t, ox, oy, z)
     th, converged, iterations, c = levenberg_marquardt(t, ox, oy, z, start, MAX_ITERATIONS)
-    j, _r = _jacobian(t, ox, oy, z, th)
+    j, residuals = _jacobian(t, ox, oy, z, th)
+    typical = 1.4826 * float(np.median(np.abs(residuals)))
+    far_off = tuple(
+        int(i) for i in np.flatnonzero(np.abs(residuals) > FAR_OFF * max(typical, TYPICAL_FLOOR))
+    )
     variance = c / (n - 4)
     # The target at the first cut's time, from its origin, and the spread of its range.
     p = np.array([th[0] + th[2] * t[0] - ox[0], th[1] + th[3] * t[0] - oy[0]])
@@ -184,4 +207,6 @@ def fit(t: Floats, ox: Floats, oy: Floats, z: Floats) -> Fit | None:
         range_m=range_m,
         range_sd_m=range_sd,
         along_m=along,
+        typical_rad=typical,
+        far_off=far_off,
     )

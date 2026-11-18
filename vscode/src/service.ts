@@ -525,6 +525,11 @@ export class ToolService {
     return this.call("debrief/tma_create", { store, item, base, agent, request, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
+  /** A first guess suggested for a TMA solution's cuts by batch least squares (CAP-21 as amended). Changes nothing. */
+  tmaSuggest(store: string, item: string, request: TmaRequest): Promise<RpcReply<"debrief/tma_suggest">> {
+    return this.call("debrief/tma_suggest", { store, item, request });
+  }
+
   /** A TMA solution's bearing residuals and RMS error (CAP-21). Changes nothing. */
   tmaResiduals(store: string, item: string, feature: string): Promise<RpcReply<"debrief/tma_residuals">> {
     return this.call("debrief/tma_residuals", { store, item, feature });

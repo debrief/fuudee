@@ -280,6 +280,26 @@ export function guessDefaults(first: CutRow | undefined, which: Kept | undefined
   };
 }
 
+/** A suggested first guess (debrief/tma_suggest) as the form's fields: range along the first cut's bearing, course and speed, in the analyst's units. */
+export function suggestedFields(suggestion: { range?: number | null; course?: number | null; speed?: number | null }, settings: FormatSettings = DEFAULT_SETTINGS): { range: string; course: string; speed: string } | undefined {
+  const { range, course, speed } = suggestion;
+  if (range === undefined || range === null || course === undefined || course === null || speed === undefined || speed === null) return undefined;
+  const length = convert({ value: range, unit: "m" }, settings.length_unit);
+  const knots = convert({ value: speed, unit: "m/s" }, settings.speed_unit);
+  return {
+    range: `${fixed(length.value, settings.length_decimals)} ${UNIT_LABELS[settings.length_unit] ?? settings.length_unit}`,
+    course: fixed(((course % 360) + 360) % 360, settings.angle_decimals).padStart(3 + (settings.angle_decimals ? settings.angle_decimals + 1 : 0), "0"),
+    speed: `${fixed(knots.value, settings.speed_decimals)} ${UNIT_LABELS[settings.speed_unit] ?? settings.speed_unit}`,
+  };
+}
+
+/** What Suggest says while some of the form's cuts are ambiguous and unresolved: it will not run until a side is kept (product owner, 18 Nov 2026). */
+export function suggestBlocked(unresolved: number): string | undefined {
+  if (!unresolved) return undefined;
+  const which = unresolved === 1 ? "1 of these cuts is" : `${unresolved} of these cuts are`;
+  return `${which} ambiguous: keep a side first (Select bearings in Bearings, or Keep port or Keep starboard in the Tools), then Suggest.`;
+}
+
 /** The contact a new solution is of, as Debrief offers it: the first of Contact 1, Contact 2... not in use (debrief_stac.tma.next_contact). */
 export function nextContact(solutions: { contact: string }[]): string {
   const used = new Set(solutions.map((s) => /^Contact (\d+)$/.exec(s.contact.trim())?.[1]).filter(Boolean).map(Number));

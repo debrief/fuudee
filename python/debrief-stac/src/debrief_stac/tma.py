@@ -594,6 +594,12 @@ def _two_clicks(request: models.TmaRequest, first: CutInfo, last: CutInfo, times
 
 # --- A suggested first guess (CAP-21 as amended; docs/notes/tma-suggested-first-guess.md) ---
 
+# A guess is offered only where the cuts fit one course and speed: their typical error (robust
+# to a few wild bearings) within this many degrees. Above it, a manoeuvre or a side kept wrongly.
+SUGGEST_TYPICAL_DEG = 3.0
+# Cuts far off the fit in a run this long drift off it, rather than being wild bearings.
+DRIFT_RUN = 3
+
 
 def suggest(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> dict:
     """A first guess for the cuts asked for, as a TmaSuggestion: batch least squares on
@@ -642,11 +648,20 @@ def suggest(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> 
     if fitted is None:  # fewer than five: refused above
         raise TmaError("Too few cuts to suggest a first guess from.")
     rms = math.degrees(fitted.rms_rad)
+    typical = math.degrees(fitted.typical_rad)
     spread = 2 * fitted.range_sd_m if math.isfinite(fitted.range_sd_m) else None
     reply: dict = {"determined": False, "cuts": fitted.count, "rms": rms}
     if spread is not None:
         reply["range_spread"] = spread
     length = DEFAULT_SETTINGS.length_unit
+    if typical > SUGGEST_TYPICAL_DEG:
+        reply["note"] = (
+            f"The {_count(fitted.count, 'cut')} do not fit one course and speed (typically "
+            f"{typical:.1f}° off the best that does): the target may have manoeuvred, or a side "
+            "may have been kept wrongly. Choose one leg's cuts, or check the sides kept, and "
+            "Suggest again."
+        )
+        return reply
     if not (fitted.converged and fitted.determined):
         reply["note"] = (
             f"The {_count(fitted.count, 'cut')} do not settle the range: "
@@ -671,6 +686,24 @@ def suggest(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> 
             f"one course and speed throughout; RMS {rms:.1f}°. Check it, then make the solution."
         ),
     )
+    # Far off the fit: a run of three or more together drifts off it (a manoeuvre, perhaps),
+    # fewer are wild bearings.
+    spans = tma_fit.runs(fitted.far_off)
+    drift = [r for r in spans if r[1] - r[0] + 1 >= DRIFT_RUN]
+    wild = sum(r[1] - r[0] + 1 for r in spans if r not in drift)
+    if drift:
+        first, last = max(drift, key=lambda r: r[1] - r[0])
+        when = _when(int(times[first]))
+        reply["note"] += (
+            f" The {_count(last - first + 1, 'cut')} from {when} drift off it: the target may "
+            "have manoeuvred, at or some time before then, and one course and speed bends to fit "
+            "it. Suggest on a shorter period for a better guess."
+        )
+    if wild:
+        reply["note"] += (
+            f" {_count(wild, 'cut is', 'cuts are')} far off it (wild bearings, perhaps): "
+            f"leave {'it' if wild == 1 else 'them'} out once the solution is made."
+        )
     return reply
 
 
