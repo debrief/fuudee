@@ -192,8 +192,7 @@ jobs:
     # Chromium as a reader would, including demos started from blog posts.
     name: playground (part ${{ matrix.part }})
     needs: playground-parts
-    # Pinned: Playwright 1.56.1 cannot install Chromium on ubuntu-latest's 26.04 image.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.playground-parts.outputs.matrix) }}
