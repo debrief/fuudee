@@ -21,7 +21,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from debrief_kernel.time import to_epoch_ms
-from debrief_sample.exercise import AREA, WINDOWS
+from debrief_sample.exercise import AREA, SECOND_DAY_WINDOWS, WINDOWS
+
+# Each committed extract, by the day of its archive, and the serial windows it was reduced to.
+EXTRACT_WINDOWS: dict[str, tuple[tuple[int, int], ...]] = {
+    "2023-06-15": WINDOWS,
+    "2023-06-16": SECOND_DAY_WINDOWS,
+}
 
 EXTRACT_COLUMNS = (
     "vessel",
@@ -102,8 +108,8 @@ def _in_area(latitude: float, longitude: float) -> bool:
     return south <= latitude <= north and west <= longitude <= east
 
 
-def _in_a_serial(time_ms: int) -> bool:
-    return any(start <= time_ms <= end for start, end in WINDOWS)
+def _in_a_serial(time_ms: int, windows: tuple[tuple[int, int], ...]) -> bool:
+    return any(start <= time_ms <= end for start, end in windows)
 
 
 def _thin(rows: list[tuple[int, list[str]]]) -> list[tuple[int, list[str]]]:
@@ -114,8 +120,11 @@ def _thin(rows: list[tuple[int, list[str]]]) -> list[tuple[int, list[str]]]:
     return kept
 
 
-def reduce_marinecadastre(archive: Path, output: Path) -> int:
-    """Reduce one day's MarineCadastre AIS archive to the committed extract.
+def reduce_marinecadastre(
+    archive: Path, output: Path, windows: tuple[tuple[int, int], ...] = WINDOWS
+) -> int:
+    """Reduce one day's MarineCadastre AIS archive to a committed extract, kept to the
+    serial windows given (EXTRACT_WINDOWS: the first day's three, or serial 4's).
 
     Run once, by hand; the builder never needs the archive. Returns the
     number of vessels kept.
@@ -131,7 +140,7 @@ def reduce_marinecadastre(archive: Path, output: Path) -> int:
                 if not _in_area(latitude, longitude):
                     continue
                 time_ms = _parse_time(row["BaseDateTime"])
-                if not _in_a_serial(time_ms):
+                if not _in_a_serial(time_ms, windows):
                     continue
                 kind = vessel_type(row["VesselType"])
                 if kind is None:
@@ -152,11 +161,11 @@ def reduce_marinecadastre(archive: Path, output: Path) -> int:
         mmsi
         for mmsi, rows in thinned.items()
         if mean_speed(rows) < 0.5
-        and all(sum(start <= t <= end for t, _ in rows) >= MIN_FIXES for start, end in WINDOWS)
+        and all(sum(start <= t <= end for t, _ in rows) >= MIN_FIXES for start, end in windows)
     ]
     anchored.sort(key=lambda m: (-len(thinned[m]), m))
     chosen += anchored[:ANCHORED]
-    for start, end in WINDOWS:
+    for start, end in windows:
         movers = []
         for mmsi, rows in thinned.items():
             window = [(t, r) for t, r in rows if start <= t <= end]

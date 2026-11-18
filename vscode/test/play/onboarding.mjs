@@ -1053,7 +1053,7 @@ export async function playDemo(browser, siteUrl, shot) {
   await page.getByRole("menuitem", { name: "Move to right: Walkthroughs" }).click();
   await page.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.includes("panel-tour") && g.panels.includes("panel-coverage")));
   assert.equal(await page.locator("#plots").inputValue(), "serial-1");
-  assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3"]);
+  assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3", "Serial 4"]);
   assert.ok((await page.locator("#tools button").count()) > 3);
   assert.ok(await page.frameLocator(".frame-map").locator(".leaflet-interactive").count());
   await shot("demo-01-full-screen", page);
@@ -1150,7 +1150,7 @@ export async function playDemo(browser, siteUrl, shot) {
   watch(page);
   await page.goto(`${siteUrl}/demo/`);
   await ready(page);
-  assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3"]);
+  assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3", "Serial 4"]);
   assert.doesNotMatch(await page.locator("#outline").innerText(), new RegExp(marker));
   assert.deepEqual(await kept(page), none);
   // The layout as the reader left it, in this browser.

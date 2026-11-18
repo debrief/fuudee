@@ -61,10 +61,13 @@ CATALOGUE_DESCRIPTION = (
     "Unclassified sample data for demonstrations, walkthroughs and blog posts (DEP-08). "
     "Real open AIS traffic east of the entrance to Chesapeake Bay, with an invented exercise "
     "on top: a blue ownship, a red submarine, the ownship's sonar bearings and a scripted "
-    "narrative, over three serials. Every plot here is unclassified (SEC-02)."
+    "narrative, over four serials on two days. Every plot here is unclassified (SEC-02)."
 )
 
 AIS_FILE = "ais-2023-06-15-chesapeake-approaches.csv"
+# Serial 4, on the second day, has an extract of its own (product owner, 18 Nov 2026).
+AIS_FILES = {"serial-4": "ais-2023-06-16-chesapeake-approaches.csv"}
+AIS_DAYS = {AIS_FILE: "15 Jun 2023", AIS_FILES["serial-4"]: "16 Jun 2023"}
 AIS_COLOUR = "#808080"
 SENSOR = "Bow sonar"
 SONAR = SonarModel(
@@ -92,13 +95,18 @@ TOWED_COLOUR = "#8a3ffc"
 RNG_SCHEME = "random.Random('{seed}:{serial}:{purpose}')"
 
 
-def extract_path() -> Path:
-    """The committed AIS extract: in the source tree, or packaged in the wheel."""
+def extract_path(name: str = AIS_FILE) -> Path:
+    """A committed AIS extract: in the source tree, or packaged in the wheel."""
     here = Path(__file__).resolve()
-    for candidate in (here.parents[2] / "data" / AIS_FILE, here.parent / "data" / AIS_FILE):
+    for candidate in (here.parents[2] / "data" / name, here.parent / "data" / name):
         if candidate.exists():
             return candidate
-    raise FileNotFoundError(f"AIS extract {AIS_FILE} not found beside the package")
+    raise FileNotFoundError(f"AIS extract {name} not found beside the package")
+
+
+def extract_for(serial: Serial) -> str:
+    """The AIS extract a serial's background comes from."""
+    return AIS_FILES.get(serial.item_id, AIS_FILE)
 
 
 class FixedClock:
@@ -243,11 +251,12 @@ def _build_serial(
 
     # 3. The background picture from the AIS extract.
     started = clock.text()
-    ais_ref = catalogue.add_source(item, extract_path(), media_type="text/csv")
+    ais_ref = catalogue.add_source(item, extract_path(extract_for(serial)), media_type="text/csv")
     ais_paths: dict[str, TrackPath] = {}
     ais_notes = [
         "Open AIS from MarineCadastre.gov (NOAA Office for Coastal Management, from the "
-        "US Coast Guard's receiver network), 15 Jun 2023. A US Government work.",
+        f"US Coast Guard's receiver network), {AIS_DAYS[extract_for(serial)]}. "
+        "A US Government work.",
         "The extract is reduced and anonymised; see the README beside it in debrief-sample.",
     ]
     for vessel in vessels:
@@ -521,11 +530,11 @@ def build(
     root = Path(root)
     catalogue = Catalogue.create(root, catalogue_id, title, CATALOGUE_DESCRIPTION)
     clock = FixedClock(recorded_at)
-    vessels = ais.read_extract(extract_path())
+    extracts = {name: ais.read_extract(extract_path(name)) for name in AIS_DAYS}
     report = BuildReport(root, seed)
     with tempfile.TemporaryDirectory(prefix="debrief-sample-") as scratch:
         for serial in SERIALS:
             report.plots[serial.item_id] = _build_serial(
-                catalogue, serial, seed, clock, vessels, Path(scratch)
+                catalogue, serial, seed, clock, extracts[extract_for(serial)], Path(scratch)
             )
     return report
