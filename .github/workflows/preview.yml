@@ -30,7 +30,8 @@ env:
 jobs:
   preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.56.1 cannot install Chromium on ubuntu-latest's 26.04 image.
+    runs-on: ubuntu-24.04
     env:
       PR: ${{ github.event.pull_request.number }}
       SHA: ${{ github.event.pull_request.head.sha }}
