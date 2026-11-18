@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-11-18-tma-suggest.md",
+   "url": "blog/2026/11/18/tma-suggest/",
+   "title": "A suggested first guess for a TMA solution",
+   "file": "blog-posts-2026-11-18-tma-suggest.png"
+  },
+  {
+   "source": "guides/interaction-models/tma.md",
+   "url": "guides/interaction-models/tma/",
+   "title": "TMA solutions",
+   "file": "guides-interaction-models-tma.png"
+  }
+ ],
+ "more": 0
+}
