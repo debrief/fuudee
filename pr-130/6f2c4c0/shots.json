@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-11-18-serial-4.md",
+   "url": "blog/2026/11/18/serial-4/",
+   "title": "Serial 4: a target on one course, for TMA practice",
+   "file": "blog-posts-2026-11-18-serial-4.png"
+  },
+  {
+   "source": "guides/sample-data.md",
+   "url": "guides/sample-data/",
+   "title": "Sample data",
+   "file": "guides-sample-data.png"
+  }
+ ],
+ "more": 0
+}
