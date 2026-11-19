@@ -37,8 +37,12 @@ GRID_COURSES = 8
 GRID_RANGES = 12
 # A guess is offered only where two standard deviations of range are within half the range.
 DETERMINED_RELATIVE_SD = 0.25
-# A residual this many typical errors from the fit is far off it (a wild bearing, perhaps).
+# A residual this many typical errors from the fit is far off it: a run of such together is a
+# drift (a manoeuvre, perhaps).
 FAR_OFF = 3.0
+# One on its own is named a wild bearing only this far off: at three, about one of 334 clean
+# Gaussian errors crossed by chance and was named one (serial 4, 19 Nov 2026).
+WILD = 4.0
 # Bearings are seldom better than this: the floor of the typical error when judging far off.
 TYPICAL_FLOOR = math.radians(0.1)
 
@@ -58,6 +62,7 @@ class Fit:
     # residual (the standard deviation, were the errors Gaussian), radians.
     typical_rad: float = 0.0
     far_off: tuple[int, ...] = ()  # indices of residuals more than FAR_OFF typical errors off
+    wild: tuple[int, ...] = ()  # indices of residuals more than WILD typical errors off
 
     @property
     def course_rad(self) -> float:
@@ -179,9 +184,9 @@ def fit(t: Floats, ox: Floats, oy: Floats, z: Floats) -> Fit | None:
     th, converged, iterations, c = levenberg_marquardt(t, ox, oy, z, start, MAX_ITERATIONS)
     j, residuals = _jacobian(t, ox, oy, z, th)
     typical = 1.4826 * float(np.median(np.abs(residuals)))
-    far_off = tuple(
-        int(i) for i in np.flatnonzero(np.abs(residuals) > FAR_OFF * max(typical, TYPICAL_FLOOR))
-    )
+    scale = max(typical, TYPICAL_FLOOR)
+    far_off = tuple(int(i) for i in np.flatnonzero(np.abs(residuals) > FAR_OFF * scale))
+    wild = tuple(int(i) for i in np.flatnonzero(np.abs(residuals) > WILD * scale))
     variance = c / (n - 4)
     # The target at the first cut's time, from its origin, and the spread of its range.
     p = np.array([th[0] + th[2] * t[0] - ox[0], th[1] + th[3] * t[0] - oy[0]])
@@ -209,4 +214,5 @@ def fit(t: Floats, ox: Floats, oy: Floats, z: Floats) -> Fit | None:
         along_m=along,
         typical_rad=typical,
         far_off=far_off,
+        wild=wild,
     )

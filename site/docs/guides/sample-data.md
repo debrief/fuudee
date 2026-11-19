@@ -21,7 +21,7 @@ The exercise lies in open water east of the entrance to Chesapeake Bay, on 15 an
 | 1 | 08:00Z to 12:00Z | BLUE ONE gains RED ONE, classifies it and follows it south-west, losing and regaining it. |
 | 2 | 12:00Z to 17:00Z | RED ONE heads west for the shipping lane; BLUE ONE zigzags astern of it to resolve range. |
 | 3 | 17:00Z to 23:00Z | BLUE ONE sprints and drifts; RED ONE evades, and is not regained after the first sprint. |
-| 4 | 08:00Z to 12:00Z the next day, 16 Jun | TMA practice (18 Nov 2026): RED ONE holds 240° at 5 kn throughout, and BLUE ONE zigs every half hour about its course, 2.5 to 4.5 nmi off, so a whole period of bearings fits one course and speed and its zigs give range. |
+| 4 | 08:00Z to 12:00Z the next day, 16 Jun | TMA practice (18 Nov 2026): RED ONE holds 240° at 5 kn throughout, and BLUE ONE zigs every half hour about its course, 2.5 to 4.5 nmi off, so a whole period of bearings fits one course and speed and its zigs give range. Its sensors are quieter, 0.5° (19 Nov 2026), so a solution can start with its error pane green. |
 
 Each plot holds:
 

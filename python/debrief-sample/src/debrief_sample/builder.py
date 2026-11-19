@@ -25,7 +25,7 @@ and the same lockfile are byte-for-byte identical.
 from __future__ import annotations
 
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib.metadata import version
 from pathlib import Path
 
@@ -91,6 +91,22 @@ TOWED = TowedArrayModel(
 # The sensors' colours: palette.ts's teal and purple, apart from the forces' red and blue.
 BOW_COLOUR = "#00a3a3"
 TOWED_COLOUR = "#8a3ffc"
+
+
+# Serial 4 is TMA practice (product owner, 19 Nov 2026): quieter sensors, so that a solution of
+# the whole serial can have every error within the Bearings view's 3° cut-off, its error pane
+# green. Bearing errors as standard deviations, degrees: Bow sonar, towed array.
+QUIET_SENSORS = {"serial-4": (0.5, 0.5)}
+
+
+def sensor_models(serial: Serial) -> tuple[SonarModel, TowedArrayModel]:
+    """The Bow sonar's and the towed array's models for a serial."""
+    if serial.item_id not in QUIET_SENSORS:
+        return SONAR, TOWED
+    bow, towed = QUIET_SENSORS[serial.item_id]
+    return replace(SONAR, bearing_sd_deg=bow), replace(TOWED, bearing_sd_deg=towed)
+
+
 # How each random generator is seeded (SUB-20): Python's random.Random, Mersenne Twister.
 RNG_SCHEME = "random.Random('{seed}:{serial}:{purpose}')"
 
@@ -286,6 +302,7 @@ def _build_serial(
     )
 
     # 4. Sonar bearings from blue to red, from the imported tracks.
+    sonar, towed_model = sensor_models(serial)
     started = clock.text()
     blue_track = tracks[serial.blue.name]
     blue_path = TrackPath.from_feature(blue_track)
@@ -295,7 +312,7 @@ def _build_serial(
         blue_path,
         red_path,
         own_course=course_lookup(blue_path.times_ms, blue_track.properties.courses.values),
-        model=SONAR,
+        model=sonar,
         deaf_ms=deaf_ms,
         rng=generator(seed, item, "bearings"),
     )
@@ -303,7 +320,7 @@ def _build_serial(
         blue_path,
         red_path,
         own_course=course_lookup(blue_path.times_ms, blue_track.properties.courses.values),
-        model=TOWED,
+        model=towed_model,
         deaf_ms=deaf_ms,
         rng=generator(seed, item, "towed-array"),
     )
@@ -355,32 +372,38 @@ def _build_serial(
             tool=_tool("bearings"),
             agent=agent,
             parameters=[
-                _param("interval", models.Duration(value=SONAR.interval_ms / 1000, unit="s")),
-                _param("bearing_error", models.Angle(value=SONAR.bearing_sd_deg, unit="deg")),
+                _param("interval", models.Duration(value=sonar.interval_ms / 1000, unit="s")),
+                _param("bearing_error", models.Angle(value=sonar.bearing_sd_deg, unit="deg")),
                 _param(
                     "detection_range",
-                    models.Length(value=SONAR.detection_range_m / 1852.0, unit="[nmi_i]"),
+                    models.Length(value=sonar.detection_range_m / 1852.0, unit="[nmi_i]"),
                 ),
                 _param(
                     "baffle_half_angle",
-                    models.Angle(value=SONAR.baffle_half_angle_deg, unit="deg"),
+                    models.Angle(value=sonar.baffle_half_angle_deg, unit="deg"),
                 ),
-                _param("p_gain", SONAR.p_gain),
-                _param("p_lose", SONAR.p_lose),
+                _param("p_gain", sonar.p_gain),
+                _param("p_lose", sonar.p_lose),
                 _param("sonar_off", _windows_text(serial)),
                 _param("rng", RNG_SCHEME.format(seed=seed, serial=item, purpose="bearings")),
-                _param("towed_interval", models.Duration(value=TOWED.interval_ms / 1000, unit="s")),
-                _param("towed_bearing_error", models.Angle(value=TOWED.bearing_sd_deg, unit="deg")),
+                _param(
+                    "towed_interval",
+                    models.Duration(value=towed_model.interval_ms / 1000, unit="s"),
+                ),
+                _param(
+                    "towed_bearing_error",
+                    models.Angle(value=towed_model.bearing_sd_deg, unit="deg"),
+                ),
                 _param(
                     "towed_detection_range",
-                    models.Length(value=TOWED.detection_range_m / 1852.0, unit="[nmi_i]"),
+                    models.Length(value=towed_model.detection_range_m / 1852.0, unit="[nmi_i]"),
                 ),
                 _param(
                     "towed_endfire_half_angle",
-                    models.Angle(value=TOWED.endfire_half_angle_deg, unit="deg"),
+                    models.Angle(value=towed_model.endfire_half_angle_deg, unit="deg"),
                 ),
-                _param("towed_p_gain", TOWED.p_gain),
-                _param("towed_p_lose", TOWED.p_lose),
+                _param("towed_p_gain", towed_model.p_gain),
+                _param("towed_p_lose", towed_model.p_lose),
                 _param(
                     "towed_rng", RNG_SCHEME.format(seed=seed, serial=item, purpose="towed-array")
                 ),
@@ -393,7 +416,7 @@ def _build_serial(
 
     # 5. The scripted narrative, kept as a supporting file and read into narrative entries.
     started = clock.text()
-    seen = narrative.picture(bearings, contacts, SONAR.interval_ms)
+    seen = narrative.picture(bearings, contacts, sonar.interval_ms)
     items = narrative.entries(serial, blue_path, red_path, seen, ais_paths)
     narrative_file = work / item / "narrative.txt"
     narrative_file.write_text(narrative.write(serial, items), encoding="utf-8")

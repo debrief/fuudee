@@ -724,7 +724,8 @@ def suggest(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> 
     # fewer are wild bearings.
     spans = tma_fit.runs(fitted.far_off)
     drift = [r for r in spans if r[1] - r[0] + 1 >= DRIFT_RUN]
-    wild = sum(r[1] - r[0] + 1 for r in spans if r not in drift)
+    in_drift = {i for first, last in drift for i in range(first, last + 1)}
+    wild = sum(1 for i in fitted.wild if i not in in_drift)
     if drift:
         first, last = max(drift, key=lambda r: r[1] - r[0])
         when = _when(int(times[first]))

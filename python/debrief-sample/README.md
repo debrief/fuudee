@@ -21,7 +21,7 @@ report.plots  # {"serial-1": {"tracks": 10, "background_tracks": 8, "bearings": 
 | 1 | 15 Jun 2023, 08:00Z to 12:00Z | BLUE ONE gains RED ONE, classifies it and follows it south-west, losing and regaining it |
 | 2 | 15 Jun 2023, 12:00Z to 17:00Z | RED ONE heads west for the shipping lane; BLUE ONE zigzags astern of it to resolve range |
 | 3 | 15 Jun 2023, 17:00Z to 23:00Z | BLUE ONE sprints and drifts; RED ONE evades, and is not regained after the first sprint |
-| 4 | 16 Jun 2023, 08:00Z to 12:00Z | TMA practice: RED ONE holds 240° at 5 kn throughout; BLUE ONE zigs every half hour about its course, 2.5 to 4.5 nmi off |
+| 4 | 16 Jun 2023, 08:00Z to 12:00Z | TMA practice: RED ONE holds 240° at 5 kn throughout; BLUE ONE zigs every half hour about its course, 2.5 to 4.5 nmi off; both sensors quieter, 0.5° |
 
 Each plot holds:
 
