@@ -175,12 +175,20 @@ export async function playExport(page, shot) {
   assert.equal(await historyRows(), rows, "four exports, still no step");
 
   // A track selected while an image is drawn stays selected once the map is put back: the
-  // map's own putting back never undoes it.
-  await exportImage({ format: "png", preset: "a4_landscape", theme: "current", footer: true }, async () => {
-    await map.locator("#exporting").waitFor({ state: "visible", timeout: 30000 });
-    await page.locator('#outline li[data-id="track-blue-one"]').click();
+  // map's own putting back never undoes it. The track is chosen the moment the map says it is
+  // preparing the image, from inside the map's frame: a quick runner can show and hide that note
+  // between two looks from here, so waiting to see it misses the drawing altogether.
+  await map.locator("#exporting").evaluate((note) => {
+    new MutationObserver((_, observer) => {
+      if (note.hidden) return;
+      observer.disconnect();
+      window.parent.document.querySelector('#outline li[data-id="track-blue-one"]').click();
+      note.dataset.chosenWhileDrawn = "yes";
+    }).observe(note, { attributes: true, attributeFilter: ["hidden"] });
   });
+  await exportImage({ format: "png", preset: "a4_landscape", theme: "current", footer: true });
   await map.locator("#exporting").waitFor({ state: "hidden", timeout: 30000 });
+  assert.equal(await map.locator("#exporting").getAttribute("data-chosen-while-drawn"), "yes", "BLUE ONE chosen while the image was drawn");
   await map.locator('path.leaflet-interactive[stroke-opacity="0.3"]').first().waitFor({ timeout: 10000 }); // the others dimmed: BLUE ONE is selected
   assert.equal(await historyRows(), rows, "five exports, still no step");
 
