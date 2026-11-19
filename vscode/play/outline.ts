@@ -223,7 +223,6 @@ export class OutlineTree<T> {
       const twisty = document.createElement("span");
       twisty.className = "twisty";
       twisty.setAttribute("aria-hidden", "true");
-      twisty.textContent = row.expanded ? "▾" : "▸";
       li.append(twisty);
     } else {
       const gap = document.createElement("span");
