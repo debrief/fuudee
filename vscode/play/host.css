@@ -103,6 +103,12 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 /* The Tools' and History's icons: the playground's artwork for each codicon the panel models name (cosmetic). */
 .tools .icon, #history .icon { display: inline-block; width: 1em; margin-right: .3em; text-align: center; color: var(--vscode-descriptionForeground); }
 :is(.tools, #history) .icon[data-icon="pass-filled"]::before { content: "✓"; }
+/* A track's and a sensor's icons drawn as VS Code's codicons are (pulse, radio-tower), wherever a panel names them:
+   a text stand-in (〰, ⌁) read as a squiggle and a stroke, not a track and a mast (user report). */
+.icon:is([data-icon="pulse"], [data-icon="radio-tower"])::before { content: ""; display: inline-block; width: 14px; height: 14px; vertical-align: text-bottom; background: currentColor; mask: center / contain no-repeat; }
+.icon[data-icon="pulse"]::before { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 8.5h3.2l1.8-5 3.5 9 2-4h3.5'/%3E%3C/svg%3E"); }
+.icon[data-icon="radio-tower"]::before { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='6' r='1.2'/%3E%3Cpath d='M8 7.5V15M5.5 15h5M5.3 3.6a3.6 3.6 0 0 0 0 4.8M10.7 3.6a3.6 3.6 0 0 1 0 4.8M3.2 1.8a6.2 6.2 0 0 0 0 8.4M12.8 1.8a6.2 6.2 0 0 1 0 8.4'/%3E%3C/svg%3E"); }
+@media (forced-colors: active) { .icon:is([data-icon="pulse"], [data-icon="radio-tower"])::before { background: CanvasText; } }
 /* The Catalogues' icons, likewise (cosmetic). */
 .catalogues .icon { display: inline-block; width: 1em; margin-right: .3em; text-align: center; color: var(--vscode-descriptionForeground); }
 .catalogues .icon[data-icon="library"]::before { content: "▤"; }
@@ -111,7 +117,6 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .catalogues .icon[data-icon="map-filled"]::before { content: "◆"; }
 .catalogues .icon[data-icon="sparkle"]::before { content: "✦"; }
 .catalogues .icon[data-icon="warning"]::before { content: "⚑"; }
-.catalogues .icon[data-icon="pulse"]::before { content: "∿"; }
 .catalogues .icon[data-icon="loading~spin"]::before { content: "⟳"; display: inline-block; animation: spin 1.2s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .catalogues .icon[data-icon="loading~spin"]::before { animation: none; } }
 /* A question's choice: its description and detail beneath its label. */
