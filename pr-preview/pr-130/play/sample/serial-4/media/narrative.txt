@@ -5,34 +5,34 @@
 16 Jun 2023 08:00:00Z  BLUE ONE  Intention  Intention: zig every 30 minutes about RED ONE's course to resolve its range.
 16 Jun 2023 08:00:00Z  BLUE ONE  Course     Steady on 200.0°T, 6.5 kn.
 16 Jun 2023 08:00:00Z  RED ONE   Course     Steady on 240.0°T, 5.0 kn, 20 m.
-16 Jun 2023 08:00:00Z  BLUE ONE  Sonar      Bow sonar contact, bearing 316.3°T. Classifying.
+16 Jun 2023 08:00:00Z  BLUE ONE  Sonar      Bow sonar contact, bearing 315.4°T. Classifying.
 16 Jun 2023 08:00:00Z  EXCON     CPA        Closest approach of BLUE ONE and RED ONE: 2.51 nmi.
-16 Jun 2023 08:07:30Z  BLUE ONE  Sonar      Contact classified submarine, designated RED ONE, bearing 316.6°T.
+16 Jun 2023 08:07:30Z  BLUE ONE  Sonar      Contact classified submarine, designated RED ONE, bearing 317.2°T.
 16 Jun 2023 08:29:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 321.3°T.
 16 Jun 2023 08:30:00Z  BLUE ONE  Course     Came to 280.0°T, 6.5 kn.
-16 Jun 2023 08:30:00Z  BLUE ONE  Sonar      RED ONE bearing 321.3°T, steady.
-16 Jun 2023 08:48:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 319.8°T.
+16 Jun 2023 08:30:00Z  BLUE ONE  Sonar      RED ONE bearing 321.3°T, drawing right 0.1°/min.
+16 Jun 2023 08:48:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 319.2°T.
 16 Jun 2023 09:00:00Z  BLUE ONE  Course     Came to 200.0°T, 6.5 kn.
-16 Jun 2023 09:00:00Z  BLUE ONE  Sonar      RED ONE bearing 317.9°T, drawing left 0.3°/min.
-16 Jun 2023 09:17:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 320.0°T.
-16 Jun 2023 09:27:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 322.4°T.
+16 Jun 2023 09:00:00Z  BLUE ONE  Sonar      RED ONE bearing 316.3°T, drawing left 0.3°/min.
+16 Jun 2023 09:17:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 320.1°T.
+16 Jun 2023 09:27:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 322.0°T.
 16 Jun 2023 09:28:36Z  BLUE ONE  CPA        Pleasure craft 01 passed clear at 2.20 nmi.
-16 Jun 2023 09:29:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 320.5°T.
+16 Jun 2023 09:29:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 321.5°T.
 16 Jun 2023 09:30:00Z  BLUE ONE  Course     Came to 280.0°T, 6.5 kn.
-16 Jun 2023 09:41:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 320.6°T.
+16 Jun 2023 09:41:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 320.9°T.
 16 Jun 2023 10:00:00Z  BLUE ONE  Course     Came to 200.0°T, 6.5 kn.
-16 Jun 2023 10:00:00Z  BLUE ONE  Sonar      RED ONE bearing 314.6°T, drawing left 0.4°/min.
-16 Jun 2023 10:29:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 321.3°T.
+16 Jun 2023 10:00:00Z  BLUE ONE  Sonar      RED ONE bearing 316.0°T, drawing left 0.3°/min.
+16 Jun 2023 10:29:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 322.2°T.
 16 Jun 2023 10:30:00Z  BLUE ONE  Course     Came to 280.0°T, 6.5 kn.
-16 Jun 2023 10:30:00Z  BLUE ONE  Sonar      RED ONE bearing 321.3°T, drawing right 0.3°/min.
-16 Jun 2023 10:37:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 320.4°T.
-16 Jun 2023 10:59:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 316.4°T.
+16 Jun 2023 10:30:00Z  BLUE ONE  Sonar      RED ONE bearing 322.2°T, drawing right 0.2°/min.
+16 Jun 2023 10:37:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 321.9°T.
+16 Jun 2023 10:59:00Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 317.5°T.
 16 Jun 2023 11:00:00Z  BLUE ONE  Course     Came to 200.0°T, 6.5 kn.
-16 Jun 2023 11:00:00Z  BLUE ONE  Sonar      RED ONE bearing 316.4°T, drawing left 0.5°/min.
-16 Jun 2023 11:08:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 317.8°T.
-16 Jun 2023 11:29:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 323.1°T.
+16 Jun 2023 11:00:00Z  BLUE ONE  Sonar      RED ONE bearing 317.5°T, drawing left 0.3°/min.
+16 Jun 2023 11:08:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 319.5°T.
+16 Jun 2023 11:29:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 323.3°T.
 16 Jun 2023 11:30:00Z  BLUE ONE  Course     Came to 280.0°T, 6.5 kn.
-16 Jun 2023 11:30:00Z  BLUE ONE  Sonar      RED ONE bearing 323.1°T, steady.
-16 Jun 2023 11:42:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 321.1°T.
-16 Jun 2023 11:56:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 320.2°T.
+16 Jun 2023 11:30:00Z  BLUE ONE  Sonar      RED ONE bearing 323.3°T, steady.
+16 Jun 2023 11:42:30Z  BLUE ONE  Sonar      Regained RED ONE, bearing 322.0°T.
+16 Jun 2023 11:56:30Z  BLUE ONE  Sonar      Lost RED ONE, last bearing 319.7°T.
 16 Jun 2023 12:00:00Z  EXCON     Log        Serial 4 ended. End of the second day.

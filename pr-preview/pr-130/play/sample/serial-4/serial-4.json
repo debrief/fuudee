@@ -41,7 +41,7 @@
     "title": "Serial 4",
     "debrief:schema_version": "0.0.24",
     "created": "2026-10-11T00:00:00.000Z",
-    "debrief:revision": "sha256:60377b5a29eb791ab614dd78633f46d3f65e6253c361f742e7b561bb5b000fd8",
+    "debrief:revision": "sha256:133b1898e8a0d374c1f9dd1266e79534f232e4fe5cd06cb1a9fd46f458eabd50",
     "debrief:coverage": [
       {
         "track": "track-blue-one",
@@ -144,9 +144,9 @@
       }
     ],
     "debrief:imported": false,
-    "debrief:origin": "sha256:47d00fd2934d17b99f93812d7d4086c0c280f3199be62d6f8e0f14a723888fec",
+    "debrief:origin": "sha256:265f2ea8b3e5edae1eee1bdaae1b5607f3683c034aa41ed1457a7a1511bd7a51",
     "debrief:revisions": [
-      "C0VQPPH9XDWHNDGM"
+      "2CXHH678M39Q9GFS"
     ],
     "datetime": null
   },
@@ -205,7 +205,7 @@
         "metadata"
       ],
       "debrief:asset_kind": "supporting_file",
-      "debrief:content_hash": "sha256:5f466916bcc9f5adbcf846888e13465992d2a926b7b9deec5f18e7ad9450514a"
+      "debrief:content_hash": "sha256:79572dd77aa2c762ab7cf6070d533f7e69a0947fbcab4e494d20d709a4b33db8"
     }
   }
 }
