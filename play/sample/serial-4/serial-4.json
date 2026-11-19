@@ -1,0 +1,211 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "id": "serial-4",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -75.9,
+          36.7
+        ],
+        [
+          -75.2,
+          36.7
+        ],
+        [
+          -75.2,
+          37.2
+        ],
+        [
+          -75.9,
+          37.2
+        ],
+        [
+          -75.9,
+          36.7
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    -75.9,
+    36.7,
+    -75.2,
+    37.2
+  ],
+  "properties": {
+    "start_datetime": "2023-06-16T08:00:00.000Z",
+    "end_datetime": "2023-06-16T12:00:00.000Z",
+    "title": "Serial 4",
+    "debrief:schema_version": "0.0.24",
+    "created": "2026-10-11T00:00:00.000Z",
+    "debrief:revision": "sha256:133b1898e8a0d374c1f9dd1266e79534f232e4fe5cd06cb1a9fd46f458eabd50",
+    "debrief:coverage": [
+      {
+        "track": "track-blue-one",
+        "name": "BLUE ONE",
+        "fixes": 241,
+        "spans": [
+          {
+            "start": "2023-06-16T08:00:00.000Z",
+            "end": "2023-06-16T12:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-red-one",
+        "name": "RED ONE",
+        "fixes": 241,
+        "spans": [
+          {
+            "start": "2023-06-16T08:00:00.000Z",
+            "end": "2023-06-16T12:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-01",
+        "name": "Cargo 01",
+        "fixes": 204,
+        "spans": [
+          {
+            "start": "2023-06-16T08:00:00.000Z",
+            "end": "2023-06-16T11:59:51.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-02",
+        "name": "Cargo 02",
+        "fixes": 79,
+        "spans": [
+          {
+            "start": "2023-06-16T08:00:03.000Z",
+            "end": "2023-06-16T09:32:33.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-03",
+        "name": "Cargo 03",
+        "fixes": 104,
+        "spans": [
+          {
+            "start": "2023-06-16T08:00:48.000Z",
+            "end": "2023-06-16T10:48:42.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-04",
+        "name": "Cargo 04",
+        "fixes": 79,
+        "spans": [
+          {
+            "start": "2023-06-16T08:01:13.000Z",
+            "end": "2023-06-16T11:58:12.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-pleasure-craft-01",
+        "name": "Pleasure craft 01",
+        "fixes": 69,
+        "spans": [
+          {
+            "start": "2023-06-16T08:30:01.000Z",
+            "end": "2023-06-16T09:44:46.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-05",
+        "name": "Cargo 05",
+        "fixes": 151,
+        "spans": [
+          {
+            "start": "2023-06-16T09:04:42.000Z",
+            "end": "2023-06-16T11:58:54.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-06",
+        "name": "Cargo 06",
+        "fixes": 80,
+        "spans": [
+          {
+            "start": "2023-06-16T10:26:50.000Z",
+            "end": "2023-06-16T11:59:20.000Z"
+          }
+        ]
+      }
+    ],
+    "debrief:imported": false,
+    "debrief:origin": "sha256:265f2ea8b3e5edae1eee1bdaae1b5607f3683c034aa41ed1457a7a1511bd7a51",
+    "debrief:revisions": [
+      "2CXHH678M39Q9GFS"
+    ],
+    "datetime": null
+  },
+  "links": [
+    {
+      "rel": "parent",
+      "href": "../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "../catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "plot": {
+      "href": "./plot.geojson",
+      "type": "application/geo+json",
+      "roles": [
+        "data"
+      ],
+      "debrief:asset_kind": "plot"
+    },
+    "source-blue-one.rep": {
+      "href": "./sources/blue-one.rep",
+      "type": "text/plain",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:06ef65dc77a838722a59ef304dcf189c4c9086146f4f85a693c326a70042afe9"
+    },
+    "source-red-one.rep": {
+      "href": "./sources/red-one.rep",
+      "type": "text/plain",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:d757952d8bcc060c441a05962337dbe4d4a7e028195abeb1091af6f309975880"
+    },
+    "source-ais-2023-06-16-chesapeake-approaches.csv": {
+      "href": "./sources/ais-2023-06-16-chesapeake-approaches.csv",
+      "type": "text/csv",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:d7b59ae822c513d42d5bded113a9324188da1ce1b70bbc158863ea526870ae18"
+    },
+    "supporting_file-narrative.txt": {
+      "href": "./media/narrative.txt",
+      "type": "text/plain",
+      "roles": [
+        "metadata"
+      ],
+      "debrief:asset_kind": "supporting_file",
+      "debrief:content_hash": "sha256:79572dd77aa2c762ab7cf6070d533f7e69a0947fbcab4e494d20d709a4b33db8"
+    }
+  }
+}

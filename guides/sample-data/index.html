@@ -1849,14 +1849,14 @@
 
 
 <h1 id="sample-data">Sample data<a class="headerlink" href="#sample-data" title="Permanent link">&para;</a></h1>
-<p>The sample data is a small exercise for demonstrations, walkthroughs and blog posts (DEP-08). It replaces the 1995 single-serial sample. Real, open AIS traffic gives the background picture; on top of it sits an invented exercise: a blue ownship, a red submarine, the ownship's sonar bearings and a scripted narrative, over three serials.</p>
+<p>The sample data is a small exercise for demonstrations, walkthroughs and blog posts (DEP-08). It replaces the 1995 single-serial sample. Real, open AIS traffic gives the background picture; on top of it sits an invented exercise: a blue ownship, a red submarine, the ownship's sonar bearings and a scripted narrative, over four serials on two days.</p>
 <p>Everything except the AIS is fiction. Use only this data in blog posts and interactive examples (DEV-05, DEV-06).</p>
 <h2 id="building-it">Building it<a class="headerlink" href="#building-it" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>debrief_sample<span class="w"> </span>build<span class="w"> </span>sample
 </code></pre></div>
 <p>This creates a catalogue in the folder <code>sample</code>, with one plot per serial. The same seed, built with the same versions of Debrief's libraries, always gives the same files, byte for byte; <code>--seed</code> gives a different exercise over the same AIS traffic.</p>
 <h2 id="what-is-in-it">What is in it<a class="headerlink" href="#what-is-in-it" title="Permanent link">&para;</a></h2>
-<p>The exercise lies in open water east of the entrance to Chesapeake Bay, on 15 Jun 2023. The area was chosen because open AIS covers it, not for any naval use. It is on the continental shelf, mostly 10 to 35 m deep, so RED ONE's depths are notional.</p>
+<p>The exercise lies in open water east of the entrance to Chesapeake Bay, on 15 and 16 Jun 2023. The area was chosen because open AIS covers it, not for any naval use. It is on the continental shelf, mostly 10 to 35 m deep, so RED ONE's depths are notional.</p>
 <table>
 <thead>
 <tr>
@@ -1881,15 +1881,20 @@
 <td>17:00Z to 23:00Z</td>
 <td>BLUE ONE sprints and drifts; RED ONE evades, and is not regained after the first sprint.</td>
 </tr>
+<tr>
+<td>4</td>
+<td>08:00Z to 12:00Z the next day, 16 Jun</td>
+<td>TMA practice (18 Nov 2026): RED ONE holds 240° at 5 kn throughout, and BLUE ONE zigs every half hour about its course, 2.5 to 4.5 nmi off, so a whole period of bearings fits one course and speed and its zigs give range. Its sensors are quieter, 0.5° (19 Nov 2026), so a solution can start with its error pane green.</td>
+</tr>
 </tbody>
 </table>
 <p>Each plot holds:</p>
 <ul>
-<li><strong>Background traffic.</strong> 8 to 10 AIS tracks: merchant ships under way and at anchor, a tug, yachts and pleasure craft. Each is named by its type and a number, such as "Cargo 03", never by its real name.</li>
+<li><strong>Background traffic.</strong> 7 to 10 AIS tracks, from the serial's own day: merchant ships under way and at anchor, a tug, yachts and pleasure craft. Each is named by its type and a number, such as "Cargo 03", never by its real name.</li>
 <li><strong>BLUE ONE and RED ONE.</strong> One fix a minute. RED ONE's tracks carry depth. Both were written as REP files and imported, so they are sources like any analyst's.</li>
 <li><strong>Sonar bearings.</strong> Two sensors on BLUE ONE, each shown in the Outline under it and drawn as cuts in the time window (CAP-22; <a href="../interaction-models/sensors/">sensors and bearings</a>):<ul>
-<li>its <strong>Bow sonar</strong> (teal), on RED ONE every 30 seconds, with a 1.5° error. It holds RED ONE only within 4.5 nmi, outside its baffles astern and while not sprinting, and within those limits contact comes and goes, so each serial has gaps: 177 to 349 cuts a serial;</li>
-<li>its <strong>Towed array</strong> (purple), every minute, with a 2° error, out to 7 nmi: every cut <strong>ambiguous</strong>, its bearing and the mirror of it about BLUE ONE's course, in random order, as an array tells them. It is deaf within 15° of endfire (ahead and astern), and while BLUE ONE turns faster than 10° a minute or sprints; contact is gained and lost at random. 132 to 166 cuts a serial, left for the analyst to resolve: after a turn, the true bearing is the one that stayed put.</li>
+<li>its <strong>Bow sonar</strong> (teal), on RED ONE every 30 seconds, with a 1.5° error. It holds RED ONE only within 4.5 nmi, outside its baffles astern and while not sprinting, and within those limits contact comes and goes, so each serial has gaps: 177 to 349 cuts a serial (serial 4, held throughout, 334);</li>
+<li>its <strong>Towed array</strong> (purple), every minute, with a 2° error, out to 7 nmi: every cut <strong>ambiguous</strong>, its bearing and the mirror of it about BLUE ONE's course, in random order, as an array tells them. It is deaf within 15° of endfire (ahead and astern), and while BLUE ONE turns faster than 10° a minute or sprints; contact is gained and lost at random. 118 to 166 cuts a serial, left for the analyst to resolve: after a turn, the true bearing is the one that stayed put.</li>
 </ul>
 </li>
 <li><strong>Narrative.</strong> About 35 entries per serial, in Zulu time, from BLUE ONE, RED ONE and exercise control (EXCON): intentions, alterations of course, first contact and its classification, contacts lost and regained, bearing reports with their drift, and closest approaches. Each entry has a kind (Course, Sonar, CPA, Log, Intention, Weather). The log is kept as a supporting file, and each entry is also a narrative entry in the plot, BLUE ONE's and RED ONE's belonging to their tracks, read in the Timeline (CAP-20).</li>
@@ -1912,7 +1917,7 @@
     I1 &amp; I2 &amp; I3 &amp; P &amp; I4 &amp; AR &amp; NS --&gt; Plot[(Plot)]</code></pre>
 <p>To see the history of a serial, open its <code>plot.geojson</code> and read <code>provenance</code>. Each source sits in the plot's <code>sources</code> folder, read-only; checking the sources reports nothing when none has changed.</p>
 <h2 id="the-ais-data">The AIS data<a class="headerlink" href="#the-ais-data" title="Permanent link">&para;</a></h2>
-<p>The background traffic comes from the US national AIS archive, published by NOAA's Office for Coastal Management on MarineCadastre.gov from the US Coast Guard's receiver network. It is a US Government work, in the public domain in the United States. One day was reduced to a small area, the serial windows and 16 vessels, thinned to one fix a minute, with military, law-enforcement, pilot and search-and-rescue vessels left out. Every identifier was removed. The reduction and the licence are described beside the extract, in <code>python/debrief-sample/data/README.md</code>.</p>
+<p>The background traffic comes from the US national AIS archive, published by NOAA's Office for Coastal Management on MarineCadastre.gov from the US Coast Guard's receiver network. It is a US Government work, in the public domain in the United States. Each day was reduced to a small area and its serial windows (16 vessels on the first day, 7 on the second), thinned to one fix a minute, with military, law-enforcement, pilot and search-and-rescue vessels left out. Every identifier was removed. The reduction and the licence are described beside the extract, in <code>python/debrief-sample/data/README.md</code>.</p>
 <h2 id="for-walkthroughs">For walkthroughs<a class="headerlink" href="#for-walkthroughs" title="Permanent link">&para;</a></h2>
 <p>Debrief's walkthroughs (CAP-25) never change the sample: each works on a copy of serial 1, titled after it, made by <code>debrief_sample.walkthrough</code>. VS Code builds a fresh sample for each walkthrough into a catalogue of its own, <code>python -m debrief_sample walkthrough FOLDER TOUR</code>; the playground copies the sample as the site shipped it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, as a step of their own; <em>Import and collate</em>'s comes with BLUE ONE's navigation log, a REP file of fiction like the rest; <em>Bearings and TMA</em>'s has one of the towed array's cuts turned 40° off, a wild bearing, as a step of its own, since the sample's bearings have none. That walkthrough makes its TMA solution live, so the sample itself holds none. The walkthroughs' pictures are drawn from serial 1 by <code>python -m debrief_sample media vscode/media/walkthroughs</code>. See <a href="../interaction-models/walkthroughs/">Walkthroughs</a>.</p>
 <h2 id="not-yet-in-it">Not yet in it<a class="headerlink" href="#not-yet-in-it" title="Permanent link">&para;</a></h2>

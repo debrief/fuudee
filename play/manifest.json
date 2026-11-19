@@ -30,6 +30,12 @@
   "serial-3/serial-3.json",
   "serial-3/sources/ais-2023-06-15-chesapeake-approaches.csv",
   "serial-3/sources/blue-one.rep",
-  "serial-3/sources/red-one.rep"
+  "serial-3/sources/red-one.rep",
+  "serial-4/media/narrative.txt",
+  "serial-4/plot.geojson",
+  "serial-4/serial-4.json",
+  "serial-4/sources/ais-2023-06-16-chesapeake-approaches.csv",
+  "serial-4/sources/blue-one.rep",
+  "serial-4/sources/red-one.rep"
  ]
 }
