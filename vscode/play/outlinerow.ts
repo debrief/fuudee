@@ -6,10 +6,9 @@
  */
 import type { OutlineRow } from "../webview/panels/outline.js";
 
-/** The playground's artwork for each codicon the Outline names (cosmetic: VS Code draws the codicon). */
+/** The playground's artwork for each codicon the Outline names (cosmetic: VS Code draws the codicon).
+ * A track's and a sensor's (pulse, radio-tower) are drawn by host.css instead, so have no glyph here. */
 export const ICON_GLYPHS: Record<string, string> = {
-  pulse: "〰",
-  "radio-tower": "⌁",
   dash: "─",
   "primitive-square": "▢",
   "circle-large-outline": "◯",
