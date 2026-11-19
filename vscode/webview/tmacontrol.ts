@@ -166,6 +166,8 @@ export class TmaControl {
   private formOpen = false;
   /** The cuts the first guess's form is for, and what it asks to be made of. */
   private formFor?: { rows: Row[]; request: TmaRequest };
+  /** Suggest's guess as filled, and its exact start, course and speed: sent as they are while the fields still read as filled (18 Nov 2026). */
+  private suggestedGuess?: { fields: Record<string, string>; guess: Pick<TmaRequest, "start_position" | "course" | "speed"> };
   private said?: ReturnType<typeof setTimeout>;
   /** How long each frame of a drag took, ms, the residuals worked out and everything drawn: for the tests and the drag budget (NFR-04). */
   readonly timings: number[] = [];
@@ -543,6 +545,12 @@ export class TmaControl {
       const input = this.form.querySelector<HTMLInputElement>(`input[name=${name}]`);
       if (input) input.value = value;
     }
+    // The fields are rounded for reading; the solution is made from the fit itself, its start
+    // where the fit put it, so long as the analyst leaves the fields as filled.
+    const start = suggestion.start_position;
+    if (start && suggestion.course !== undefined && suggestion.course !== null && suggestion.speed !== undefined && suggestion.speed !== null) {
+      this.suggestedGuess = { fields, guess: { start_position: [start[0], start[1]], course: { value: suggestion.course, unit: "deg" }, speed: { value: suggestion.speed, unit: "m/s" } } };
+    }
     this.checkForm(false);
   }
 
@@ -787,6 +795,7 @@ export class TmaControl {
   private openForm(rows: Row[], request: TmaRequest): void {
     if (this.view?.read_only || !rows.length) return;
     this.formFor = { rows, request };
+    this.suggestedGuess = undefined;
     const first = rows[0];
     const ambiguous = isAmbiguousRow(first);
     const guess = guessDefaults(first, undefined, this.settings);
@@ -854,6 +863,7 @@ export class TmaControl {
     if (!this.formOpen) return;
     this.formOpen = false;
     this.formFor = undefined;
+    this.suggestedGuess = undefined;
     this.form.hidden = true;
     this.form.innerHTML = "";
   }
@@ -891,6 +901,10 @@ export class TmaControl {
     const base = this.formFor?.request;
     if (!base || typeof course !== "number" || "problem" in range || "problem" in speed) return undefined;
     const contact = value("contact").trim();
+    const suggested = this.suggestedGuess;
+    if (suggested && Object.entries(suggested.fields).every(([name, filled]) => value(name) === filled)) {
+      return { ...base, ...(contact && { contact }), ...suggested.guess };
+    }
     const along = this.form.querySelector<HTMLSelectElement>("select[name=along]")?.value as Kept | undefined;
     return {
       ...base,

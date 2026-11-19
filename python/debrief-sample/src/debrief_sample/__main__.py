@@ -1,7 +1,7 @@
 """Command line: build the sample catalogue, or remake the AIS extract.
 
 python -m debrief_sample build OUT_DIR [--seed N] [--recorded-at TIME]
-python -m debrief_sample reduce-ais AIS_2023_06_15.zip OUT.csv
+python -m debrief_sample reduce-ais AIS_2023_06_15.zip OUT.csv [--day 2023-06-16]
 python -m debrief_sample walkthrough OUT_DIR TOUR
 python -m debrief_sample media OUT_DIR [--check]
 """
@@ -13,7 +13,7 @@ import json
 import sys
 from pathlib import Path
 
-from debrief_sample.ais import reduce_marinecadastre
+from debrief_sample.ais import EXTRACT_WINDOWS, reduce_marinecadastre
 from debrief_sample.builder import DEFAULT_SEED, RECORDED_AT, build
 from debrief_sample.media import write_media
 from debrief_sample.walkthrough import TOURS, prepare
@@ -35,6 +35,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     reduce_cmd.add_argument("archive", type=Path)
     reduce_cmd.add_argument("output", type=Path)
+    reduce_cmd.add_argument(
+        "--day",
+        default="2023-06-15",
+        choices=sorted(EXTRACT_WINDOWS),
+        help="the archive's day, which sets the serial windows kept",
+    )
     tour_cmd = commands.add_parser(
         "walkthrough", help="a fresh copy of the sample for a walkthrough, in a folder of its own"
     )
@@ -58,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "reduce-ais":
-        count = reduce_marinecadastre(args.archive, args.output)
+        count = reduce_marinecadastre(args.archive, args.output, EXTRACT_WINDOWS[args.day])
         print(f"Wrote {args.output}: {count} vessels.")
         return 0
     report = build(args.out_dir, seed=args.seed, recorded_at=args.recorded_at)

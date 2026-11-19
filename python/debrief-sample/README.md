@@ -1,6 +1,6 @@
 # debrief-sample
 
-The Debrief sample data (DEP-08): real open AIS traffic as the background picture, with an invented exercise on top. Three serials, each a plot in one STAC catalogue, each carrying its own provenance as a worked example of SUB-18.
+The Debrief sample data (DEP-08): real open AIS traffic as the background picture, with an invented exercise on top. Four serials on two days, each a plot in one STAC catalogue, each carrying its own provenance as a worked example of SUB-18.
 
 ```bash
 uv run python -m debrief_sample build OUT_DIR            # seed 1995
@@ -16,15 +16,16 @@ report.plots  # {"serial-1": {"tracks": 10, "background_tracks": 8, "bearings": 
 
 ## What is in it
 
-| Serial | Time (15 Jun 2023) | Story |
+| Serial | Time | Story |
 | --- | --- | --- |
-| 1 | 08:00Z to 12:00Z | BLUE ONE gains RED ONE, classifies it and follows it south-west, losing and regaining it |
-| 2 | 12:00Z to 17:00Z | RED ONE heads west for the shipping lane; BLUE ONE zigzags astern of it to resolve range |
-| 3 | 17:00Z to 23:00Z | BLUE ONE sprints and drifts; RED ONE evades, and is not regained after the first sprint |
+| 1 | 15 Jun 2023, 08:00Z to 12:00Z | BLUE ONE gains RED ONE, classifies it and follows it south-west, losing and regaining it |
+| 2 | 15 Jun 2023, 12:00Z to 17:00Z | RED ONE heads west for the shipping lane; BLUE ONE zigzags astern of it to resolve range |
+| 3 | 15 Jun 2023, 17:00Z to 23:00Z | BLUE ONE sprints and drifts; RED ONE evades, and is not regained after the first sprint |
+| 4 | 16 Jun 2023, 08:00Z to 12:00Z | TMA practice: RED ONE holds 240° at 5 kn throughout; BLUE ONE zigs every half hour about its course, 2.5 to 4.5 nmi off; both sensors quieter, 0.5° |
 
 Each plot holds:
 
-- **Background traffic**: 8 to 10 AIS tracks from the committed extract, grey, with the vessel type as platform class. See [data/README.md](data/README.md) for the origin, licence and reduction.
+- **Background traffic**: 7 to 10 AIS tracks from the committed extract of the serial's day, grey, with the vessel type as platform class. See [data/README.md](data/README.md) for the origin, licence and reduction.
 - **Blue and red**: BLUE ONE (a surface ship) and RED ONE (a submarine, with depths), one fix a minute, synthesised from scripted legs with realistic turns and small seeded errors. The area is on the continental shelf, mostly 10 to 35 m deep, so RED ONE's depths of 15 to 25 m are notional. They are written as REP files and imported through debrief-io, so each is a hashed, read-only source.
 - **Sensor layer**: BLUE ONE's bow sonar bearings on RED ONE every 30 s, with a 1.5° standard error. Contact is possible only within 4.5 nmi, outside the baffles (40° either side of dead astern) and while not sprinting; within those limits each 30 s sample gains a target not held with probability 0.05 and loses one held with probability 0.015. With the default seed the sonar holds RED ONE for 130 of 240 minutes in serial 1, 174 of 300 in serial 2 and 88 of 360 in serial 3. BLUE ONE's towed array too, every 60 s with a 2° standard error, further (7 nmi) and into the bow sonar's baffles, but not within 15° of its own axis (endfire) nor while BLUE ONE turns faster than 10° a minute; it gains a target not held with probability 0.08 and loses one held with probability 0.02. It cannot tell port from starboard, so each of its cuts carries the measured bearing and its mirror image about BLUE ONE's course: ambiguous until the analyst keeps one (CAP-22). 132, 166 and 152 cuts in the three serials. Both sensors are features of BLUE ONE, each cut a feature of its own (schema 0.0.23), drawn from BLUE ONE's position at its time.
 - **Narrative**: a plain-text log with Zulu times, 33 to 37 entries per serial, kept as a supporting file and read into narrative entries (CAP-20), each with a kind (Course for an ordered leg, Sonar for what the sonar held and when it was off, CPA for a closest approach, and the script's own: Log, Intention, Weather) and, for BLUE ONE and RED ONE, the track it belongs to. Entries come from the script, the ordered legs, and what the sonar held: first contact, classification as RED ONE after 8 minutes' contact, contacts lost and regained (gaps under 3 minutes and contacts under a minute go unlogged), a target not regained after a sprint, half-hourly bearing reports, and closest approaches. A bearing report's drift comes from a regression over the last 10 minutes and is called steady unless the rate exceeds twice its standard error. Scripted lines that depend on holding RED ONE, such as a simulated attack, are left out when the sonar did not hold it.

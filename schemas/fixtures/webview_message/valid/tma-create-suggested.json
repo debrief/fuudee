@@ -1,0 +1,24 @@
+{
+  "kind": "tma_create",
+  "tma_request": {
+    "sensor_ids": [
+      "sensor-nelson-bow-sonar"
+    ],
+    "period": {
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T09:33:00.000Z"
+    },
+    "start_position": [
+      -75.31,
+      37.11
+    ],
+    "course": {
+      "value": 241.7,
+      "unit": "deg"
+    },
+    "speed": {
+      "value": 2.59,
+      "unit": "m/s"
+    }
+  }
+}

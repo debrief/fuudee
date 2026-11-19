@@ -130,18 +130,23 @@ def test_a_zig_settles_the_range_and_the_guess_is_the_targets(tmp_path: Path) ->
     assert suggestion["note"].startswith("Suggested by least squares over 61 cuts:")
     # Reading only: nothing made.
     assert catalogue.read_plot("p") == before
-    # The guess makes a solution through the form's own request.
+    # The guess makes a solution through the form's own request, from the fit's start: the
+    # solution is the fit itself (18 Nov 2026: pinned to the first cut's bearing instead, it
+    # was shifted sideways by that cut's own error, and its residuals all fell to one side).
     _step, feature = catalogue.create_tma(
         "p",
         {
             **ask(catalogue),
-            "range": {"value": suggestion["range"], "unit": "m"},
+            "start_position": suggestion["start_position"],
             "course": {"value": suggestion["course"], "unit": "deg"},
             "speed": {"value": suggestion["speed"], "unit": "m/s"},
         },
         AGENT,
     )
-    assert catalogue.tma_residuals("p", feature)["rms"] < 1.0
+    report = catalogue.tma_residuals("p", feature)
+    # To within the plane the fit works on against the solution's geodesics: under 0.1°.
+    assert report["rms"] == pytest.approx(suggestion["rms"], abs=0.1)
+    assert catalogue.read_plot("p") != before
 
 
 def test_without_a_zig_no_guess_is_offered(tmp_path: Path) -> None:
@@ -198,3 +203,48 @@ def test_a_wild_bearing_is_said_and_does_not_stop_the_guess(tmp_path: Path) -> N
     assert suggestion["note"].endswith(
         "1 cut is far off it (wild bearings, perhaps): leave it out once the solution is made."
     )
+
+
+def test_a_solution_from_suggest_is_unbiased_where_the_first_bearing_is_off(
+    tmp_path: Path,
+) -> None:
+    """With noisy bearings the first cut's bearing is off the target's: a solution made from
+    Suggest starts where the fit put it, not on that bearing, so its residuals fall on both
+    sides of zero; the step's notes say the guess was suggested."""
+    import random
+
+    catalogue = make(tmp_path, zig=True)
+    plot = catalogue.read_plot("p")
+    bow = sensor_id(catalogue, "Bow sonar")
+    rng = random.Random(4)
+    noisy = ReadSensor(
+        name="Noisy sonar",
+        host_track_id="track-blue",
+        cuts=[
+            ReadCut(
+                parse_utc(c.properties.time), (c.properties.bearing.value + rng.gauss(0, 1.5)) % 360
+            )
+            for c in sorted(plot_sensors.cuts(plot, bow), key=lambda c: c.properties.time)
+        ],
+    )
+    record = models.ProvRecord(id="op-3", kind="import", started_at=at(0), agent=AGENT)
+    catalogue.add_sensors("p", [noisy], record)
+    asked = ask(catalogue, "Noisy sonar")
+    suggestion = catalogue.tma_suggest("p", asked)
+    assert suggestion["determined"]
+    _step, feature = catalogue.create_tma(
+        "p",
+        {
+            **asked,
+            "start_position": suggestion["start_position"],
+            "course": {"value": suggestion["course"], "unit": "deg"},
+            "speed": {"value": suggestion["speed"], "unit": "m/s"},
+        },
+        AGENT,
+    )
+    rows = catalogue.tma_residuals("p", feature)["rows"]
+    errors = [r["residual"] for r in rows if r.get("residual") is not None]
+    assert abs(sum(errors) / len(errors)) < 0.2
+    assert 0.35 < sum(e < 0 for e in errors) / len(errors) < 0.65
+    notes = catalogue.history("p").steps()[-1].records[0].notes
+    assert any(n.startswith("First guess suggested by least squares: ") for n in notes)

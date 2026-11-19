@@ -227,6 +227,29 @@ describe("Suggest on the first guess's form (CAP-21 as amended; product owner, 1
     expect(suggest.disabled).toBe(false);
   });
 
+  it("makes the solution from the fit's own start, unrounded, until a field is changed", () => {
+    control.show(cutsView(false));
+    q<HTMLButtonElement>(".tma-suggest").click();
+    control.suggested({ determined: true, cuts: 6, range: 9144, range_spread: 500, start_position: [-75.31, 37.11], course: 200.04, speed: 3.0866, rms: 0.8, note: "Suggested." });
+    q<HTMLButtonElement>("button[type=submit]").click();
+    expect(told.create).toHaveBeenLastCalledWith(expect.objectContaining({ start_position: [-75.31, 37.11], course: { value: 200.04, unit: "deg" }, speed: { value: 3.0866, unit: "m/s" } }));
+    expect(vi.mocked(told.create).mock.lastCall![0]).not.toHaveProperty("range");
+  });
+
+  it("makes it from the fields once the analyst changes one", () => {
+    control.show(cutsView(false));
+    q<HTMLButtonElement>(".tma-suggest").click();
+    control.suggested({ determined: true, cuts: 6, range: 9144, range_spread: 500, start_position: [-75.31, 37.11], course: 200.04, speed: 3.0866, rms: 0.8, note: "Suggested." });
+    const range = q<HTMLInputElement>("input[name=range]");
+    range.value = "5 nmi";
+    range.dispatchEvent(new Event("input"));
+    q<HTMLButtonElement>("button[type=submit]").click();
+    const sent = vi.mocked(told.create).mock.lastCall![0];
+    expect(sent).not.toHaveProperty("start_position");
+    expect(sent.course).toEqual({ value: 200, unit: "deg" });
+    expect(sent.range).toBeDefined();
+  });
+
   it("keeps the analyst's fields where the cuts do not settle the range, saying why", () => {
     control.show(cutsView(false));
     const before = value("range");

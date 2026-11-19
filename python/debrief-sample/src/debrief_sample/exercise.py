@@ -23,6 +23,15 @@ def _at(hour: int, minute: int = 0) -> int:
     return to_epoch_ms(datetime(*EXERCISE_DATE, hour, minute, tzinfo=UTC))
 
 
+# Serial 4 is on the exercise's second day (product owner, 18 Nov 2026), so that its background
+# comes from a day of AIS of its own and serials 1 to 3 stay as they were.
+SECOND_DAY = (2023, 6, 16)
+
+
+def _on_second_day(hour: int, minute: int = 0) -> int:
+    return to_epoch_ms(datetime(*SECOND_DAY, hour, minute, tzinfo=UTC))
+
+
 @dataclass(frozen=True)
 class Area:
     """The exercise area, a latitude and longitude box in degrees."""
@@ -105,12 +114,15 @@ BLUE = "BLUE ONE"
 RED = "RED ONE"
 CONTROL = "EXCON"
 
-# Serial windows (start, end) in epoch milliseconds: 4, 5 and 6 hours.
+# Serial windows (start, end) in epoch milliseconds: 4, 5 and 6 hours, on the first day. The
+# first day's AIS extract was reduced to these.
 WINDOWS: tuple[tuple[int, int], ...] = (
     (_at(8), _at(12)),
     (_at(12), _at(17)),
     (_at(17), _at(23)),
 )
+# Serial 4's window, the next morning: 4 hours, with an AIS extract of its own.
+SECOND_DAY_WINDOWS: tuple[tuple[int, int], ...] = ((_on_second_day(8), _on_second_day(12)),)
 
 
 def _blue(start: tuple[float, float], *legs: Leg) -> Platform:
@@ -248,6 +260,47 @@ SERIALS: tuple[Serial, ...] = (
             ScriptLine(200, CONTROL, "Communications check with all units: good."),
             ScriptLine(300, BLUE, "Searching for RED ONE."),
             ScriptLine(360, CONTROL, "Serial 3 ended. End of exercise."),
+        ),
+    ),
+    # A TMA practice serial (product owner, 18 Nov 2026): BLUE ONE zigs every half hour about
+    # RED ONE's course while RED ONE holds one course and speed throughout, so a whole period
+    # of bearings fits one course and speed, and the zigs give range.
+    Serial(
+        "serial-4",
+        4,
+        *SECOND_DAY_WINDOWS[0],
+        blue=_blue(
+            (-75.263, 37.0905),
+            Leg(30, 200, 6.5),
+            Leg(30, 280, 6.5),
+            Leg(30, 200, 6.5),
+            Leg(30, 280, 6.5),
+            Leg(30, 200, 6.5),
+            Leg(30, 280, 6.5),
+            Leg(30, 200, 6.5),
+            Leg(30, 280, 6.5),
+        ),
+        red=_red(
+            (-75.30, 37.12),
+            Leg(240, 240, 5, 20),
+        ),
+        script=(
+            ScriptLine(
+                0, CONTROL, "Serial 4 started. TMA practice: RED ONE to hold its course and speed."
+            ),
+            ScriptLine(
+                0,
+                RED,
+                "Intention: transit south-west on one course at 5 kn throughout.",
+                entry_type="Intention",
+            ),
+            ScriptLine(
+                0,
+                BLUE,
+                "Intention: zig every 30 minutes about RED ONE's course to resolve its range.",
+                entry_type="Intention",
+            ),
+            ScriptLine(240, CONTROL, "Serial 4 ended. End of the second day."),
         ),
     ),
 )

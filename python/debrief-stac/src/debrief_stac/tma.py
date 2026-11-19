@@ -54,7 +54,7 @@ from debrief_kernel.formatting import (
     format_quantity,
     format_time,
 )
-from debrief_kernel.geodesy import Position, TrackPath, range_bearing
+from debrief_kernel.geodesy import Position, TrackPath, destination, range_bearing
 from debrief_kernel.sensors import side_of
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
@@ -512,7 +512,32 @@ def _bearing_of(cut, which: str | None) -> tuple[float, str]:
     return sensors.degrees(props.bearing), "bearing"
 
 
+def _suggested(request: models.TmaRequest, first: CutInfo):
+    """Suggest's first guess (CAP-21 as amended): the fit's start, course and speed, as
+    they are; its start is where the fit put it, not moved onto the first cut's bearing."""
+    start = Position(*request.start_position)
+    course = sensors.degrees(request.course) % 360.0
+    knots = Quantity(request.speed.value, str(request.speed.unit)).to("[kn_i]").value
+    distance, bearing = range_bearing(first.origin, start) if first.origin else (None, None)
+    where = (
+        f"{format_quantity(distance.to(DEFAULT_SETTINGS.length_unit))} on "
+        f"{format_bearing(bearing)} from where the first cut was taken"
+        if distance is not None
+        else format_position(start)
+    )
+    said = (
+        f"First guess suggested by least squares: {where}, then {_course_speed_text(course, knots)}"
+    )
+    asked = [
+        models.ParameterValue(name="start_longitude", value=start.longitude),
+        models.ParameterValue(name="start_latitude", value=start.latitude),
+    ]
+    return start, course, knots, said, asked
+
+
 def _by_form(request: models.TmaRequest, first: CutInfo, host_name: str):
+    if request.start_position is not None and first.origin is not None:
+        return _suggested(request, first)
     if first.origin is None:
         raise TmaError(
             f"The first cut, at {sensors.when(first.cut.properties.time)}, was taken outside "
@@ -672,8 +697,17 @@ def suggest(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> 
     course = math.degrees(fitted.course_rad)
     knots = _knots(fitted.speed_mps)
     bearing = math.degrees(z[0]) % 360.0
+    # Where the fit puts the target at the first cut's time (east and north metres from the
+    # first cut's origin, the plane's reference), back on the globe for the request.
+    east, north = fitted.theta[0], fitted.theta[1]
+    start = destination(
+        reference,
+        Quantity(math.degrees(math.atan2(east, north)) % 360.0, "deg"),
+        Quantity(math.hypot(east, north), "m"),
+    )
     reply.update(
         determined=True,
+        start_position=[start.longitude, start.latitude],
         range=fitted.along_m,
         course=course,
         speed=fitted.speed_mps,
@@ -690,7 +724,8 @@ def suggest(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> 
     # fewer are wild bearings.
     spans = tma_fit.runs(fitted.far_off)
     drift = [r for r in spans if r[1] - r[0] + 1 >= DRIFT_RUN]
-    wild = sum(r[1] - r[0] + 1 for r in spans if r not in drift)
+    in_drift = {i for first, last in drift for i in range(first, last + 1)}
+    wild = sum(1 for i in fitted.wild if i not in in_drift)
     if drift:
         first, last = max(drift, key=lambda r: r[1] - r[0])
         when = _when(int(times[first]))

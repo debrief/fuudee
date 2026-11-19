@@ -1,6 +1,6 @@
-# AIS extract: Chesapeake Bay approaches, 15 June 2023
+# AIS extracts: Chesapeake Bay approaches, 15 and 16 June 2023
 
-`ais-2023-06-15-chesapeake-approaches.csv` is the background picture for the Debrief sample data (DEP-08): real AIS traffic, reduced and anonymised. It is a source: the builder copies it, unchanged and hashed, into every plot (SUB-10, SUB-11).
+`ais-2023-06-15-chesapeake-approaches.csv` (serials 1 to 3) and `ais-2023-06-16-chesapeake-approaches.csv` (serial 4, added 18 Nov 2026) are the background picture for the Debrief sample data (DEP-08): real AIS traffic, reduced and anonymised. It is a source: the builder copies it, unchanged and hashed, into every plot (SUB-10, SUB-11).
 
 ## Origin
 
@@ -12,6 +12,8 @@
 | File downloaded | <https://coast.noaa.gov/htdata/CMSP/AISDataHandler/2023/AIS_2023_06_15.zip> |
 | Downloaded | 11 Oct 2026 |
 | Archive SHA-256 | `bb4f228e8935b0d1f6039c0edd01db0c823fb4cc2d7648fa7b4a3be01d85eccb` (328,773,356 bytes; one CSV of 896,142,781 bytes) |
+| Second file (serial 4) | <https://coast.noaa.gov/htdata/CMSP/AISDataHandler/2023/AIS_2023_06_16.zip>, downloaded 18 Nov 2026 |
+| Its SHA-256 | `7687650f93718573043419ed330405bddada78dc804618b4425ffdb2997f7ce6` (343,474,791 bytes) |
 
 Times in the archive are UTC.
 
@@ -25,7 +27,7 @@ The Danish Maritime Authority's archive (aisdata.ais.dk) was considered first. I
 
 ## Reduction
 
-Made once by `python -m debrief_sample reduce-ais AIS_2023_06_15.zip <output>` (`reduce_marinecadastre` in `debrief_sample/ais.py`), which applies these steps in order:
+Made once by `python -m debrief_sample reduce-ais AIS_2023_06_15.zip <output>` (`reduce_marinecadastre` in `debrief_sample/ais.py`), and the second by `python -m debrief_sample reduce-ais AIS_2023_06_16.zip <output> --day 2023-06-16`, which apply these steps in order (the second keeping serial 4's window, 16 June 08:00Z to 12:00Z, and the vessels for that one serial):
 
 1. **Area.** 36.70°N to 37.20°N, 75.90°W to 75.20°W: open water east of the entrance to Chesapeake Bay, including the approach lanes and an anchorage.
 2. **Time.** The three serial windows only: 08:00Z to 12:00Z, 12:00Z to 17:00Z and 17:00Z to 23:00Z.
@@ -47,4 +49,4 @@ The anonymisation keeps vessel identities out of the sample data, walkthroughs a
 | `speed_kn` | Speed over ground, knots; 102.3 means not available |
 | `course_deg` | Course over ground, degrees true; 360 means not available |
 
-3,732 fixes, about 250 KB.
+The first: 3,732 fixes, about 250 KB. The second: 766 fixes of 7 vessels, about 50 KB. Each file names its vessels on its own, so "Cargo 01" of one is not "Cargo 01" of the other.

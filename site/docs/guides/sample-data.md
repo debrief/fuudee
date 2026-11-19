@@ -1,6 +1,6 @@
 # Sample data
 
-The sample data is a small exercise for demonstrations, walkthroughs and blog posts (DEP-08). It replaces the 1995 single-serial sample. Real, open AIS traffic gives the background picture; on top of it sits an invented exercise: a blue ownship, a red submarine, the ownship's sonar bearings and a scripted narrative, over three serials.
+The sample data is a small exercise for demonstrations, walkthroughs and blog posts (DEP-08). It replaces the 1995 single-serial sample. Real, open AIS traffic gives the background picture; on top of it sits an invented exercise: a blue ownship, a red submarine, the ownship's sonar bearings and a scripted narrative, over four serials on two days.
 
 Everything except the AIS is fiction. Use only this data in blog posts and interactive examples (DEV-05, DEV-06).
 
@@ -14,21 +14,22 @@ This creates a catalogue in the folder `sample`, with one plot per serial. The s
 
 ## What is in it
 
-The exercise lies in open water east of the entrance to Chesapeake Bay, on 15 Jun 2023. The area was chosen because open AIS covers it, not for any naval use. It is on the continental shelf, mostly 10 to 35 m deep, so RED ONE's depths are notional.
+The exercise lies in open water east of the entrance to Chesapeake Bay, on 15 and 16 Jun 2023. The area was chosen because open AIS covers it, not for any naval use. It is on the continental shelf, mostly 10 to 35 m deep, so RED ONE's depths are notional.
 
 | Serial | Time | Story |
 | --- | --- | --- |
 | 1 | 08:00Z to 12:00Z | BLUE ONE gains RED ONE, classifies it and follows it south-west, losing and regaining it. |
 | 2 | 12:00Z to 17:00Z | RED ONE heads west for the shipping lane; BLUE ONE zigzags astern of it to resolve range. |
 | 3 | 17:00Z to 23:00Z | BLUE ONE sprints and drifts; RED ONE evades, and is not regained after the first sprint. |
+| 4 | 08:00Z to 12:00Z the next day, 16 Jun | TMA practice (18 Nov 2026): RED ONE holds 240° at 5 kn throughout, and BLUE ONE zigs every half hour about its course, 2.5 to 4.5 nmi off, so a whole period of bearings fits one course and speed and its zigs give range. Its sensors are quieter, 0.5° (19 Nov 2026), so a solution can start with its error pane green. |
 
 Each plot holds:
 
-- **Background traffic.** 8 to 10 AIS tracks: merchant ships under way and at anchor, a tug, yachts and pleasure craft. Each is named by its type and a number, such as "Cargo 03", never by its real name.
+- **Background traffic.** 7 to 10 AIS tracks, from the serial's own day: merchant ships under way and at anchor, a tug, yachts and pleasure craft. Each is named by its type and a number, such as "Cargo 03", never by its real name.
 - **BLUE ONE and RED ONE.** One fix a minute. RED ONE's tracks carry depth. Both were written as REP files and imported, so they are sources like any analyst's.
 - **Sonar bearings.** Two sensors on BLUE ONE, each shown in the Outline under it and drawn as cuts in the time window (CAP-22; [sensors and bearings](interaction-models/sensors.md)):
-    - its **Bow sonar** (teal), on RED ONE every 30 seconds, with a 1.5° error. It holds RED ONE only within 4.5 nmi, outside its baffles astern and while not sprinting, and within those limits contact comes and goes, so each serial has gaps: 177 to 349 cuts a serial;
-    - its **Towed array** (purple), every minute, with a 2° error, out to 7 nmi: every cut **ambiguous**, its bearing and the mirror of it about BLUE ONE's course, in random order, as an array tells them. It is deaf within 15° of endfire (ahead and astern), and while BLUE ONE turns faster than 10° a minute or sprints; contact is gained and lost at random. 132 to 166 cuts a serial, left for the analyst to resolve: after a turn, the true bearing is the one that stayed put.
+    - its **Bow sonar** (teal), on RED ONE every 30 seconds, with a 1.5° error. It holds RED ONE only within 4.5 nmi, outside its baffles astern and while not sprinting, and within those limits contact comes and goes, so each serial has gaps: 177 to 349 cuts a serial (serial 4, held throughout, 334);
+    - its **Towed array** (purple), every minute, with a 2° error, out to 7 nmi: every cut **ambiguous**, its bearing and the mirror of it about BLUE ONE's course, in random order, as an array tells them. It is deaf within 15° of endfire (ahead and astern), and while BLUE ONE turns faster than 10° a minute or sprints; contact is gained and lost at random. 118 to 166 cuts a serial, left for the analyst to resolve: after a turn, the true bearing is the one that stayed put.
 - **Narrative.** About 35 entries per serial, in Zulu time, from BLUE ONE, RED ONE and exercise control (EXCON): intentions, alterations of course, first contact and its classification, contacts lost and regained, bearing reports with their drift, and closest approaches. Each entry has a kind (Course, Sonar, CPA, Log, Intention, Weather). The log is kept as a supporting file, and each entry is also a narrative entry in the plot, BLUE ONE's and RED ONE's belonging to their tracks, read in the Timeline (CAP-20).
 - **The exercise area**, as a shape, and two named sets: *Exercise* and *Background traffic*.
 
@@ -56,7 +57,7 @@ To see the history of a serial, open its `plot.geojson` and read `provenance`. E
 
 ## The AIS data
 
-The background traffic comes from the US national AIS archive, published by NOAA's Office for Coastal Management on MarineCadastre.gov from the US Coast Guard's receiver network. It is a US Government work, in the public domain in the United States. One day was reduced to a small area, the serial windows and 16 vessels, thinned to one fix a minute, with military, law-enforcement, pilot and search-and-rescue vessels left out. Every identifier was removed. The reduction and the licence are described beside the extract, in `python/debrief-sample/data/README.md`.
+The background traffic comes from the US national AIS archive, published by NOAA's Office for Coastal Management on MarineCadastre.gov from the US Coast Guard's receiver network. It is a US Government work, in the public domain in the United States. Each day was reduced to a small area and its serial windows (16 vessels on the first day, 7 on the second), thinned to one fix a minute, with military, law-enforcement, pilot and search-and-rescue vessels left out. Every identifier was removed. The reduction and the licence are described beside the extract, in `python/debrief-sample/data/README.md`.
 
 ## For walkthroughs
 

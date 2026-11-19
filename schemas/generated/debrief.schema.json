@@ -11100,6 +11100,18 @@
           ],
           "description": "First guess by form: the solution's speed."
         },
+        "start_position": {
+          "items": {
+            "description": "First guess as Suggest gives it (CAP-21 as amended; 18 Nov 2026): [longitude, latitude] where the solution is at the first cut's time, with a course and a speed, instead of a range. The fit's start is not on the first cut's measured bearing, which carries its own error; putting it there would shift the whole solution sideways.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
         "store": {
           "description": "The store's id in the analyst's configuration.",
           "type": "string"
@@ -11802,6 +11814,15 @@
             }
           ],
           "description": "First guess by form: the solution's speed."
+        },
+        "start_position": {
+          "items": {
+            "description": "First guess as Suggest gives it (CAP-21 as amended; 18 Nov 2026): [longitude, latitude] where the solution is at the first cut's time, with a course and a speed, instead of a range. The fit's start is not on the first cut's measured bearing, which carries its own error; putting it there would shift the whole solution sideways.",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
         }
       },
       "title": "TmaRequest",
@@ -12615,6 +12636,18 @@
           ],
           "description": "First guess by form: the solution's speed."
         },
+        "start_position": {
+          "items": {
+            "description": "First guess as Suggest gives it (CAP-21 as amended; 18 Nov 2026): [longitude, latitude] where the solution is at the first cut's time, with a course and a speed, instead of a range. The fit's start is not on the first cut's measured bearing, which carries its own error; putting it there would shift the whole solution sideways.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
         "store": {
           "description": "The store's id in the analyst's configuration.",
           "type": "string"
@@ -12742,6 +12775,15 @@
             "number",
             "null"
           ]
+        },
+        "start_position": {
+          "items": {
+            "description": "[longitude, latitude] where the fit puts the target at the first cut's time, for the request's start_position, so the solution made is the fit itself. Given when determined.",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
         }
       },
       "required": [
